@@ -36,6 +36,10 @@ try {
   ok("Ejecutivo del CRM · sin acceso al área jurídica y sin datos", p2.status === 200 && /Sin acceso al área jurídica/.test(p2.text) && !p2.html.includes("JUR Cliente Prueba"), String(p2.status));
   const seen = await eje.c.from("legal_clients").select("id");
   ok("Ejecutivo · la base tampoco le entrega clientes legales (RLS)", (seen.data ?? []).length === 0);
+  const ficha = await page(jur, `/clientes/${cl.data?.id}`);
+  ok("Jurídico · ficha del cliente con pestañas y antecedentes", ficha.status === 200 && /Antecedentes.*Insolvencia.*Acreedores.*Bienes.*Ingresos y gastos.*Documentos/.test(ficha.text) && /12\.345\.678-5/.test(ficha.text), String(ficha.status));
+  const upd = await jur.c.from("legal_clients").update({ rut: "123456785", tribunal: "1º Juzgado Civil" }).eq("id", cl.data?.id).select();
+  ok("Jurídico · edita antecedentes (RLS legal.edit)", (upd.data ?? []).length === 1, upd.error?.message);
   const p3 = await page(jur, "/configuracion");
   ok("Jurídico · /configuracion denegado (solo legal.settings)", p3.status === 307 || /NEXT_REDIRECT|Sin acceso/.test(p3.html), String(p3.status));
   const p4 = await page(jur, "/plantillas");
