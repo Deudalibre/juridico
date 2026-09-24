@@ -412,7 +412,7 @@ textarea::placeholder {
   .btn-ghost {
     background: transparent;
     color: var(--text-soft);
-    border-color: transparent;
+    border-color: var(--border);
     font-weight: 500;
   }
   .btn-ghost:hover:not(:disabled) {
@@ -946,6 +946,156 @@ textarea::placeholder {
   }
   .icon-btn.plain {
     border-color: transparent;
+  }
+
+  /* ---------------- Desplegables y menús (Radix) ---------------- */
+  .sel-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    max-width: 260px;
+    padding: 0 8px 0 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-control);
+    background: var(--surface);
+    color: var(--text-primary);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 1px 1px rgba(31, 41, 51, 0.03);
+    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+  }
+  .sel-trigger:hover {
+    border-color: #c4ccd3;
+  }
+  .sel-trigger[data-state="open"],
+  .sel-trigger:focus-visible {
+    border-color: var(--brand-line-strong);
+    box-shadow: 0 0 0 3px var(--brand-ring);
+    outline: none;
+  }
+  .sel-trigger[data-disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .sel-trigger.sel-sm {
+    min-height: 30px;
+    font-size: 12.5px;
+    padding: 0 6px 0 8px;
+  }
+  /* Variante integrada en tarjetas: sin borde hasta pasar el mouse */
+  .sel-trigger.sel-inline {
+    min-height: 24px;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    padding: 0 4px 0 4px;
+    font-size: 12.5px;
+    color: var(--text-soft);
+  }
+  .sel-trigger.sel-inline:hover,
+  .sel-trigger.sel-inline[data-state="open"] {
+    border-color: var(--border);
+    background: var(--surface-secondary);
+    box-shadow: none;
+  }
+  .sel-prefix {
+    color: var(--text-secondary);
+    font-weight: 400;
+    white-space: nowrap;
+  }
+  .sel-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sel-chevron {
+    color: var(--text-faint);
+    display: inline-flex;
+    margin-left: 2px;
+  }
+  .sel-content,
+  .menu-content {
+    min-width: var(--radix-select-trigger-width, 180px);
+    max-height: var(--radix-select-content-available-height, 320px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-card);
+    box-shadow: var(--shadow-md);
+    padding: 4px;
+    z-index: 60;
+    animation: fade-in var(--dur-fast) var(--ease-standard) both;
+  }
+  .menu-content {
+    min-width: 200px;
+  }
+  .sel-viewport {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .sel-item,
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 0 28px 0 10px;
+    border-radius: var(--r-control);
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+    position: relative;
+  }
+  .menu-item {
+    padding-right: 10px;
+    width: 100%;
+    background: transparent;
+    border: 0;
+    text-align: left;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .sel-item[data-highlighted],
+  .menu-item[data-highlighted] {
+    background: var(--surface-secondary);
+  }
+  .sel-item[data-state="checked"] {
+    font-weight: 500;
+  }
+  .sel-item[data-disabled] {
+    color: var(--text-faint);
+    cursor: not-allowed;
+  }
+  .sel-check {
+    position: absolute;
+    right: 8px;
+    display: inline-flex;
+    color: var(--brand-dark);
+  }
+  .menu-item-danger {
+    color: var(--danger);
+  }
+  .menu-label {
+    padding: 8px 10px 6px;
+  }
+  .menu-sep {
+    height: 1px;
+    background: var(--border-soft);
+    margin: 4px 0;
+  }
+
+  /* Acciones de fila: presentes pero discretas; al pasar el mouse o enfocar toman protagonismo */
+  .row-actions {
+    opacity: 0.7;
+    transition: opacity var(--dur-fast) var(--ease-standard);
+  }
+  .group:hover .row-actions,
+  .group:focus-within .row-actions {
+    opacity: 1;
   }
 
   /* Estado vacío */
