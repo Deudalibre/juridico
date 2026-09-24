@@ -39,7 +39,7 @@ export default async function ClientesPage({ searchParams: sp }: { searchParams:
         </div>
       </div>
 
-      <section className="panel !rounded-xl overflow-hidden">
+      <section className="panel overflow-hidden">
         {rows.length === 0 ? (
           <div className="empty">
             <span className="icon-tile">
