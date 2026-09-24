@@ -1,0 +1,62 @@
+import { redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { requireUser } from "./supabase/server";
+import type { Permission } from "./permissions";
+import type { Profile } from "./types";
+
+/**
+ * Usuario, perfil y permisos. Misma base y misma matriz de permisos que el CRM
+ * (tabla role_permissions, leída con my_permissions()); nada viene del cliente.
+ */
+export async function getContext() {
+  const { supabase, user } = await requireUser();
+  const [{ data: profile }, { data: perms }] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+    supabase.rpc("my_permissions"),
+  ]);
+  const p = (profile ?? { id: user.id, full_name: user.email?.split("@")[0] ?? "", email: user.email ?? "", role: "ejecutivo", active: false, timezone: "America/Santiago" }) as Profile;
+  const permissions = new Set<Permission>(((perms ?? []) as Permission[]).filter(Boolean));
+  const can = (x: Permission) => p.active && permissions.has(x);
+  return { supabase, user, profile: p, tz: p.timezone || "America/Santiago", permissions: Array.from(permissions), can };
+}
+
+export type Context = Awaited<ReturnType<typeof getContext>>;
+
+/** Exige un permiso del área jurídica; sin él, pantalla de «sin acceso». */
+export async function requirePermission(x: Permission) {
+  const ctx = await getContext();
+  if (!ctx.can(x)) redirect("/sin-acceso");
+  return ctx;
+}
+
+export type LegalClient = {
+  id: string;
+  internal_number: string | null;
+  full_name: string;
+  rut: string | null;
+  phone: string | null;
+  email: string | null;
+  procedure_type: string | null;
+  tribunal: string | null;
+  rol: string | null;
+  status_id: string | null;
+  lawyer_id: string | null;
+  lead_id: string | null;
+  last_review_at: string | null;
+  next_review_at: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LegalStatus = { id: string; name: string; position: number; active: boolean; is_terminal: boolean };
+
+export async function getStatuses(supabase: SupabaseClient): Promise<LegalStatus[]> {
+  const { data } = await supabase.from("legal_statuses").select("*").eq("active", true).order("position");
+  return (data ?? []) as LegalStatus[];
+}
+
+export async function getMembers(supabase: SupabaseClient) {
+  const { data } = await supabase.from("profiles").select("id, full_name, email, role, active").order("full_name");
+  return (data ?? []) as { id: string; full_name: string; email: string; role: string; active: boolean }[];
+}
