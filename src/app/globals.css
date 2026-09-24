@@ -804,24 +804,28 @@ textarea::placeholder {
   .toast.error {
     border-left-color: var(--danger);
   }
+  /* Capas modales (Radix Dialog): el fondo oscurece; el contenido se centra arriba y puede desplazarse */
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(38, 50, 56, 0.32);
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 64px 16px;
-    overflow-y: auto;
+    background: rgba(31, 41, 51, 0.36);
     z-index: 50;
   }
   .modal {
-    width: 100%;
+    position: fixed;
+    top: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
     max-width: 560px;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
     padding: 24px;
     display: flex;
     flex-direction: column;
     gap: 16px;
+    z-index: 51;
+    outline: none;
   }
   .popover {
     position: absolute;
