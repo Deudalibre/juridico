@@ -5,7 +5,8 @@ import { Icon } from "@/components/icons";
 
 // Clientes en tramitación: la tabla legal_clients (misma base que el CRM; el vínculo con el
 // lead comercial es legal_clients.lead_id).
-export default async function ClientesPage({ searchParams: sp }: { searchParams: { q?: string } }) {
+export default async function ClientesPage(props: { searchParams: Promise<{ q?: string }> }) {
+  const sp = await props.searchParams;
   const { supabase, tz, can } = await requirePermission("legal.view");
   const [statuses, members, res] = await Promise.all([
     getStatuses(supabase),

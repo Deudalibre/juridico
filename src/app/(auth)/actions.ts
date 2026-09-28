@@ -18,7 +18,7 @@ export async function signIn(_prev: FormState, fd: FormData): Promise<FormState>
   if (!password) errors.password = "Indica tu contraseña.";
   if (Object.keys(errors).length) return { errors };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { message: translate(error.message) };
   await supabase.rpc("log_login"); // auditoría compartida con el CRM
@@ -26,7 +26,7 @@ export async function signIn(_prev: FormState, fd: FormData): Promise<FormState>
 }
 
 export async function signOut() {
-  const supabase = createClient();
+  const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
 }
