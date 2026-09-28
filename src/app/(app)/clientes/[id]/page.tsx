@@ -11,7 +11,11 @@ const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL ?? "http://localhost:3000";
 // Las demás pestañas se construyen cuando exista el mapa de plantillas: se indican como pendientes.
 const TABS = ["Antecedentes", "Insolvencia", "Acreedores", "Bienes", "Ingresos y gastos", "Documentos"] as const;
 
-export default async function ClientePage({ params, searchParams }: { params: { id: string }; searchParams: { tab?: string } }) {
+export default async function ClientePage(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const { supabase, tz, can } = await requirePermission("legal.view");
   if (!/^[0-9a-f-]{36}$/i.test(params.id)) notFound();
   const [{ data }, statuses, members] = await Promise.all([
