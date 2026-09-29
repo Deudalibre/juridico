@@ -15,20 +15,20 @@
   --brand-primary: #0cc1e0; /* turquesa de marca: marca, acento y estado activo */
   --brand-rgb: 12, 193, 224; /* el mismo turquesa, para versiones translúcidas */
   --brand-graphite: #3c4650; /* grafito: títulos */
-  --brand-dark: #0b7d93; /* turquesa funcional: botón primario, enlaces de acción */
-  --brand-darker: #096a7d;
+  --brand-dark: #087f9c; /* turquesa funcional: botón primario, enlaces de acción (AA sobre blanco) */
+  --brand-darker: #076c85;
 
   --app-background: #eef3f6;
   --surface: #ffffff;
   --surface-secondary: #f4f8fa;
-  /* Estado activo: turquesa muy suave sobre blanco */
-  --surface-active: rgba(var(--brand-rgb), 0.08);
-  --brand-tint: rgba(var(--brand-rgb), 0.14);
-  --brand-ring: rgba(var(--brand-rgb), 0.24);
+  /* Estado activo: turquesa suave pero visible sobre blanco (estilo Vambe) */
+  --surface-active: rgba(var(--brand-rgb), 0.13);
+  --brand-tint: rgba(var(--brand-rgb), 0.2);
+  --brand-ring: rgba(var(--brand-rgb), 0.32);
 
   --border: #dbeaee;
   --text-primary: #0b1220;
-  --text-secondary: #64748b;
+  --text-secondary: #526071;
 
   --success: #1a7f4b;
   --warning: #9a6700;
@@ -38,9 +38,9 @@
   --border-strong: #c8dee4;
   --border-soft: #eaf3f5;
   --text-soft: #334155;
-  --text-faint: #94a3b8;
-  --brand-line: rgba(var(--brand-rgb), 0.3);
-  --brand-line-strong: rgba(var(--brand-rgb), 0.55);
+  --text-faint: #8a9ab0;
+  --brand-line: rgba(var(--brand-rgb), 0.38);
+  --brand-line-strong: rgba(var(--brand-rgb), 0.6);
   --success-bg: #ecf7f0;
   --success-line: #c6e6d2;
   --warning-bg: #fbf5e6;
@@ -48,8 +48,11 @@
   --danger-bg: #fbeeed;
   --danger-line: #f1c9c5;
   /* Superficies definidas por una línea de 1 px, no por sombra; la sombra solo en capas flotantes */
-  --shadow-sm: 0 1px 2px 0 rgba(52, 66, 86, 0.06);
+  --shadow-sm: 0 1px 2px 0 rgba(52, 66, 86, 0.08);
   --shadow-md: 0 10px 30px -6px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  /* Tarjetas del embudo: sombra suave en reposo (como Vambe), más presente al pasar el cursor */
+  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.06);
+  --card-shadow-hover: 0 2px 4px rgba(15, 23, 42, 0.08), 0 8px 20px -4px rgba(15, 23, 42, 0.14);
 
   --r-control: 6px; /* botones, campos, chips */
   --r-card: 8px; /* tarjetas, filas destacadas */
@@ -131,7 +134,8 @@ textarea::placeholder {
     width: 36px;
     height: 36px;
     border-radius: var(--r-card);
-    background: var(--brand-graphite);
+    /* Mosaico de marca en turquesa (como el logo de Vambe en azul); provisional hasta tener el logo real */
+    background: linear-gradient(135deg, var(--brand-primary), var(--brand-dark));
     color: #fff;
     font-weight: 600;
     font-size: 13px;
@@ -372,15 +376,20 @@ textarea::placeholder {
   .tabnum {
     font-variant-numeric: tabular-nums;
   }
+  /* Avatar de contacto: círculo de tinte suave con iniciales en color (como Vambe); `.solid` para el usuario */
   .avatar {
     border-radius: 50%;
-    background: var(--brand-dark);
+    background: var(--surface-active);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    color: #fff;
+    color: var(--brand-dark);
     flex-shrink: 0;
+  }
+  .avatar.solid {
+    background: var(--brand-dark);
+    color: #fff;
   }
   /* Mosaico de ícono lleno (encabezados de página y tarjetas de ajustes) */
   .icon-tile.solid {
@@ -658,16 +667,24 @@ textarea::placeholder {
   /* ---------------- Listas y tablas ---------------- */
   .leads-grid {
     display: grid;
-    grid-template-columns: minmax(0, 2.2fr) 0.9fr 1.1fr 1.1fr 1.4fr 1fr;
+    /* La última columna es fija para que cabecera y filas (grids independientes) alineen igual */
+    grid-template-columns: minmax(0, 2fr) 0.8fr 1fr 1.1fr 1.3fr 1fr 184px;
     gap: 12px;
     align-items: center;
+  }
+  /* Última columna: acciones alineadas a la derecha */
+  .leads-grid > :last-child {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
   }
   .row-view {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    height: 26px;
-    padding: 0 8px;
+    gap: 5px;
+    height: 28px;
+    padding: 0 9px;
     border-radius: var(--r-control);
     border: 1px solid var(--border);
     font-size: 12px;
@@ -1256,7 +1273,7 @@ textarea::placeholder {
     align-items: center;
     justify-content: center;
     border-radius: var(--r-control);
-    background: var(--surface);
+    background: var(--tone-soft, var(--surface));
     color: var(--tone-fg);
     box-shadow: var(--shadow-sm);
   }
@@ -2472,11 +2489,14 @@ textarea::placeholder {
 }
 @media (max-width: 900px) {
   .leads-grid {
-    grid-template-columns: minmax(0, 1.6fr) 1fr 1fr;
+    grid-template-columns: minmax(0, 1.6fr) 1fr 1fr 56px;
   }
   .leads-grid > :nth-child(2),
   .leads-grid > :nth-child(4),
   .leads-grid > :nth-child(5) {
+    display: none;
+  }
+  .leads-grid > :last-child .row-view {
     display: none;
   }
 }
@@ -2797,10 +2817,10 @@ textarea::placeholder {
     font-size: 12px;
   }
   .column-name {
-    font-weight: 500;
+    font-weight: 600;
   }
   .column-sub {
-    color: var(--text-primary);
+    color: var(--text-secondary);
     font-size: 11px;
   }
   .deal-card {
@@ -2813,9 +2833,24 @@ textarea::placeholder {
   .card-meta {
     font-size: 11px;
   }
+  /* Badge de estado como en Vambe: pequeño, con peso y fondo de color claro */
   .card-chip {
-    font-size: 9px;
-    padding: 2px 5px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 6px;
+    letter-spacing: 0.01em;
+  }
+  .card-chip.success {
+    border-color: var(--success-line);
+  }
+  .card-chip.warning {
+    background: #fdf1d6;
+    border-color: var(--warning-line);
+  }
+  .card-chip.danger {
+    background: #fde4e2;
+    border-color: var(--danger-line);
   }
 
   /* Indicadores */
@@ -2870,11 +2905,21 @@ textarea::placeholder {
     max-height: none;
     min-height: 420px;
   }
+  /* Tarjeta: sin borde visible, con sombra suave que la despega del fondo teñido de la columna */
   .deal-card {
-    box-shadow: none;
+    border-color: transparent;
+    box-shadow: var(--card-shadow);
   }
   .deal-card:hover {
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    border-color: transparent;
+    box-shadow: var(--card-shadow-hover);
+  }
+  .deal-card[aria-current="true"] {
+    border-color: var(--brand-line-strong);
+    box-shadow: var(--card-shadow), 0 0 0 3px var(--brand-ring);
+  }
+  .deal-card.is-lifted {
+    box-shadow: 0 14px 32px rgba(38, 50, 56, 0.18);
   }
   .deal-card.overdue,
   .deal-card.needs-action,
@@ -2886,9 +2931,12 @@ textarea::placeholder {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--text-soft);
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .card-act {
+    color: var(--text-secondary);
   }
   .card-source {
     border: 0;
@@ -2914,5 +2962,100 @@ textarea::placeholder {
   }
   .rail-item {
     width: 68px;
+  }
+
+  /* Tipografía medida en Vambe: grupos de filtros en gris 12/500, filas 12/500 */
+  .filter-group > summary {
+    color: var(--text-secondary);
+  }
+  .filter-group[open] > summary,
+  .filter-group > summary:hover {
+    color: var(--text-primary);
+  }
+  .leads-grid.row {
+    font-size: 12px;
+  }
+  .leads-grid .badge,
+  .leads-grid .row-chip {
+    font-size: 11px;
+  }
+}
+
+/* ============================================================
+   Tabla de leads: cabecera ordenable y barra de filtros activos (estilo Vambe)
+   ============================================================ */
+@layer components {
+  .th-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: inherit;
+    border-radius: 4px;
+    transition: color var(--dur-fast) var(--ease-standard);
+  }
+  .th-sort:hover {
+    color: var(--text-primary);
+  }
+  .th-sort.is-active {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .th-sort-icon {
+    display: inline-flex;
+    color: var(--text-faint);
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+  }
+  .th-sort:hover .th-sort-icon,
+  .th-sort.is-active .th-sort-icon {
+    opacity: 1;
+  }
+  .th-sort.is-active .th-sort-icon {
+    color: var(--brand-dark);
+  }
+  .th-sort-icon.asc {
+    transform: rotate(180deg);
+  }
+
+  .applied-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-top: 1px solid var(--border-soft);
+    background: var(--surface-secondary);
+  }
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 6px 0 9px;
+    border-radius: 999px;
+    border: 1px solid var(--brand-line);
+    background: var(--surface);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+  }
+  .filter-chip > svg {
+    color: var(--text-faint);
+  }
+  .filter-chip:hover {
+    border-color: var(--danger-line);
+    background: var(--danger-bg);
+  }
+  .filter-chip:hover > svg {
+    color: var(--danger);
+  }
+  .filter-chip-k {
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+  .filter-chip-k::after {
+    content: ":";
   }
 }

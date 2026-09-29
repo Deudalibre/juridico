@@ -32,7 +32,7 @@ function UserMenu({ name, role, crmUrl }: { name: string; role: Role; crmUrl: st
   return (
     <div className="relative" ref={ref}>
       <button className="flex items-center gap-2 rounded-lg border-0 bg-transparent p-1 pr-2 hover:bg-surface-2" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Menú de usuario">
-        <span className="avatar h-8 w-8 text-[11px]">{initials(name) || "?"}</span>
+        <span className="avatar solid h-8 w-8 text-[11px]">{initials(name) || "?"}</span>
       </button>
       {open && (
         <div className="popover fade-in !w-56">
