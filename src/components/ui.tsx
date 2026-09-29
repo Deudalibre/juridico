@@ -2,6 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 import { useState, useTransition, type ReactNode } from "react";
+import { Icon } from "./icons";
 
 export function SubmitButton({ children, pendingText, className = "btn-primary" }: { children: ReactNode; pendingText?: string; className?: string }) {
   const { pending } = useFormStatus();
@@ -48,12 +49,19 @@ export function FormMessage({ message }: { message?: string }) {
 }
 
 /** Barra blanca de encabezado de pantalla: título a la izquierda, acciones a la derecha. */
-export function PageTitle({ title, subtitle, children }: { title: string; subtitle?: ReactNode; children?: ReactNode }) {
+export function PageTitle({ title, subtitle, icon, children }: { title: string; subtitle?: ReactNode; icon?: string; children?: ReactNode }) {
   return (
     <div className="page-head">
-      <div className="flex min-w-0 flex-col gap-1">
-        <h1 className="page-title">{title}</h1>
-        {subtitle && <span className="page-subtitle">{subtitle}</span>}
+      <div className="flex min-w-0 items-center gap-3">
+        {icon && (
+          <span className="icon-tile solid">
+            <Icon name={icon} size={18} />
+          </span>
+        )}
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h1 className="page-title">{title}</h1>
+          {subtitle && <span className="page-subtitle">{subtitle}</span>}
+        </div>
       </div>
       {children}
     </div>
