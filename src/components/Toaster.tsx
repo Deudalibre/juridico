@@ -9,7 +9,7 @@ type Toast = { message: string; error?: boolean };
 export function Toaster() {
   const [current, setCurrent] = useState<(Toast & { key: number }) | null>(null);
   const [leaving, setLeaving] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const params = useSearchParams();
   const router = useRouter();
   const path = usePathname();

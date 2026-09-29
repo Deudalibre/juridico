@@ -33,7 +33,6 @@ function UserMenu({ name, role, crmUrl }: { name: string; role: Role; crmUrl: st
     <div className="relative" ref={ref}>
       <button className="flex items-center gap-2 rounded-lg border-0 bg-transparent p-1 pr-2 hover:bg-surface-2" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Menú de usuario">
         <span className="avatar solid h-8 w-8 text-[11px]">{initials(name) || "?"}</span>
-        <span className="hidden max-w-[140px] truncate text-[13px] font-medium text-fg sm:inline">{name}</span>
       </button>
       {open && (
         <div className="popover fade-in !w-56">
@@ -83,10 +82,15 @@ export function Shell({ children, name, role, permissions, crmUrl }: Props) {
       <div className="workspace">
         <header className="topbar">
           <div className="crumbs">
-            <span className="whitespace-nowrap">Jurídico</span>
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <Icon name="folder" size={14} />
+              Jurídico
+            </span>
             {crumbs.map((c, i) => (
               <span key={c} className="flex min-w-0 items-center gap-1.5">
-                <span className="text-faint">/</span>
+                <span className="text-faint">
+                  <Icon name="chevron" size={13} />
+                </span>
                 {i === crumbs.length - 1 ? <strong>{c}</strong> : <span className="whitespace-nowrap">{c}</span>}
               </span>
             ))}

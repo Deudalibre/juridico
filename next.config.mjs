@@ -12,6 +12,11 @@ const securityHeaders = [
 
 const nextConfig = {
   poweredByHeader: false,
+  experimental: {
+    // Navegación instantánea entre pantallas ya visitadas y precarga al pasar el mouse (igual que el CRM)
+    staleTimes: { dynamic: 30 },
+    dynamicOnHover: true,
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
