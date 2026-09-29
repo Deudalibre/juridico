@@ -23,12 +23,12 @@ export async function createClient() {
   });
 }
 
-/** Cliente + usuario autenticado; si no hay sesión, a /login. */
+/** Cliente + usuario autenticado; sin sesión, al login del CRM (Jurídico no tiene login propio). */
 export async function requireUser() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) redirect(`${process.env.NEXT_PUBLIC_CRM_URL ?? "http://localhost:3000"}/login`);
   return { supabase, user };
 }
