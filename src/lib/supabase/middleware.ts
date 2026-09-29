@@ -1,7 +1,8 @@
-﻿import { createServerClient } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth"];
+// Jurídico no tiene login propio: sin sesión se manda al login del CRM con el destino en ?next=
+const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL ?? "http://localhost:3000";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -29,7 +30,6 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"));
 
   const redirectTo = (pathname: string) => {
     const url = request.nextUrl.clone();
@@ -40,7 +40,10 @@ export async function updateSession(request: NextRequest) {
     return res;
   };
 
-  if (!user && !isPublic) return redirectTo("/login");
+  if (!user) {
+    const next = path === "/login" ? "" : `?next=${encodeURIComponent(request.nextUrl.href)}`;
+    return NextResponse.redirect(`${CRM_URL}/login${next}`);
+  }
   if (user && path === "/login") return redirectTo("/clientes");
 
   return response;

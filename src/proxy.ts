@@ -2,9 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
-  // Sin credenciales solo /login funciona (muestra cómo configurarlas).
+  // Sin credenciales de Supabase no hay nada que servir.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return request.nextUrl.pathname === "/login" ? NextResponse.next() : NextResponse.redirect(new URL("/login", request.url));
+    return new NextResponse("Supabase no está configurado: faltan NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.", { status: 503 });
   }
   return updateSession(request);
 }
