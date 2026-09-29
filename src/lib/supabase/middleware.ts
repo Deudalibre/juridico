@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { sessionCookieOptions } from "./cookies";
 
 // Jurídico no tiene login propio: sin sesión se manda al login del CRM con el destino en ?next=
 const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL ?? "http://localhost:3000";
@@ -11,6 +12,7 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: sessionCookieOptions(request.headers.get("host")),
       cookies: {
         getAll() {
           return request.cookies.getAll();
