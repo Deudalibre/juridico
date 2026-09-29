@@ -44,3 +44,6 @@ dev-log.txt
 
 # runtime logs
 dev-server.log
+
+.vercel
+.env*
