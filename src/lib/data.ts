@@ -122,3 +122,15 @@ export async function getMembers(supabase: SupabaseClient) {
   const { data } = await supabase.from("profiles").select("id, full_name, email, role, active").order("full_name");
   return (data ?? []) as { id: string; full_name: string; email: string; role: string; active: boolean }[];
 }
+
+export type LegalReview = {
+  id: string;
+  client_id: string;
+  reviewed_at: string;
+  reviewed_by: string | null;
+  reviewer_name: string | null;
+  had_movement: boolean;
+  note: string | null;
+  next_review_at: string | null;
+  task_id: string | null;
+};

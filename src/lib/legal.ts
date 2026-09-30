@@ -89,3 +89,19 @@ export function currentStep(p: string | null | undefined, done: readonly string[
 
 /** Tono de la etiqueta según procedimiento (mismos tonos que las etiquetas del CRM). */
 export const procedureTone = (p: string | null): "" | "brand" | "warn" => (p === "Renegociación" ? "brand" : isLiquidacion(p) ? "" : "warn");
+
+/**
+ * Checklist de antecedentes por procedimiento: apagado por decisión del estudio (2026-09-30), «por ahora solo
+ * vemos el Drive». Las tablas y las acciones siguen existiendo; al volver a true reaparece en la ficha.
+ */
+export const CHECKLIST_ENABLED = false;
+
+/** Revisión de causas: cada cuánto vuelve a tocar revisar una causa (días); el revisor puede elegir otro plazo. */
+export const REVIEW_EVERY_DAYS = 7;
+export const REVIEW_INTERVALS: { days: number; label: string }[] = [
+  { days: 1, label: "Mañana" },
+  { days: 3, label: "En 3 días" },
+  { days: 7, label: "En una semana" },
+  { days: 14, label: "En dos semanas" },
+  { days: 30, label: "En un mes" },
+];
