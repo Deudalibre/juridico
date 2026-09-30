@@ -46,12 +46,17 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
   const params = await props.params;
   const { supabase, tz, can } = await requirePermission("legal.view");
   if (!/^[0-9a-f-]{36}$/i.test(params.id)) notFound();
-  const [{ data }, members, stepsRes, tasksRes] = await Promise.all([
+  const [{ data }, members, stepsRes, tasksRes, histRes] = await Promise.all([
     supabase.from("legal_clients").select("*").eq("id", params.id).maybeSingle(),
     getMembers(supabase),
     supabase.from("legal_case_steps").select("*").eq("client_id", params.id),
     supabase.from("legal_tasks").select("*").eq("client_id", params.id).order("due_at", { ascending: true, nullsFirst: false }),
+    searchParams.tab === "Historial"
+      ? supabase.from("legal_case_history").select("id, at, actor_name, kind, summary").eq("client_id", params.id).order("at", { ascending: false }).limit(200)
+      : Promise.resolve({ data: [] as { id: number; at: string; actor_name: string | null; kind: string; summary: string | null }[] }),
   ]);
+  const history = (histRes.data ?? []) as { id: number; at: string; actor_name: string | null; kind: string; summary: string | null }[];
+  const KIND_LABEL: Record<string, string> = { paso: "Paso", cierre: "Cierre", estado: "Estado", abogado: "Abogado", revision: "Revisión", tarea: "Tarea" };
   if (!data) notFound();
   const c = data as LegalClient;
   const done = (stepsRes.data ?? []) as CaseStep[];
@@ -179,13 +184,33 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
           closed={closed}
           tz={tz}
         />
+      ) : tab === "Historial" ? (
+        <section className="panel overflow-hidden">
+          <div className="panel-head">
+            <span className="card-title">Historial de la causa</span>
+            <span className="text-[12.5px] text-muted">{history.length === 0 ? "Sin movimientos todavía" : `${history.length} movimientos`}</span>
+          </div>
+          {history.length === 0 ? (
+            <div className="px-5 py-6 text-center text-[12.5px] text-faint">Los pasos, cierres, asignaciones y cambios de estado de esta causa aparecerán aquí en orden.</div>
+          ) : (
+            <ol className="flex flex-col">
+              {history.map((h) => (
+                <li key={h.id} className="flex flex-wrap items-center gap-3 border-b border-line-soft px-5 py-2.5 last:border-b-0">
+                  <span className={`tag ${h.kind === "cierre" ? "danger" : h.kind === "paso" ? "brand" : ""}`}>{KIND_LABEL[h.kind] ?? h.kind}</span>
+                  <span className="min-w-0 flex-1 text-[13px] text-fg">{h.summary ?? "—"}</span>
+                  <span className="tabnum text-[12px] text-muted">
+                    {dateTime(h.at, tz)}
+                    {h.actor_name ? ` · ${h.actor_name}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
       ) : (
         <section className="panel empty">
-          <span className="empty-title">{tab}: llega en la siguiente etapa</span>
-          <span className="empty-text">
-            {tab === "Documentos" && "Checklist por procedimiento, subida de archivos, estados y versiones; después, generación desde las plantillas Word."}
-            {tab === "Historial" && "Cambios de paso, asignaciones, tareas y revisiones de esta causa, en orden."}
-          </span>
+          <span className="empty-title">Documentos: llega en la siguiente etapa</span>
+          <span className="empty-text">Checklist por procedimiento, subida de archivos, estados y versiones; después, generación desde las plantillas Word.</span>
         </section>
       )}
     </>
