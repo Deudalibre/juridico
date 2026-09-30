@@ -38,7 +38,7 @@
   --border-strong: #c8dee4;
   --border-soft: #eaf3f5;
   --text-soft: #334155;
-  --text-faint: #8a9ab0;
+  --text-faint: #6f7f94;
   --brand-line: rgba(var(--brand-rgb), 0.38);
   --brand-line-strong: rgba(var(--brand-rgb), 0.6);
   --success-bg: #ecf7f0;
@@ -83,6 +83,8 @@ body {
   font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 14px;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -724,7 +726,7 @@ textarea::placeholder {
     border-top: 1px solid var(--border-soft);
   }
   .badge {
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
     padding: 2px 7px;
     border-radius: 5px;
@@ -3058,4 +3060,74 @@ textarea::placeholder {
   .filter-chip-k::after {
     content: ":";
   }
+}
+
+/* ---------------- Propuesta «sobrio con más vida»: bandas tenues y etiquetas con fondo ----------------
+   Fuera de @layer a propósito: son ajustes finales sobre los componentes existentes. */
+:root {
+  --band: #f7f9fb; /* banda tenue: cabeceras de sección y de tabla, fila al pasar el mouse */
+  --tag-bg: #eef2f6; /* fondo de etiquetas neutras (origen, contexto) */
+  --tag-fg: #475569;
+}
+.panel,
+.page-head,
+.topbar,
+.rail,
+.submenu {
+  border: 1px solid var(--border-soft);
+}
+.panel-head {
+  background: var(--band);
+}
+.th-band {
+  background: var(--band);
+}
+.th {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.row:hover {
+  background: var(--band);
+}
+/* Títulos y saludos con la fuente de marca (Plus Jakarta Sans); el resto de la interfaz va en Inter */
+.page-title,
+.card-title {
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+}
+/* Etiqueta pequeña con fondo: da cuerpo a los textos secundarios sin gritar */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--tag-bg);
+  color: var(--tag-fg);
+}
+.tag.brand {
+  background: var(--surface-active);
+  color: var(--brand-dark);
+}
+.tag.warn {
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-weight: 600;
+}
+.tag.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-weight: 600;
+}
+.tag.success {
+  background: var(--success-bg);
+  color: var(--success);
+  font-weight: 600;
 }
