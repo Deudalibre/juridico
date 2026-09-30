@@ -119,7 +119,7 @@ try {
   const ejeList = await page(eje, "/plantillas");
   ok("Un ejecutivo no entra a Plantillas", ejeList.status === 307 || /Sin acceso/.test(ejeList.text), String(ejeList.status));
   const bad = await page(jur, `/plantillas/${crypto.randomUUID()}`);
-  ok("Plantilla inexistente → pantalla «No encontrado» (con loading.tsx el estado llega como 200, igual que en el CRM)", bad.status === 404 || (bad.status === 200 && /No encontrado/.test(bad.text)), String(bad.status));
+  ok("Plantilla inexistente → pantalla «No encontrado» (con loading.tsx el estado llega como 200, igual que en el CRM)", bad.status === 404 || (bad.status === 200 && /No encontrado/.test(bad.html)), String(bad.status));
 } catch (e) {
   fails++;
   console.log("ERROR " + e.message);
