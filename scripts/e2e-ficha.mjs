@@ -1,7 +1,7 @@
 // Ficha del cliente (etapa 1): Clave Única cifrada con auditoría, enlaces externos, alta manual y
 // pantallas. Con npm run dev en :3001. Crea usuarios y clientes temporales y los borra al terminar.
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 const env = Object.fromEntries(readFileSync(".env.local", "utf8").split(/\r?\n/).filter((l) => /^[A-Z_]+=/.test(l)).map((l) => l.split(/=(.*)/s).slice(0, 2)));
@@ -10,6 +10,8 @@ const ref = env.NEXT_PUBLIC_SUPABASE_URL.match(/https:\/\/([a-z0-9]+)\./)[1];
 const stamp = Date.now();
 const BASE = "http://localhost:3001";
 let fails = 0;
+let realDrive = null;
+const lit = (v) => (v === null || v === undefined ? "null" : `'${String(v).replace(/'/g, "''")}'`);
 const ok = (label, cond, extra = "") => {
   if (!cond) fails++;
   console.log(`${cond ? "OK  " : "FAIL"} ${label}${extra ? " · " + extra : ""}`);
@@ -150,7 +152,14 @@ try {
   const fichaDocs = await page(jur, `/clientes/${id}`);
   ok("Resumen de la ficha: avance del checklist", new RegExp(`1 de ${tplItems.length} antecedentes`).test(fichaDocs.text));
 
-  // Google Drive: conexión del estudio (solo administrador), tokens en la bóveda, estado visible para el área
+  // Google Drive: conexión del estudio (solo administrador), tokens en la bóveda, estado visible para el área.
+  // Si el estudio ya tiene el Drive conectado de verdad, se aparta y se restaura al final (la prueba usa una conexión ficticia).
+  realDrive = sql(`select c.google_email, c.access_token, c.expires_at, c.root_folder_id, c.root_folder_name, c.connected_by, c.connected_at, s.decrypted_secret as refresh from drive_connection c join vault.decrypted_secrets s on s.id = c.refresh_secret_id where c.id = true`)?.[0] ?? null;
+  if (realDrive) {
+    sql(`delete from vault.secrets where id = (select refresh_secret_id from drive_connection where id = true)`);
+    sql(`delete from drive_connection where id = true`);
+    console.log(`info: conexión real del Drive (${realDrive.google_email}) apartada durante la prueba`);
+  }
   const st0 = await jur.c.rpc("drive_status");
   ok("Drive: estado visible sin conexión (no conectado)", !st0.error && (st0.data?.[0]?.connected ?? false) === false, st0.error?.message);
   const jurConnect = await jur.c.rpc("drive_connect", { p_email: "x@deudalibre.cl", p_refresh: "r", p_access: "a", p_expires_at: new Date().toISOString() });
@@ -197,6 +206,27 @@ try {
   fails++;
   console.log("ERROR " + e.message);
 } finally {
+  if (realDrive) {
+    // Se restaura antes que nada y en una sola línea (el shell no admite saltos de línea en la consulta)
+    try {
+      sql(`delete from vault.secrets where name = 'google_drive_refresh'`);
+      sql(`delete from drive_connection where id = true`);
+      const cols = "id, google_email, refresh_secret_id, access_token, expires_at, root_folder_id, root_folder_name, connected_by, connected_at";
+      const vals = [
+        "true", lit(realDrive.google_email),
+        `vault.create_secret(${lit(realDrive.refresh)}, 'google_drive_refresh', 'Refresh token de Google Drive del estudio')`,
+        lit(realDrive.access_token), lit(realDrive.expires_at), lit(realDrive.root_folder_id), lit(realDrive.root_folder_name), lit(realDrive.connected_by), lit(realDrive.connected_at),
+      ].join(", ");
+      sql(`insert into drive_connection (${cols}) values (${vals})`);
+      const back = sql(`select c.google_email, (s.decrypted_secret = ${lit(realDrive.refresh)}) as same from drive_connection c join vault.decrypted_secrets s on s.id = c.refresh_secret_id where c.id = true`)?.[0];
+      ok("Drive: conexión real del estudio restaurada tras la prueba", back?.google_email === realDrive.google_email && back?.same === true, JSON.stringify(back));
+    } catch (e) {
+      fails++;
+      const rescue = `drive-rescue-${stamp}.json`;
+      writeFileSync(rescue, JSON.stringify(realDrive));
+      console.log(`FAIL Drive: no se pudo restaurar la conexión real (${e.message}). Datos guardados en ${rescue}: vuelve a conectar el Drive desde Configuración o restaura a mano y borra ese archivo.`);
+    }
+  }
   // El bucket solo se limpia por la API de Storage (la base bloquea borrados directos)
   try {
     const paths = sql(`select storage_path from legal_documents d join legal_clients c on c.id = d.client_id where c.full_name like 'JUR %' and d.storage_path is not null`).map((r) => r.storage_path);

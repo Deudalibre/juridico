@@ -81,15 +81,25 @@ export async function getFolder(access: string, id: string): Promise<DriveFolder
   }
 }
 
-/** Busca la carpeta del cliente dentro de la carpeta raíz por RUT o nombre; devuelve las candidatas. */
-export async function findClientFolders(access: string, rootId: string, terms: string[]): Promise<DriveFolder[]> {
+/**
+ * Busca la carpeta del cliente por RUT o nombre: primero justo dentro de la carpeta raíz y, si no hay,
+ * en todo el Drive al que accede la cuenta (las carpetas del estudio van por año y mes). Devuelve las candidatas.
+ */
+export async function findClientFolders(access: string, rootId: string | null, terms: string[]): Promise<DriveFolder[]> {
   const clean = terms.map((t) => t.trim()).filter((t) => t.length >= 3);
   if (clean.length === 0) return [];
   const names = clean.map((t) => `name contains '${esc(t)}'`).join(" or ");
-  const q = `'${esc(rootId)}' in parents and mimeType = '${FOLDER}' and trashed = false and (${names})`;
-  const p = new URLSearchParams({ q, fields: "files(id,name,webViewLink)", pageSize: "10", supportsAllDrives: "true", includeItemsFromAllDrives: "true" });
-  const json = await gapi(access, `https://www.googleapis.com/drive/v3/files?${p}`);
-  return (json.files ?? []).map((f: DriveFolder) => ({ id: f.id, name: f.name, webViewLink: f.webViewLink }));
+  const run = async (scope: string) => {
+    const q = `${scope}mimeType = '${FOLDER}' and trashed = false and (${names})`;
+    const p = new URLSearchParams({ q, fields: "files(id,name,webViewLink)", pageSize: "10", supportsAllDrives: "true", includeItemsFromAllDrives: "true", corpora: "allDrives" });
+    const json = await gapi(access, `https://www.googleapis.com/drive/v3/files?${p}`);
+    return (json.files ?? []).map((f: DriveFolder) => ({ id: f.id, name: f.name, webViewLink: f.webViewLink })) as DriveFolder[];
+  };
+  if (rootId) {
+    const direct = await run(`'${esc(rootId)}' in parents and `);
+    if (direct.length > 0) return direct;
+  }
+  return run("");
 }
 
 /** Id de carpeta o archivo a partir de un enlace de Drive (o del id pegado tal cual). */

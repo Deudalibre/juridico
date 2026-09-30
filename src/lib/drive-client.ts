@@ -30,8 +30,10 @@ export async function clientDrive(supabase: SupabaseClient, client: { id: string
     const linkedId = driveIdFromUrl(client.drive_folder_url);
     if (linkedId) folder = await getFolder(access, linkedId);
     let candidates: DriveFolder[] = [];
-    if (!folder && state.rootId) {
-      const terms = [client.rut ? formatRut(client.rut) : "", client.rut ?? "", client.full_name].filter(Boolean);
+    if (!folder) {
+      // Las carpetas del estudio se llaman «N.- Nombre Apellido»: se busca por RUT, nombre completo y nombre + primer apellido
+      const words = client.full_name.trim().split(/\s+/);
+      const terms = [client.rut ? formatRut(client.rut) : "", client.rut ?? "", client.full_name, words.length > 2 ? words.slice(0, 2).join(" ") : ""].filter(Boolean);
       candidates = await findClientFolders(access, state.rootId, terms);
       if (candidates.length === 1) {
         folder = candidates[0];
