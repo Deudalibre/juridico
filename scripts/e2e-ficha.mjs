@@ -32,6 +32,7 @@ const page = async (u, p) => {
 try {
   const jur = await user("juridico", "juridico");
   const eje = await user("ejecutivo", "ejecutivo");
+  var adm = await user("admin", "administrador"); // solo para limpiar el bucket al final (documents.manage)
   const cl = await jur.c
     .from("legal_clients")
     .insert({ full_name: "JUR Ficha Prueba", rut: "123456785", procedure_type: "Liquidación voluntaria", rol: "C-9999-2026", tribunal: "1º Juzgado Civil", intake_date: "2026-09-12" })
@@ -118,6 +119,37 @@ try {
   const historial = await page(jur, `/clientes/${id}?tab=Historial`);
   ok("Historial: muestra los pasos completados con fecha y autor", historial.status === 200 && /Paso completado: Preparación de documentos/.test(historial.text) && /JUR juridico/.test(historial.text), String(historial.status));
 
+  // Documentos: checklist desde la plantilla, subida al bucket privado, versión y enlace firmado
+  const tplItems = sql(`select i.label, i.position, i.category_id from legal_checklist_template_items i join legal_checklist_templates t on t.id = i.template_id where t.procedure_type = 'Liquidación voluntaria' order by i.position`);
+  ok("Plantilla de checklist de liquidación voluntaria con antecedentes", tplItems.length >= 7, String(tplItems.length));
+  const ck = await jur.c.from("legal_checklist_items").insert(tplItems.map((it) => ({ client_id: id, label: it.label, position: it.position, category_id: it.category_id }))).select();
+  ok("Jurídico crea el checklist del cliente (RLS legal.edit)", !ck.error && (ck.data ?? []).length === tplItems.length, ck.error?.message);
+  const item = (ck.data ?? [])[0];
+  const docsEmpty = await page(jur, `/clientes/${id}?tab=Documentos`);
+  ok("Pestaña Documentos: checklist con todos los antecedentes pendientes", docsEmpty.status === 200 && new RegExp(`0 de ${tplItems.length}`).test(docsEmpty.text) && /Pendiente/.test(docsEmpty.text) && /Otros documentos/.test(docsEmpty.text), String(docsEmpty.status));
+  const pdf = Buffer.from("%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
+  const path = `${id}/${crypto.randomUUID()}.pdf`;
+  const up = await jur.c.storage.from("legal-documents").upload(path, pdf, { contentType: "application/pdf" });
+  ok("Jurídico sube un archivo al bucket privado (RLS documents.upload)", !up.error, up.error?.message);
+  const ejeUp = await eje.c.storage.from("legal-documents").upload(`${id}/${crypto.randomUUID()}.pdf`, pdf, { contentType: "application/pdf" });
+  ok("Ejecutivo no puede subir al bucket", Boolean(ejeUp.error), ejeUp.error?.message);
+  const doc = await jur.c.from("legal_documents").insert({ client_id: id, name: item.label, status: "recibido", storage_path: path, file_size: pdf.length, mime: "application/pdf", checklist_item_id: item.id, version: 1 }).select().single();
+  ok("Documento registrado y vinculado al ítem", !doc.error, doc.error?.message);
+  const link = await jur.c.from("legal_checklist_items").update({ satisfied: true, document_id: doc.data?.id }).eq("id", item.id).select();
+  const docsOne = await page(jur, `/clientes/${id}?tab=Documentos`);
+  ok(
+    "Pestaña Documentos: 1 antecedente recibido con versión, tamaño y estado",
+    // React separa «v» y «1» con un comentario en el HTML: al quitar etiquetas queda «v 1»
+    !link.error && docsOne.status === 200 && new RegExp(`1 de ${tplItems.length}`).test(docsOne.text) && /v ?1 · 1 KB/.test(docsOne.text) && /Recibido/.test(docsOne.text),
+    `${link.error?.message ?? ""} status=${docsOne.status}`
+  );
+  const signed = await jur.c.storage.from("legal-documents").createSignedUrl(path, 60);
+  ok("Enlace firmado temporal para ver el documento", !signed.error && /token=/.test(signed.data?.signedUrl ?? ""), signed.error?.message);
+  const ejeDocs = await eje.c.from("legal_documents").select("id").eq("client_id", id);
+  ok("Ejecutivo no ve los documentos (RLS)", (ejeDocs.data ?? []).length === 0);
+  const fichaDocs = await page(jur, `/clientes/${id}`);
+  ok("Resumen de la ficha: avance del checklist", new RegExp(`1 de ${tplItems.length} antecedentes`).test(fichaDocs.text));
+
   // Cierre con motivo y lista de cerradas
   const close = await jur.c.from("legal_clients").update({ archived_at: new Date().toISOString(), close_reason: "Dejó de pagar", close_detail: "Última cuota en agosto" }).eq("id", id).select();
   ok("Cerrar la causa con motivo (RLS legal.edit)", !close.error && close.data?.[0]?.close_reason === "Dejó de pagar", close.error?.message);
@@ -137,6 +169,13 @@ try {
   fails++;
   console.log("ERROR " + e.message);
 } finally {
+  // El bucket solo se limpia por la API de Storage (la base bloquea borrados directos)
+  try {
+    const paths = sql(`select storage_path from legal_documents d join legal_clients c on c.id = d.client_id where c.full_name like 'JUR %' and d.storage_path is not null`).map((r) => r.storage_path);
+    if (paths.length && typeof adm !== "undefined") await adm.c.storage.from("legal-documents").remove(paths);
+  } catch (e) {
+    console.log("aviso: no se pudo limpiar el bucket · " + e.message);
+  }
   sql(`delete from legal_clients where full_name like 'JUR %'`);
   sql(`delete from vault.secrets where name like 'clave_unica:%' and id not in (select clave_unica_secret_id from legal_clients where clave_unica_secret_id is not null)`);
   sql(`delete from auth.users where email like 'e2e.%.${stamp}@gmail.com'`);

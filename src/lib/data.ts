@@ -62,6 +62,39 @@ export type LegalClient = {
 
 export type LegalStatus = { id: string; name: string; position: number; active: boolean; is_terminal: boolean };
 
+export type DocCategory = { id: string; name: string; position: number };
+
+export type ChecklistItem = {
+  id: string;
+  client_id: string;
+  label: string;
+  satisfied: boolean;
+  not_applicable: boolean;
+  document_id: string | null;
+  category_id: string | null;
+  position: number;
+};
+
+export type LegalDocument = {
+  id: string;
+  client_id: string;
+  category_id: string | null;
+  checklist_item_id: string | null;
+  name: string;
+  doc_type: string | null;
+  doc_date: string | null;
+  status: "pendiente" | "recibido" | "preparado" | "firmado" | "presentado" | "reemplazado";
+  notes: string | null;
+  version: number;
+  is_current: boolean;
+  replaces_id: string | null;
+  storage_path: string | null;
+  file_size: number | null;
+  mime: string | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+};
+
 export type CaseStep = { id: string; client_id: string; step: string; completed_at: string; completed_by: string | null; note: string | null };
 
 export type LegalTask = {

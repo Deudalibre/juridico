@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { getMembers, requirePermission, type CaseStep, type LegalClient, type LegalTask } from "@/lib/data";
+import { getMembers, requirePermission, type CaseStep, type ChecklistItem, type DocCategory, type LegalClient, type LegalDocument, type LegalTask } from "@/lib/data";
 import { dateTime, dueLabel, initials } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
 import { COMPLETED, STEP_RESOLUTION, TASK_KINDS, currentStep, isLiquidacion, procedureTone, stepsFor } from "@/lib/legal";
@@ -10,6 +10,7 @@ import { BasicsForm } from "./BasicsForm";
 import { CausaSteps } from "./CausaSteps";
 import { ClaveUnica } from "./ClaveUnica";
 import { CloseCase } from "./CloseCase";
+import { DocumentsTab } from "./DocumentsTab";
 import { LinksCard } from "./LinksCard";
 import { LawyerSelect } from "./LawyerSelect";
 
@@ -56,6 +57,26 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
       : Promise.resolve({ data: [] as { id: number; at: string; actor_name: string | null; kind: string; summary: string | null }[] }),
   ]);
   const history = (histRes.data ?? []) as { id: number; at: string; actor_name: string | null; kind: string; summary: string | null }[];
+  // Documentos: checklist siempre (para el resumen); archivos, categorías y plantilla solo en su pestaña
+  const { data: itemsData } = await supabase.from("legal_checklist_items").select("*").eq("client_id", params.id).order("position");
+  const items = (itemsData ?? []) as ChecklistItem[];
+  let docs: LegalDocument[] = [];
+  let categories: DocCategory[] = [];
+  let templateCount = 0;
+  if (searchParams.tab === "Documentos") {
+    const [d, cat, tpl] = await Promise.all([
+      supabase.from("legal_documents").select("*").eq("client_id", params.id).order("uploaded_at", { ascending: false }),
+      supabase.from("legal_document_categories").select("id, name, position").eq("active", true).order("position"),
+      data?.procedure_type
+        ? supabase.from("legal_checklist_templates").select("id, legal_checklist_template_items(id)").eq("procedure_type", data.procedure_type).eq("active", true).limit(1).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    docs = (d.data ?? []) as LegalDocument[];
+    categories = (cat.data ?? []) as DocCategory[];
+    const t = tpl.data as { legal_checklist_template_items?: { id: string }[] } | null;
+    templateCount = t?.legal_checklist_template_items?.length ?? 0;
+  }
+  const docsDone = items.filter((it) => it.satisfied || it.not_applicable).length;
   const KIND_LABEL: Record<string, string> = { paso: "Paso", cierre: "Cierre", estado: "Estado", abogado: "Abogado", revision: "Revisión", tarea: "Tarea" };
   if (!data) notFound();
   const c = data as LegalClient;
@@ -101,6 +122,22 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
         ) : (
           <Link href={`/clientes/${c.id}?tab=Causa`} className="text-[13.5px] text-faint hover:text-accent">
             Sin tareas pendientes
+          </Link>
+        )}
+      </Tile>
+      <Tile label="Documentos">
+        {items.length === 0 ? (
+          <Link href={`/clientes/${c.id}?tab=Documentos`} className="text-[13.5px] text-faint hover:text-accent">
+            Sin checklist aún
+          </Link>
+        ) : (
+          <Link href={`/clientes/${c.id}?tab=Documentos`} className="flex flex-col gap-1">
+            <span className={`text-[13.5px] font-medium ${docsDone === items.length ? "text-success" : "text-fg"}`}>
+              {docsDone} de {items.length} antecedentes
+            </span>
+            <span className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2" aria-hidden>
+              <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.round((docsDone / items.length) * 100)}%` }} />
+            </span>
           </Link>
         )}
       </Tile>
@@ -208,10 +245,20 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
           )}
         </section>
       ) : (
-        <section className="panel empty">
-          <span className="empty-title">Documentos: llega en la siguiente etapa</span>
-          <span className="empty-text">Checklist por procedimiento, subida de archivos, estados y versiones; después, generación desde las plantillas Word.</span>
-        </section>
+        <DocumentsTab
+          clientId={c.id}
+          procedure={c.procedure_type}
+          items={items}
+          docs={docs}
+          categories={categories}
+          templateCount={templateCount}
+          canUpload={can("documents.upload")}
+          canEdit={canEdit}
+          canEditDocs={can("documents.edit")}
+          canManage={can("documents.manage")}
+          closed={closed}
+          tz={tz}
+        />
       )}
     </>
   );

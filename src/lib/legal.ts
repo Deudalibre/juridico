@@ -53,6 +53,25 @@ export const TASK_KINDS: Record<string, string> = {
   otra: "Otra",
 };
 
+/** Archivos admitidos en el almacén de documentos (mismos tipos que permite el bucket). */
+export const DOC_MIMES: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+};
+export const DOC_MAX_BYTES = 25 * 1024 * 1024;
+
+export const DOC_STATUS: Record<string, string> = {
+  pendiente: "Pendiente",
+  recibido: "Recibido",
+  preparado: "Preparado",
+  firmado: "Firmado",
+  presentado: "Presentado",
+  reemplazado: "Reemplazado",
+};
+
 export const isProcedure = (v: string | null | undefined): v is Procedure => PROCEDURES.includes(v as Procedure);
 export const isLiquidacion = (p: string | null | undefined) => Boolean(p?.startsWith("Liquidación"));
 
