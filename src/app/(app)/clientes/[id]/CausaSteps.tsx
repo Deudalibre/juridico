@@ -51,7 +51,7 @@ export function CausaSteps({ clientId, procedure, steps, done, current, tasks, n
     return (
       <section className="panel empty">
         <span className="empty-title">Define el procedimiento para ver sus pasos</span>
-        <span className="empty-text">En «Antecedentes», elige Liquidación voluntaria, Liquidación simplificada o Renegociación.</span>
+        <span className="empty-text">En «Antecedentes», elige Liquidación voluntaria o Renegociación.</span>
       </section>
     );
 

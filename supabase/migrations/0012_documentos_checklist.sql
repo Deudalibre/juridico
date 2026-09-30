@@ -53,7 +53,7 @@ grant select, insert, update, delete on public.legal_checklist_items, public.leg
 -- Son una propuesta editable: el estudio los ajusta desde Configuración.
 do $$
 declare
-  t_liq uuid; t_simp uuid; t_ren uuid;
+  t_liq uuid; t_ren uuid;
   cat_id uuid; cat_fin uuid; cat_proc uuid; cat_adm uuid;
 begin
   select id into cat_id from public.legal_document_categories where name = 'Identificación';
@@ -75,17 +75,7 @@ begin
       (t_liq, 'Patrocinio y poder del abogado', 9, cat_adm);
   end if;
 
-  if not exists (select 1 from public.legal_checklist_templates where procedure_type = 'Liquidación simplificada') then
-    insert into public.legal_checklist_templates (name, procedure_type) values ('Liquidación simplificada · antecedentes', 'Liquidación simplificada') returning id into t_simp;
-    insert into public.legal_checklist_template_items (template_id, label, position, category_id) values
-      (t_simp, 'Cédula de identidad (ambos lados)', 1, cat_id),
-      (t_simp, 'Certificado de deudas (CMF)', 2, cat_fin),
-      (t_simp, 'Lista de bienes con valor estimado y gravámenes', 3, cat_fin),
-      (t_simp, 'Estado de deudas: acreedores, montos y vencimientos', 4, cat_fin),
-      (t_simp, 'Liquidaciones de sueldo o boletas (últimos 3 meses)', 5, cat_fin),
-      (t_simp, 'Declaración jurada de cumplir los requisitos del art. 273 A', 6, cat_proc),
-      (t_simp, 'Patrocinio y poder del abogado', 7, cat_adm);
-  end if;
+  -- (El checklist de «Liquidación simplificada» que sembraba esta migración se retiró en 0015: solo hay dos procedimientos.)
 
   if not exists (select 1 from public.legal_checklist_templates where procedure_type = 'Renegociación') then
     insert into public.legal_checklist_templates (name, procedure_type) values ('Renegociación · antecedentes', 'Renegociación') returning id into t_ren;
