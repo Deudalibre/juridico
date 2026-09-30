@@ -17,6 +17,7 @@ const CRUMBS: [RegExp, string[]][] = [
   [/^\/clientes\/nuevo/, ["Clientes", "Nuevo cliente"]],
   [/^\/clientes\/.+/, ["Clientes", "Ficha del cliente"]],
   [/^\/clientes/, ["Clientes"]],
+  [/^\/plantillas\/.+/, ["Plantillas", "Editor de plantilla"]],
   [/^\/plantillas/, ["Plantillas"]],
   [/^\/documentos/, ["Documentos generados"]],
   [/^\/configuracion/, ["Configuración"]],
