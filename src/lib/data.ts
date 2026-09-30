@@ -89,6 +89,8 @@ export type LegalDocument = {
   is_current: boolean;
   replaces_id: string | null;
   storage_path: string | null;
+  drive_file_id: string | null;
+  drive_link: string | null;
   file_size: number | null;
   mime: string | null;
   uploaded_by: string | null;

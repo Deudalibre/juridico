@@ -140,7 +140,7 @@ try {
   ok(
     "Pestaña Documentos: 1 antecedente recibido con versión, tamaño y estado",
     // React separa «v» y «1» con un comentario en el HTML: al quitar etiquetas queda «v 1»
-    !link.error && docsOne.status === 200 && new RegExp(`1 de ${tplItems.length}`).test(docsOne.text) && /v ?1 · 1 KB/.test(docsOne.text) && /Recibido/.test(docsOne.text),
+    !link.error && docsOne.status === 200 && new RegExp(`1 de ${tplItems.length}`).test(docsOne.text) && /1 KB · v ?1/.test(docsOne.text) && /Recibido/.test(docsOne.text),
     `${link.error?.message ?? ""} status=${docsOne.status}`
   );
   const signed = await jur.c.storage.from("legal-documents").createSignedUrl(path, 60);
@@ -149,6 +149,34 @@ try {
   ok("Ejecutivo no ve los documentos (RLS)", (ejeDocs.data ?? []).length === 0);
   const fichaDocs = await page(jur, `/clientes/${id}`);
   ok("Resumen de la ficha: avance del checklist", new RegExp(`1 de ${tplItems.length} antecedentes`).test(fichaDocs.text));
+
+  // Google Drive: conexión del estudio (solo administrador), tokens en la bóveda, estado visible para el área
+  const st0 = await jur.c.rpc("drive_status");
+  ok("Drive: estado visible sin conexión (no conectado)", !st0.error && (st0.data?.[0]?.connected ?? false) === false, st0.error?.message);
+  const jurConnect = await jur.c.rpc("drive_connect", { p_email: "x@deudalibre.cl", p_refresh: "r", p_access: "a", p_expires_at: new Date().toISOString() });
+  ok("Drive: un abogado no puede conectar la cuenta (solo legal.settings)", Boolean(jurConnect.error), jurConnect.error?.message);
+  const admConnect = await adm.c.rpc("drive_connect", { p_email: "drive@deudalibre.cl", p_refresh: "refresh-de-prueba", p_access: "acceso-de-prueba", p_expires_at: new Date(Date.now() + 3600e3).toISOString() });
+  ok("Drive: el administrador guarda la conexión", !admConnect.error, admConnect.error?.message);
+  const driveSecret = sql(`select secret from vault.secrets where name = 'google_drive_refresh'`)[0];
+  ok("Drive: el refresh token queda cifrado en la bóveda", driveSecret && driveSecret.secret !== "refresh-de-prueba");
+  const st1 = await jur.c.rpc("drive_status");
+  ok("Drive: el área ve conectado y con qué cuenta, sin secretos", st1.data?.[0]?.connected === true && st1.data?.[0]?.google_email === "drive@deudalibre.cl" && !("refresh_token" in (st1.data?.[0] ?? {})));
+  const tk = await jur.c.rpc("drive_tokens");
+  ok("Drive: el servidor obtiene los tokens descifrados", !tk.error && tk.data?.[0]?.refresh_token === "refresh-de-prueba" && tk.data?.[0]?.access_token === "acceso-de-prueba", tk.error?.message);
+  const ejeTk = await eje.c.rpc("drive_tokens");
+  ok("Drive: un ejecutivo del CRM no obtiene tokens", Boolean(ejeTk.error), ejeTk.error?.message);
+  const directDrive = await adm.c.from("drive_connection").select("*");
+  ok("Drive: la tabla no se lee directamente ni siendo administrador", Boolean(directDrive.error) || (directDrive.data ?? []).length === 0);
+  const root = await adm.c.rpc("drive_set_root", { p_folder_id: "1AbCdEfGhIjKlMnOpQrStUv", p_name: "Clientes" });
+  const st2 = await jur.c.rpc("drive_status");
+  ok("Drive: carpeta raíz guardada y visible", !root.error && st2.data?.[0]?.root_folder_name === "Clientes", root.error?.message);
+  const docsDrive = await page(jur, `/clientes/${id}?tab=Documentos`);
+  ok("Pestaña Documentos: panel de la carpeta del Drive (conexión de prueba, sin acceso real)", docsDrive.status === 200 && /Carpeta del cliente en el Drive/.test(docsDrive.text), String(docsDrive.status));
+  const dl = await jur.c.from("legal_documents").insert({ client_id: id, name: "Cédula (Drive)", status: "recibido", mime: "application/pdf", drive_file_id: "1XyZdriveFileId12345", drive_link: "https://drive.google.com/file/d/1XyZdriveFileId12345/view", version: 1 }).select().single();
+  ok("Documento vinculado a un archivo del Drive (sin copia en el almacén)", !dl.error && dl.data?.storage_path === null, dl.error?.message);
+  const disc = await adm.c.rpc("drive_disconnect");
+  const driveSecretGone = sql(`select count(*)::int as n from vault.secrets where name = 'google_drive_refresh'`)[0];
+  ok("Drive: desconectar borra la conexión y el secreto", !disc.error && driveSecretGone?.n === 0, disc.error?.message);
 
   // Cierre con motivo y lista de cerradas
   const close = await jur.c.from("legal_clients").update({ archived_at: new Date().toISOString(), close_reason: "Dejó de pagar", close_detail: "Última cuota en agosto" }).eq("id", id).select();

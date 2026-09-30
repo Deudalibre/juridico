@@ -11,6 +11,7 @@ import { CausaSteps } from "./CausaSteps";
 import { ClaveUnica } from "./ClaveUnica";
 import { CloseCase } from "./CloseCase";
 import { DocumentsTab } from "./DocumentsTab";
+import { clientDrive, type ClientDrive } from "@/lib/drive-client";
 import { LinksCard } from "./LinksCard";
 import { LawyerSelect } from "./LawyerSelect";
 
@@ -63,14 +64,17 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
   let docs: LegalDocument[] = [];
   let categories: DocCategory[] = [];
   let templateCount = 0;
+  let drive: ClientDrive | null = null;
   if (searchParams.tab === "Documentos") {
-    const [d, cat, tpl] = await Promise.all([
+    const [d, cat, tpl, dr] = await Promise.all([
       supabase.from("legal_documents").select("*").eq("client_id", params.id).order("uploaded_at", { ascending: false }),
       supabase.from("legal_document_categories").select("id, name, position").eq("active", true).order("position"),
       data?.procedure_type
         ? supabase.from("legal_checklist_templates").select("id, legal_checklist_template_items(id)").eq("procedure_type", data.procedure_type).eq("active", true).limit(1).maybeSingle()
         : Promise.resolve({ data: null }),
+      data ? clientDrive(supabase, { id: data.id, full_name: data.full_name, rut: data.rut, drive_folder_url: data.drive_folder_url }) : Promise.resolve(null),
     ]);
+    drive = dr;
     docs = (d.data ?? []) as LegalDocument[];
     categories = (cat.data ?? []) as DocCategory[];
     const t = tpl.data as { legal_checklist_template_items?: { id: string }[] } | null;
@@ -252,6 +256,7 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
           docs={docs}
           categories={categories}
           templateCount={templateCount}
+          drive={drive}
           canUpload={can("documents.upload")}
           canEdit={canEdit}
           canEditDocs={can("documents.edit")}
