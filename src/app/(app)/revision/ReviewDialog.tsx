@@ -48,6 +48,7 @@ export function ReviewDialog({ client, pendingTask, doneSteps, lawyers, defaultA
     if (movement === null) return toast("Indica si la causa tuvo movimiento.", true);
     if (askStep && advanced === null) return toast("Indica si la causa avanzó de paso.", true);
     if (withStep && !step.name) return toast("Elige el paso que quedó hecho.", true);
+    if (resolved && note.trim().length < 3) return toast("Si la tarea quedó resuelta, anota el resultado en la nota.", true);
     start(async () => {
       const r = await reviewCase(client.id, {
         hadMovement: movement,
@@ -80,6 +81,7 @@ export function ReviewDialog({ client, pendingTask, doneSteps, lawyers, defaultA
               <label className="flex cursor-pointer items-center gap-2 text-[13px] font-medium">
                 <input type="checkbox" checked={resolved} onChange={(e) => setResolved(e.target.checked)} />
                 Esta tarea quedó resuelta
+                <span className="text-[11.5px] font-normal text-muted">(la nota queda como resultado)</span>
               </label>
             )}
           </div>

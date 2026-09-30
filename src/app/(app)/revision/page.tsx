@@ -194,6 +194,9 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
           <Link href="/revision/historial" className="btn-secondary">
             <Icon name="history" size={14} /> Historial
           </Link>
+          <Link href="/revision/tareas" className="btn-secondary">
+            <Icon name="check" size={14} /> Tareas cerradas
+          </Link>
         </div>
       </div>
 

@@ -110,6 +110,9 @@ export type LegalTask = {
   status: "pendiente" | "completada" | "cancelada";
   result: string | null;
   completed_at: string | null;
+  canceled_at: string | null;
+  /** Quién la completó o canceló (registro para supervisión). */
+  closed_by: string | null;
   created_at: string;
 };
 

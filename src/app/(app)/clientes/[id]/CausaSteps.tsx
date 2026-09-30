@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { addTask, completeStep, finishTask, undoStep } from "../actions";
+import { addTask, completeStep, undoStep } from "../actions";
+import { TaskClose } from "@/components/TaskClose";
 import { Field, toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { dueLabel, localAt } from "@/lib/format";
@@ -197,17 +198,8 @@ export function CausaSteps({ clientId, procedure, steps, done, current, tasks, n
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {due ? <span className={`tag tabnum ${due.overdue ? "danger" : due.today ? "brand" : ""}`}>{due.text}</span> : <span className="tag warn">Sin fecha</span>}
-                {canTasks && !closed && (
-                  <>
-                    <button className="btn-outline btn-sm" disabled={pending} onClick={() => run(() => finishTask(t.id, clientId, "completada"), "Tarea completada")}>
-                      Completar
-                    </button>
-                    <button className="btn-ghost btn-sm" disabled={pending} onClick={() => run(() => finishTask(t.id, clientId, "cancelada"), "Tarea cancelada")}>
-                      Cancelar
-                    </button>
-                  </>
-                )}
               </div>
+              {canTasks && !closed && <TaskClose task={t} clientId={clientId} mode="inline" />}
             </div>
           );
         })}
@@ -216,8 +208,16 @@ export function CausaSteps({ clientId, procedure, steps, done, current, tasks, n
             <summary className="cursor-pointer">Terminadas ({doneTasks.length})</summary>
             <ul className="mt-2 flex flex-col gap-1">
               {doneTasks.map((t) => (
-                <li key={t.id} className={t.status === "cancelada" ? "line-through" : ""}>
-                  {TASK_KINDS[t.kind] ?? t.kind} · {t.title}
+                <li key={t.id} className="flex flex-col">
+                  <span className={t.status === "cancelada" ? "line-through" : ""}>
+                    {TASK_KINDS[t.kind] ?? t.kind} · {t.title}
+                  </span>
+                  <span className="text-[11.5px] text-faint">
+                    {t.status === "cancelada" ? "Cancelada" : "Completada"}
+                    {t.closed_by && names[t.closed_by] ? ` por ${names[t.closed_by]}` : ""}
+                    {t.completed_at || t.canceled_at ? ` · ${dueLabel(t.completed_at ?? t.canceled_at!, tz).text}` : ""}
+                    {t.result ? ` · ${t.result}` : ""}
+                  </span>
                 </li>
               ))}
             </ul>

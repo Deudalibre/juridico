@@ -35,6 +35,9 @@ export default async function HistorialRevisionesPage(props: { searchParams: Pro
             header={["Cuándo", "Causa", "Procedimiento", "Rol", "Movimiento", "Nota", "Tarea", "Revisó"]}
             rows={rows.map((r) => [dateTime(r.reviewed_at, tz), r.legal_clients?.full_name ?? "", r.legal_clients?.procedure_type ?? "", r.legal_clients?.rol ?? "", r.had_movement ? "Con movimiento" : "Sin movimiento", r.note ?? "", r.legal_tasks?.title ?? "", r.reviewer_name ?? ""])}
           />
+          <Link href="/revision/tareas" className="btn-secondary">
+            Tareas cerradas
+          </Link>
           <Link href="/revision" className="btn-secondary">
             Por revisar
           </Link>

@@ -55,6 +55,22 @@ export const TASK_KINDS: Record<string, string> = {
   otra: "Otra",
 };
 
+/** Respuestas frecuentes al completar una tarea, por tipo: un clic y queda el resultado anotado. */
+export const TASK_QUICK_RESULTS: Record<string, string[]> = {
+  apercibimiento: ["Cumplido en plazo", "Escrito presentado", "No se pudo cumplir"],
+  audiencia: ["Realizada", "Suspendida", "Reprogramada"],
+  revisar_causa: ["Sin novedades", "Con movimiento, anotado"],
+  revisar_resolucion: ["Revisada, sin acción", "Requiere escrito"],
+  preparar_escrito: ["Escrito listo", "Falta información del cliente"],
+  solicitar_documento: ["Documento recibido", "Recibido parcial", "Cliente no responde"],
+  contactar_cliente: ["Contactado", "No contesta", "Dejé mensaje"],
+  presentar_escrito: ["Presentado", "Rechazado, hay que corregir"],
+  otra: ["Hecho"],
+};
+
+/** Motivos frecuentes para cancelar una tarea. */
+export const CANCEL_REASONS = ["Ya no corresponde", "Duplicada", "La hizo otra persona"];
+
 /** Archivos admitidos en el almacén de documentos (mismos tipos que permite el bucket). */
 export const DOC_MIMES: Record<string, string> = {
   "application/pdf": "pdf",

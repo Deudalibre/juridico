@@ -203,20 +203,28 @@ export async function addTask(id: string, fd: FormData): Promise<Result> {
   return {};
 }
 
-/** Marca una tarea como completada (con resultado opcional) o la cancela. */
+/**
+ * Completa o cancela una tarea. Pide siempre un resultado corto (o el motivo) y guarda quién la cerró: el trigger
+ * deja la entrada en el historial de la causa para supervisión. Solo se cierran tareas pendientes.
+ */
 export async function finishTask(taskId: string, clientId: string, status: "completada" | "cancelada", result?: string): Promise<Result> {
-  const { supabase, can } = await getContext();
+  const { supabase, user, can } = await getContext();
   if (!can("legal.tasks")) return { error: "No tienes permiso para gestionar tareas." };
   if (!isUuid(taskId) || !isUuid(clientId)) return { error: "Datos no válidos." };
+  const text = (result ?? "").trim().slice(0, 300);
+  if (text.length < 3) return { error: status === "completada" ? "Anota el resultado de la tarea en pocas palabras." : "Indica por qué se cancela la tarea." };
   const now = new Date().toISOString();
   const { error } = await supabase
     .from("legal_tasks")
-    .update({ status, result: result?.trim() || null, completed_at: status === "completada" ? now : null, canceled_at: status === "cancelada" ? now : null })
+    .update({ status, result: text, closed_by: user.id, completed_at: status === "completada" ? now : null, canceled_at: status === "cancelada" ? now : null })
     .eq("id", taskId)
-    .eq("client_id", clientId);
+    .eq("client_id", clientId)
+    .eq("status", "pendiente");
   if (error) return { error: error.message };
   revalidatePath(`/clientes/${clientId}`);
   revalidatePath("/clientes");
+  revalidatePath("/revision");
+  revalidatePath("/revision/tareas");
   return {};
 }
 

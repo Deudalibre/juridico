@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { finishTask } from "@/app/(app)/clientes/actions";
-import { toast } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import { useState } from "react";
+import { TaskClose } from "@/components/TaskClose";
 import { dateTime, dueLabel, initials, relativeDays } from "@/lib/format";
 import { TASK_KINDS, procedureTone, stepsFor } from "@/lib/legal";
 import type { LegalClient, LegalReview, LegalTask } from "@/lib/data";
@@ -27,23 +25,11 @@ type Props = {
 /** Fila de la cola de revisión: la causa, su última revisión, la tarea pendiente y el botón «Revisar». */
 export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, canTasks, lawyerName, lawyers, userId }: Props) {
   const router = useRouter();
-  const [pending, start] = useTransition();
   const [open, setOpen] = useState(false);
   const href = `/clientes/${c.id}?tab=Causa`;
   const due = task?.due_at ? dueLabel(task.due_at, tz) : null;
   const step = c.current_step ?? stepsFor(c.procedure_type)[0] ?? null;
   const nextDue = c.next_review_at ? dueLabel(c.next_review_at, tz) : null;
-
-  const complete = () =>
-    start(async () => {
-      if (!task) return;
-      const r = await finishTask(task.id, c.id, "completada");
-      if (r.error) toast(r.error, true);
-      else {
-        toast("Tarea completada");
-        router.refresh();
-      }
-    });
 
   return (
     <div className="row flex flex-wrap items-center gap-x-4 gap-y-2 py-3" onClick={() => router.push(href)} role="link" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && router.push(href)}>
@@ -99,11 +85,7 @@ export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, c
       </div>
 
       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-        {task && canTasks && (
-          <button className="btn-ghost btn-sm" disabled={pending} onClick={complete} title="Marcar la tarea como completada">
-            <Icon name="check" size={13} /> Completar
-          </button>
-        )}
+        {task && canTasks && <TaskClose task={task} clientId={c.id} mode="popover" />}
         {canReview ? (
           <button className="btn-primary btn-sm" onClick={() => setOpen(true)}>
             Revisar

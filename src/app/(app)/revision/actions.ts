@@ -46,9 +46,10 @@ export async function reviewCase(clientId: string, input: ReviewInput): Promise<
   if (input.resolvedTaskId) {
     if (!can("legal.tasks")) return { error: "No tienes permiso para gestionar tareas." };
     if (!isUuid(input.resolvedTaskId)) return { error: "Tarea no válida." };
+    if (note.length < 3) return { error: "Si la tarea quedó resuelta, anota el resultado en la nota: queda como registro." };
     const { error } = await supabase
       .from("legal_tasks")
-      .update({ status: "completada", completed_at: new Date().toISOString(), result: note || null })
+      .update({ status: "completada", completed_at: new Date().toISOString(), result: note, closed_by: user.id })
       .eq("id", input.resolvedTaskId)
       .eq("client_id", clientId)
       .eq("status", "pendiente");
@@ -82,5 +83,6 @@ export async function reviewCase(clientId: string, input: ReviewInput): Promise<
   revalidatePath("/revision");
   revalidatePath(`/clientes/${clientId}`);
   revalidatePath("/clientes");
+  revalidatePath("/revision/tareas");
   return {};
 }
