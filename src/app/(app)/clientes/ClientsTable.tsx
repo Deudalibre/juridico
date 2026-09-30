@@ -2,38 +2,38 @@
 
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icons";
-import { initials } from "@/lib/format";
+import { dueLabel, initials, shortDate } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import { procedureTone } from "@/lib/legal";
-import type { LegalClient } from "@/lib/data";
+import { COMPLETED, TASK_KINDS, procedureTone, stepsFor } from "@/lib/legal";
+import type { LegalClient, LegalTask } from "@/lib/data";
 import { LawyerSelect } from "./[id]/LawyerSelect";
 
 type Member = { id: string; full_name: string; email: string; role: string; active: boolean };
-type Status = { id: string; name: string };
-type Props = { rows: LegalClient[]; members: Member[]; statuses: Status[]; canAssign: boolean };
+type Props = { rows: LegalClient[]; members: Member[]; nextTasks: Record<string, LegalTask>; canAssign: boolean; closed: boolean; tz: string };
 
-const GRID = "grid grid-cols-[minmax(0,2fr)_1.1fr_0.9fr_1.2fr_0.9fr_1.1fr_0.8fr_336px] items-center gap-3";
-const HEADERS = ["Cliente", "Procedimiento", "Rol", "Tribunal", "Estado", "Abogado", "Ingreso", "Acciones"];
-
-const fmtDate = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }) : null);
+const GRID = "grid grid-cols-[minmax(0,2fr)_1.1fr_0.9fr_1.1fr_1.3fr_1.1fr_1.3fr_336px] items-center gap-3";
 
 /** Lista de clientes con la misma estructura que «Todos los leads»: filas de 54 px y acciones al final. */
-export function ClientsTable({ rows, members, statuses, canAssign }: Props) {
+export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }: Props) {
   const router = useRouter();
   const open = (id: string) => router.push(`/clientes/${id}`);
-  const statusName = (id: string | null) => statuses.find((s) => s.id === id)?.name ?? null;
+  const headers = closed
+    ? ["Cliente", "Procedimiento", "Rol", "Tribunal", "Motivo de cierre", "Abogado", "Cerrada el", "Acciones"]
+    : ["Cliente", "Procedimiento", "Rol", "Tribunal", "Paso", "Abogado", "Próxima acción", "Acciones"];
 
   return (
-    <div role="table" aria-label="Clientes" className="min-w-[1240px]">
+    <div role="table" aria-label="Clientes" className="min-w-[1300px]">
       <div className={`${GRID} th-band border-y border-line px-4 py-2.5`} role="row">
-        {HEADERS.map((h) => (
+        {headers.map((h) => (
           <div key={h} className="th" role="columnheader">
             {h}
           </div>
         ))}
       </div>
       {rows.map((c) => {
-        const status = statusName(c.status_id);
+        const step = c.current_step ?? stepsFor(c.procedure_type)[0] ?? null;
+        const task = nextTasks[c.id];
+        const due = task?.due_at ? dueLabel(task.due_at, tz) : null;
         return (
           <div key={c.id} className={`${GRID} row min-h-[54px] py-1.5`} role="row" tabIndex={0} onClick={() => open(c.id)} onKeyDown={(e) => e.key === "Enter" && open(c.id)}>
             <div className="flex min-w-0 items-center gap-2" role="cell">
@@ -50,13 +50,37 @@ export function ClientsTable({ rows, members, statuses, canAssign }: Props) {
             <div role="cell" className="truncate text-[12.5px] text-soft">
               {c.tribunal ?? <span className="text-faint">—</span>}
             </div>
-            <div role="cell">{status ? <span className="badge neutral">{status}</span> : <span className="text-[12.5px] text-faint">—</span>}</div>
+            {closed ? (
+              <div role="cell" className="truncate text-[12.5px] text-soft" title={c.close_detail ?? undefined}>
+                {c.close_reason ? <span className="tag danger">{c.close_reason}</span> : <span className="text-faint">—</span>}
+              </div>
+            ) : (
+              <div role="cell" className="truncate text-[12.5px]">
+                {step ? <span className={`tag ${step === COMPLETED ? "success" : "brand"}`}>{step}</span> : <span className="text-faint">Sin procedimiento</span>}
+              </div>
+            )}
             <div role="cell" className="min-w-0" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-              <LawyerSelect clientId={c.id} lawyerId={c.lawyer_id} members={members} canAssign={canAssign} compact />
+              <LawyerSelect clientId={c.id} lawyerId={c.lawyer_id} members={members} canAssign={canAssign && !closed} compact />
             </div>
-            <div role="cell" className="tabnum text-[12.5px] text-muted">
-              {fmtDate(c.intake_date) ?? <span className="text-faint">—</span>}
-            </div>
+            {closed ? (
+              <div role="cell" className="tabnum text-[12.5px] text-muted">
+                {c.archived_at ? shortDate(c.archived_at, tz) : "—"}
+              </div>
+            ) : (
+              <div role="cell" className="flex min-w-0 flex-col gap-0.5">
+                {task ? (
+                  <>
+                    <span className="truncate text-[12.5px] font-medium text-fg">{task.title}</span>
+                    <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                      {TASK_KINDS[task.kind] ?? task.kind}
+                      {due && <span className={`tag tabnum ${due.overdue ? "danger" : due.today ? "brand" : ""}`}>{due.text}</span>}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[12.5px] text-faint">—</span>
+                )}
+              </div>
+            )}
             <div role="cell" className="row-actions flex items-center gap-1.5 whitespace-nowrap">
               <RowLink icon="folder" label="Carpeta" url={c.drive_folder_url} />
               <RowLink icon="external" label="Ficha jurídica" url={c.pjud_url} />

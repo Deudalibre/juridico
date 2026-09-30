@@ -1,17 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { getMembers, getStatuses, requirePermission, type LegalClient } from "@/lib/data";
-import { dateTime, initials } from "@/lib/format";
+import { getMembers, requirePermission, type CaseStep, type LegalClient, type LegalTask } from "@/lib/data";
+import { dateTime, dueLabel, initials } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import { procedureTone } from "@/lib/legal";
+import { COMPLETED, STEP_RESOLUTION, TASK_KINDS, currentStep, isLiquidacion, procedureTone, stepsFor } from "@/lib/legal";
 import { Icon } from "@/components/icons";
 import { BasicsForm } from "./BasicsForm";
+import { CausaSteps } from "./CausaSteps";
 import { ClaveUnica } from "./ClaveUnica";
+import { CloseCase } from "./CloseCase";
 import { LinksCard } from "./LinksCard";
 import { LawyerSelect } from "./LawyerSelect";
-
-const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL ?? "http://localhost:3000";
 
 // Ficha única del cliente, con la misma estructura que la ficha del lead en el CRM:
 // cabecera fija (identidad, etiquetas, acciones), pestañas, y datos a la izquierda con resumen a la derecha.
@@ -46,16 +46,25 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
   const params = await props.params;
   const { supabase, tz, can } = await requirePermission("legal.view");
   if (!/^[0-9a-f-]{36}$/i.test(params.id)) notFound();
-  const [{ data }, statuses, members] = await Promise.all([
+  const [{ data }, members, stepsRes, tasksRes] = await Promise.all([
     supabase.from("legal_clients").select("*").eq("id", params.id).maybeSingle(),
-    getStatuses(supabase),
     getMembers(supabase),
+    supabase.from("legal_case_steps").select("*").eq("client_id", params.id),
+    supabase.from("legal_tasks").select("*").eq("client_id", params.id).order("due_at", { ascending: true, nullsFirst: false }),
   ]);
   if (!data) notFound();
   const c = data as LegalClient;
+  const done = (stepsRes.data ?? []) as CaseStep[];
+  const tasks = (tasksRes.data ?? []) as LegalTask[];
   const tab = TABS.find((t) => t === searchParams.tab) ?? TABS[0];
-  const status = statuses.find((s) => s.id === c.status_id)?.name;
   const canEdit = can("legal.edit");
+  const closed = Boolean(c.archived_at);
+  const steps = stepsFor(c.procedure_type);
+  const current = currentStep(c.procedure_type, done.map((d) => d.step));
+  const names = Object.fromEntries(members.map((m) => [m.id, m.full_name || m.email]));
+  const nextTask = tasks.find((t) => t.status === "pendiente");
+  const nextDue = nextTask?.due_at ? dueLabel(nextTask.due_at, tz) : null;
+  const resolutionDone = done.some((d) => d.step === STEP_RESOLUTION);
 
   // Qué falta para trabajar la causa (solo datos de esta ficha)
   const missing = [!c.rut && "RUT", !c.phone && !c.email && "contacto", !c.procedure_type && "procedimiento", !c.intake_date && "fecha de ingreso"].filter(Boolean) as string[];
@@ -63,7 +72,7 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
   const summary = (
     <section className="panel">
       <Tile label="Abogado a cargo">
-        <LawyerSelect clientId={c.id} lawyerId={c.lawyer_id} members={members} canAssign={can("legal.assign")} />
+        <LawyerSelect clientId={c.id} lawyerId={c.lawyer_id} members={members} canAssign={can("legal.assign") && !closed} />
       </Tile>
       <Tile label="Contacto">
         {c.phone ? <span className="tabnum text-[13.5px] font-medium">{c.phone}</span> : <span className="text-[13.5px] text-faint">Sin teléfono</span>}
@@ -73,6 +82,22 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
         {c.rol ? <span className="tabnum text-[13.5px] font-medium">{c.rol}</span> : <span className="tag warn">Sin rol aún</span>}
         {c.tribunal && <span className="text-xs text-muted">{c.tribunal}</span>}
         <span className="text-xs text-muted">{c.intake_date ? `Ingresada el ${fmtDate(c.intake_date)}` : "Sin fecha de ingreso"}</span>
+        {c.liquidator_name && <span className="text-xs text-muted">Liquidador: {c.liquidator_name}</span>}
+      </Tile>
+      <Tile label="Próxima acción">
+        {nextTask ? (
+          <>
+            <span className="text-[13.5px] font-medium">{nextTask.title}</span>
+            <span className="text-xs text-muted">
+              {TASK_KINDS[nextTask.kind] ?? nextTask.kind}
+              {nextDue ? ` · ${nextDue.text}` : ""}
+            </span>
+          </>
+        ) : (
+          <Link href={`/clientes/${c.id}?tab=Causa`} className="text-[13.5px] text-faint hover:text-accent">
+            Sin tareas pendientes
+          </Link>
+        )}
       </Tile>
       <Tile label="Clave Única">
         <ClaveUnica clientId={c.id} has={Boolean(c.clave_unica_secret_id)} canEdit={canEdit} />
@@ -87,7 +112,7 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
 
   return (
     <>
-      <div className="panel gap-3 px-5 py-4">
+      <div className="panel relative z-10 gap-3 px-5 py-4 !overflow-visible">
         <Link href="/clientes" className="link-muted self-start text-xs">
           ← Volver a clientes
         </Link>
@@ -98,7 +123,16 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="page-title">{c.full_name}</h1>
                 {c.procedure_type && <span className={`tag ${procedureTone(c.procedure_type)}`}>{c.procedure_type}</span>}
-                {status && <span className="badge neutral">{status}</span>}
+                {closed ? (
+                  <span className="tag danger">Cerrada · {c.close_reason ?? "sin motivo"}</span>
+                ) : current ? (
+                  <span className={`tag ${current === COMPLETED ? "success" : "brand"}`}>{current === COMPLETED ? "Todos los pasos completados" : `Paso: ${current}`}</span>
+                ) : null}
+                {!closed && isLiquidacion(c.procedure_type) && (resolutionDone && c.liquidation_resolution_at ? (
+                  <span className="tag success">Resolución de liquidación · {fmtDate(c.liquidation_resolution_at)}</span>
+                ) : (
+                  <span className="tag warn">Sin resolución de liquidación aún</span>
+                ))}
               </div>
               <span className="text-[13px] text-soft">
                 {c.rut ? <span className="tabnum">RUT {formatRut(c.rut)}</span> : <span className="text-warning">RUT pendiente</span>}
@@ -106,17 +140,14 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
                 {c.tribunal && ` · ${c.tribunal}`}
                 {c.last_review_at && ` · última revisión ${dateTime(c.last_review_at, tz)}`}
               </span>
-              {missing.length > 0 && <span className="text-[12.5px] text-warning">Falta: {missing.join(", ")}</span>}
+              {closed && c.close_detail && <span className="text-[12.5px] text-muted">{c.close_detail}</span>}
+              {!closed && missing.length > 0 && <span className="text-[12.5px] text-warning">Falta: {missing.join(", ")}</span>}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <ExternalButton icon="folder" label="Carpeta del cliente" url={c.drive_folder_url} />
             <ExternalButton icon="external" label="Ficha jurídica" url={c.pjud_url} />
-            {c.lead_id && (
-              <a href={`${CRM_URL}/leads/${c.lead_id}`} className="btn-ghost btn-sm">
-                Ver lead en el CRM
-              </a>
-            )}
+            <CloseCase clientId={c.id} closed={closed} reason={c.close_reason} detail={c.close_detail} canEdit={canEdit} />
           </div>
         </div>
         <nav className="seg self-start" aria-label="Secciones de la ficha">
@@ -130,14 +161,28 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
 
       {tab === "Antecedentes" ? (
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <BasicsForm client={c} canEdit={canEdit} />
+          <BasicsForm client={c} canEdit={canEdit && !closed} />
           {summary}
         </div>
+      ) : tab === "Causa" ? (
+        <CausaSteps
+          clientId={c.id}
+          procedure={c.procedure_type}
+          steps={steps}
+          done={done}
+          current={current}
+          tasks={tasks}
+          names={names}
+          liquidatorName={c.liquidator_name}
+          canEdit={canEdit}
+          canTasks={can("legal.tasks")}
+          closed={closed}
+          tz={tz}
+        />
       ) : (
         <section className="panel empty">
           <span className="empty-title">{tab}: llega en la siguiente etapa</span>
           <span className="empty-text">
-            {tab === "Causa" && "Los pasos del procedimiento con su fecha y responsable, el liquidador y la resolución de liquidación."}
             {tab === "Documentos" && "Checklist por procedimiento, subida de archivos, estados y versiones; después, generación desde las plantillas Word."}
             {tab === "Historial" && "Cambios de paso, asignaciones, tareas y revisiones de esta causa, en orden."}
           </span>
