@@ -14,16 +14,7 @@ import {
 } from "@/lib/data";
 import { dateTime, dueLabel, initials } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import {
-  CHECKLIST_ENABLED,
-  COMPLETED,
-  STEP_RESOLUTION,
-  TASK_KINDS,
-  currentStep,
-  isLiquidacion,
-  procedureTone,
-  stepsFor,
-} from "@/lib/legal";
+import { CHECKLIST_ENABLED, COMPLETED, STEP_RESOLUTION, TASK_KINDS, currentStep, isLiquidacion, procedureTone, stepsFor } from "@/lib/legal";
 import { Icon } from "@/components/icons";
 import { BasicsForm } from "./BasicsForm";
 import { CausaSteps } from "./CausaSteps";
@@ -50,71 +41,36 @@ const fmtDate = (d: string | null) =>
 function Tile({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-1 border-b border-line-soft px-4 py-3 last:border-b-0">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-faint">
-        {label}
-      </span>
+      <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-faint">{label}</span>
       {children}
     </div>
   );
 }
 
-function ExternalButton({
-  icon,
-  label,
-  url,
-}: {
-  icon: string;
-  label: string;
-  url: string | null;
-}) {
+function ExternalButton({ icon, label, url }: { icon: string; label: string; url: string | null }) {
   return url ? (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="btn-secondary btn-sm"
-    >
+    <a href={url} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm">
       <Icon name={icon} size={14} /> {label}
     </a>
   ) : (
-    <Link
-      href="?tab=Antecedentes#enlaces"
-      className="btn-outline btn-sm"
-      title="Aún sin enlace: agrégalo en «Enlaces»"
-    >
+    <Link href="?tab=Antecedentes#enlaces" className="btn-outline btn-sm" title="Aún sin enlace: agrégalo en «Enlaces»">
       <Icon name={icon} size={14} /> {label}
     </Link>
   );
 }
 
-export default async function ClientePage(props: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
-}) {
+export default async function ClientePage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
   const { supabase, tz, can } = await requirePermission("legal.view");
   if (!/^[0-9a-f-]{36}$/i.test(params.id)) notFound();
   const [{ data }, members, stepsRes, tasksRes, histRes] = await Promise.all([
-    supabase
-      .from("legal_clients")
-      .select("*")
-      .eq("id", params.id)
-      .maybeSingle(),
+    supabase.from("legal_clients").select("*").eq("id", params.id).maybeSingle(),
     getMembers(supabase),
     supabase.from("legal_case_steps").select("*").eq("client_id", params.id),
-    supabase
-      .from("legal_tasks")
-      .select("*")
-      .eq("client_id", params.id)
-      .order("due_at", { ascending: true, nullsFirst: false }),
+    supabase.from("legal_tasks").select("*").eq("client_id", params.id).order("due_at", { ascending: true, nullsFirst: false }),
     searchParams.tab === "Historial"
-      ? supabase
-          .from("legal_case_history")
-          .select("id, at, actor_name, kind, summary")
-          .eq("client_id", params.id)
-          .order("at", { ascending: false })
-          .limit(200)
+      ? supabase.from("legal_case_history").select("id, at, actor_name, kind, summary").eq("client_id", params.id).order("at", { ascending: false }).limit(200)
       : Promise.resolve({
           data: [] as {
             id: number;
@@ -133,11 +89,7 @@ export default async function ClientePage(props: {
     summary: string | null;
   }[];
   // Documentos: checklist siempre (para el resumen); archivos, categorías y plantilla solo en su pestaña
-  const { data: itemsData } = await supabase
-    .from("legal_checklist_items")
-    .select("*")
-    .eq("client_id", params.id)
-    .order("position");
+  const { data: itemsData } = await supabase.from("legal_checklist_items").select("*").eq("client_id", params.id).order("position");
   const items = (itemsData ?? []) as ChecklistItem[];
   let docs: LegalDocument[] = [];
   let categories: DocCategory[] = [];
@@ -145,16 +97,8 @@ export default async function ClientePage(props: {
   let drive: ClientDrive | null = null;
   if (searchParams.tab === "Documentos") {
     const [d, cat, tpl, dr] = await Promise.all([
-      supabase
-        .from("legal_documents")
-        .select("*")
-        .eq("client_id", params.id)
-        .order("uploaded_at", { ascending: false }),
-      supabase
-        .from("legal_document_categories")
-        .select("id, name, position")
-        .eq("active", true)
-        .order("position"),
+      supabase.from("legal_documents").select("*").eq("client_id", params.id).order("uploaded_at", { ascending: false }),
+      supabase.from("legal_document_categories").select("id, name, position").eq("active", true).order("position"),
       data?.procedure_type
         ? supabase
             .from("legal_checklist_templates")
@@ -181,16 +125,8 @@ export default async function ClientePage(props: {
     } | null;
     templateCount = t?.legal_checklist_template_items?.length ?? 0;
   }
-  const docsDone = items.filter(
-    (it) => it.satisfied || it.not_applicable,
-  ).length;
-  const { data: lastReviewData } = await supabase
-    .from("legal_reviews")
-    .select("*")
-    .eq("client_id", params.id)
-    .order("reviewed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const docsDone = items.filter((it) => it.satisfied || it.not_applicable).length;
+  const { data: lastReviewData } = await supabase.from("legal_reviews").select("*").eq("client_id", params.id).order("reviewed_at", { ascending: false }).limit(1).maybeSingle();
   const lastReview = (lastReviewData ?? null) as LegalReview | null;
   const KIND_LABEL: Record<string, string> = {
     paso: "Paso",
@@ -212,60 +148,28 @@ export default async function ClientePage(props: {
     c.procedure_type,
     done.map((d) => d.step),
   );
-  const names = Object.fromEntries(
-    members.map((m) => [m.id, m.full_name || m.email]),
-  );
+  const names = Object.fromEntries(members.map((m) => [m.id, m.full_name || m.email]));
   const nextTask = tasks.find((t) => t.status === "pendiente");
   const nextDue = nextTask?.due_at ? dueLabel(nextTask.due_at, tz) : null;
   const resolutionDone = done.some((d) => d.step === STEP_RESOLUTION);
 
   // Qué falta para trabajar la causa (solo datos de esta ficha)
-  const missing = [
-    !c.rut && "RUT",
-    !c.phone && !c.email && "contacto",
-    !c.procedure_type && "procedimiento",
-    !c.intake_date && "fecha de ingreso",
-  ].filter(Boolean) as string[];
+  const missing = [!c.rut && "RUT", !c.phone && !c.email && "contacto", !c.procedure_type && "procedimiento", !c.intake_date && "fecha de ingreso"].filter(Boolean) as string[];
 
   const summary = (
     <section className="panel">
       <Tile label="Abogado a cargo">
-        <LawyerSelect
-          clientId={c.id}
-          lawyerId={c.lawyer_id}
-          members={members}
-          canAssign={can("legal.assign") && !closed}
-        />
+        <LawyerSelect clientId={c.id} lawyerId={c.lawyer_id} members={members} canAssign={can("legal.assign") && !closed} />
       </Tile>
       <Tile label="Contacto">
-        {c.phone ? (
-          <span className="tabnum text-[13.5px] font-medium">{c.phone}</span>
-        ) : (
-          <span className="text-[13.5px] text-faint">Sin teléfono</span>
-        )}
-        {c.email ? (
-          <span className="truncate text-xs text-muted">{c.email}</span>
-        ) : (
-          <span className="text-xs text-faint">Sin email</span>
-        )}
+        {c.phone ? <span className="tabnum text-[13.5px] font-medium">{c.phone}</span> : <span className="text-[13.5px] text-faint">Sin teléfono</span>}
+        {c.email ? <span className="truncate text-xs text-muted">{c.email}</span> : <span className="text-xs text-faint">Sin email</span>}
       </Tile>
       <Tile label="Causa">
-        {c.rol ? (
-          <span className="tabnum text-[13.5px] font-medium">{c.rol}</span>
-        ) : (
-          <span className="tag warn">Sin rol aún</span>
-        )}
+        {c.rol ? <span className="tabnum text-[13.5px] font-medium">{c.rol}</span> : <span className="tag warn">Sin rol aún</span>}
         {c.tribunal && <span className="text-xs text-muted">{c.tribunal}</span>}
-        <span className="text-xs text-muted">
-          {c.intake_date
-            ? `Ingresada el ${fmtDate(c.intake_date)}`
-            : "Sin fecha de ingreso"}
-        </span>
-        {c.liquidator_name && (
-          <span className="text-xs text-muted">
-            Liquidador: {c.liquidator_name}
-          </span>
-        )}
+        <span className="text-xs text-muted">{c.intake_date ? `Ingresada el ${fmtDate(c.intake_date)}` : "Sin fecha de ingreso"}</span>
+        {c.liquidator_name && <span className="text-xs text-muted">Liquidador: {c.liquidator_name}</span>}
       </Tile>
       <Tile label="Próxima acción">
         {nextTask ? (
@@ -277,10 +181,7 @@ export default async function ClientePage(props: {
             </span>
           </>
         ) : (
-          <Link
-            href={`/clientes/${c.id}?tab=Causa`}
-            className="text-[13.5px] text-faint hover:text-accent"
-          >
+          <Link href={`/clientes/${c.id}?tab=Causa`} className="text-[13.5px] text-faint hover:text-accent">
             Sin tareas pendientes
           </Link>
         )}
@@ -289,60 +190,34 @@ export default async function ClientePage(props: {
         {lastReview ? (
           <Link href="/revision/historial" className="flex flex-col gap-0.5">
             <span className="flex flex-wrap items-center gap-1.5">
-              <span className={`tag ${lastReview.had_movement ? "brand" : ""}`}>
-                {lastReview.had_movement ? "Con movimiento" : "Sin movimiento"}
-              </span>
+              <span className={`tag ${lastReview.had_movement ? "brand" : ""}`}>{lastReview.had_movement ? "Con movimiento" : "Sin movimiento"}</span>
             </span>
             <span className="text-xs text-muted">
-              {dateTime(lastReview.reviewed_at, tz)} ·{" "}
-              {lastReview.reviewer_name ?? "—"}
+              {dateTime(lastReview.reviewed_at, tz)} · {lastReview.reviewer_name ?? "—"}
             </span>
-            {c.next_review_at && (
-              <span className="text-xs text-faint">
-                Próxima: {dueLabel(c.next_review_at, tz).text}
-              </span>
-            )}
+            {c.next_review_at && <span className="text-xs text-faint">Próxima: {dueLabel(c.next_review_at, tz).text}</span>}
           </Link>
         ) : (
-          <Link
-            href="/revision"
-            className="text-[13.5px] text-faint hover:text-accent"
-          >
+          <Link href="/revision" className="text-[13.5px] text-faint hover:text-accent">
             Nunca revisada
           </Link>
         )}
       </Tile>
       <Tile label="Documentos">
         {!CHECKLIST_ENABLED ? (
-          <Link
-            href={`/clientes/${c.id}?tab=Documentos`}
-            className={`text-[13.5px] hover:text-accent ${c.drive_folder_url ? "font-medium text-fg" : "text-faint"}`}
-          >
-            {c.drive_folder_url
-              ? "Carpeta del Drive vinculada"
-              : "Carpeta del Drive por vincular"}
+          <Link href={`/clientes/${c.id}?tab=Documentos`} className={`text-[13.5px] hover:text-accent ${c.drive_folder_url ? "font-medium text-fg" : "text-faint"}`}>
+            {c.drive_folder_url ? "Carpeta del Drive vinculada" : "Carpeta del Drive por vincular"}
           </Link>
         ) : items.length === 0 ? (
-          <Link
-            href={`/clientes/${c.id}?tab=Documentos`}
-            className="text-[13.5px] text-faint hover:text-accent"
-          >
+          <Link href={`/clientes/${c.id}?tab=Documentos`} className="text-[13.5px] text-faint hover:text-accent">
             Sin checklist aún
           </Link>
         ) : (
-          <Link
-            href={`/clientes/${c.id}?tab=Documentos`}
-            className="flex flex-col gap-1"
-          >
-            <span
-              className={`text-[13.5px] font-medium ${docsDone === items.length ? "text-success" : "text-fg"}`}
-            >
+          <Link href={`/clientes/${c.id}?tab=Documentos`} className="flex flex-col gap-1">
+            <span className={`text-[13.5px] font-medium ${docsDone === items.length ? "text-success" : "text-fg"}`}>
               {docsDone} de {items.length} antecedentes
             </span>
-            <span
-              className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2"
-              aria-hidden
-            >
+            <span className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2" aria-hidden>
               <span
                 className="block h-full rounded-full bg-accent"
                 style={{
@@ -354,20 +229,11 @@ export default async function ClientePage(props: {
         )}
       </Tile>
       <Tile label="Clave Única">
-        <ClaveUnica
-          clientId={c.id}
-          has={Boolean(c.clave_unica_secret_id)}
-          canEdit={canEdit}
-        />
+        <ClaveUnica clientId={c.id} has={Boolean(c.clave_unica_secret_id)} canEdit={canEdit} />
       </Tile>
       <div id="enlaces">
         <Tile label="Enlaces">
-          <LinksCard
-            clientId={c.id}
-            driveUrl={c.drive_folder_url}
-            pjudUrl={c.pjud_url}
-            canEdit={canEdit}
-          />
+          <LinksCard clientId={c.id} driveUrl={c.drive_folder_url} pjudUrl={c.pjud_url} canEdit={canEdit} />
         </Tile>
       </div>
     </section>
@@ -381,93 +247,43 @@ export default async function ClientePage(props: {
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="avatar h-11 w-11 text-[13px]">
-              {initials(c.full_name) || "?"}
-            </span>
+            <span className="avatar h-11 w-11 text-[13px]">{initials(c.full_name) || "?"}</span>
             <div className="flex min-w-0 flex-col gap-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="page-title">{c.full_name}</h1>
-                {c.procedure_type && (
-                  <span className={`tag ${procedureTone(c.procedure_type)}`}>
-                    {c.procedure_type}
-                  </span>
-                )}
+                {c.procedure_type && <span className={`tag ${procedureTone(c.procedure_type)}`}>{c.procedure_type}</span>}
                 {closed ? (
-                  <span className="tag danger">
-                    Cerrada · {c.close_reason ?? "sin motivo"}
-                  </span>
+                  <span className="tag danger">Cerrada · {c.close_reason ?? "sin motivo"}</span>
                 ) : current ? (
-                  <span
-                    className={`tag ${current === COMPLETED ? "success" : "brand"}`}
-                  >
-                    {current === COMPLETED
-                      ? "Todos los pasos completados"
-                      : `Paso: ${current}`}
-                  </span>
+                  <span className={`tag ${current === COMPLETED ? "success" : "brand"}`}>{current === COMPLETED ? "Todos los pasos completados" : `Paso: ${current}`}</span>
                 ) : null}
                 {!closed &&
                   isLiquidacion(c.procedure_type) &&
                   (resolutionDone && c.liquidation_resolution_at ? (
-                    <span className="tag success">
-                      Resolución de liquidación ·{" "}
-                      {fmtDate(c.liquidation_resolution_at)}
-                    </span>
+                    <span className="tag success">Resolución de liquidación · {fmtDate(c.liquidation_resolution_at)}</span>
                   ) : (
-                    <span className="tag warn">
-                      Sin resolución de liquidación aún
-                    </span>
+                    <span className="tag warn">Sin resolución de liquidación aún</span>
                   ))}
               </div>
               <span className="text-[13px] text-soft">
-                {c.rut ? (
-                  <span className="tabnum">RUT {formatRut(c.rut)}</span>
-                ) : (
-                  <span className="text-warning">RUT pendiente</span>
-                )}
+                {c.rut ? <span className="tabnum">RUT {formatRut(c.rut)}</span> : <span className="text-warning">RUT pendiente</span>}
                 {c.rol && <span className="tabnum"> · {c.rol}</span>}
                 {c.tribunal && ` · ${c.tribunal}`}
-                {c.last_review_at &&
-                  ` · última revisión ${dateTime(c.last_review_at, tz)}`}
+                {c.last_review_at && ` · última revisión ${dateTime(c.last_review_at, tz)}`}
               </span>
-              {closed && c.close_detail && (
-                <span className="text-[12.5px] text-muted">
-                  {c.close_detail}
-                </span>
-              )}
-              {!closed && missing.length > 0 && (
-                <span className="text-[12.5px] text-warning">
-                  Falta: {missing.join(", ")}
-                </span>
-              )}
+              {closed && c.close_detail && <span className="text-[12.5px] text-muted">{c.close_detail}</span>}
+              {!closed && missing.length > 0 && <span className="text-[12.5px] text-warning">Falta: {missing.join(", ")}</span>}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <ExternalButton
-              icon="folder"
-              label="Carpeta del cliente"
-              url={c.drive_folder_url}
-            />
-            <ExternalButton
-              icon="external"
-              label="Ficha jurídica"
-              url={c.pjud_url}
-            />
-            <CloseCase
-              clientId={c.id}
-              closed={closed}
-              reason={c.close_reason}
-              detail={c.close_detail}
-              canEdit={canEdit}
-            />
+            <ExternalButton icon="folder" label="Carpeta del cliente" url={c.drive_folder_url} />
+            <ExternalButton icon="external" label="Ficha jurídica" url={c.pjud_url} />
+            <CloseCase clientId={c.id} closed={closed} reason={c.close_reason} detail={c.close_detail} canEdit={canEdit} />
           </div>
         </div>
         <nav className="seg self-start" aria-label="Secciones de la ficha">
           {TABS.map((t) => (
-            <Link
-              key={t}
-              href={`/clientes/${c.id}?tab=${encodeURIComponent(t)}`}
-              aria-current={tab === t ? "true" : undefined}
-            >
+            <Link key={t} href={`/clientes/${c.id}?tab=${encodeURIComponent(t)}`} aria-current={tab === t ? "true" : undefined}>
               {t}
             </Link>
           ))}
@@ -498,32 +314,16 @@ export default async function ClientePage(props: {
         <section className="panel overflow-hidden">
           <div className="panel-head">
             <span className="card-title">Historial de la causa</span>
-            <span className="text-[12.5px] text-muted">
-              {history.length === 0
-                ? "Sin movimientos todavía"
-                : `${history.length} movimientos`}
-            </span>
+            <span className="text-[12.5px] text-muted">{history.length === 0 ? "Sin movimientos todavía" : `${history.length} movimientos`}</span>
           </div>
           {history.length === 0 ? (
-            <div className="px-5 py-6 text-center text-[12.5px] text-faint">
-              Los pasos, cierres, asignaciones y cambios de estado de esta causa
-              aparecerán aquí en orden.
-            </div>
+            <div className="px-5 py-6 text-center text-[12.5px] text-faint">Los pasos, cierres, asignaciones y cambios de estado de esta causa aparecerán aquí en orden.</div>
           ) : (
             <ol className="flex flex-col">
               {history.map((h) => (
-                <li
-                  key={h.id}
-                  className="flex flex-wrap items-center gap-3 border-b border-line-soft px-5 py-2.5 last:border-b-0"
-                >
-                  <span
-                    className={`tag ${h.kind === "cierre" ? "danger" : h.kind === "paso" ? "brand" : ""}`}
-                  >
-                    {KIND_LABEL[h.kind] ?? h.kind}
-                  </span>
-                  <span className="min-w-0 flex-1 text-[13px] text-fg">
-                    {h.summary ?? "—"}
-                  </span>
+                <li key={h.id} className="flex flex-wrap items-center gap-3 border-b border-line-soft px-5 py-2.5 last:border-b-0">
+                  <span className={`tag ${h.kind === "cierre" ? "danger" : h.kind === "paso" ? "brand" : ""}`}>{KIND_LABEL[h.kind] ?? h.kind}</span>
+                  <span className="min-w-0 flex-1 text-[13px] text-fg">{h.summary ?? "—"}</span>
                   <span className="tabnum text-[12px] text-muted">
                     {dateTime(h.at, tz)}
                     {h.actor_name ? ` · ${h.actor_name}` : ""}

@@ -40,8 +40,7 @@ type SubItem = {
   query?: string;
 };
 
-const starts = (p: string, base: string) =>
-  p === base || p.startsWith(base + "/");
+const starts = (p: string, base: string) => p === base || p.startsWith(base + "/");
 
 const SECTIONS: {
   match: (p: string) => boolean;
@@ -99,12 +98,28 @@ const SECTIONS: {
         need: "legal.create",
       },
       {
+        href: "/tablero",
+        label: "Tablero por paso",
+        icon: "grid",
+        group: "Seguimiento",
+      },
+      {
         href: "/revision",
         label: "Por revisar",
         icon: "today",
         group: "Seguimiento",
         exact: true,
       },
+    ],
+  },
+  {
+    match: (p) => starts(p, "/tablero"),
+    title: "Tablero",
+    items: [
+      { href: "/tablero", label: "Liquidación voluntaria", icon: "grid", group: "Procedimiento", exact: true },
+      { href: "/tablero?proc=Renegociaci%C3%B3n", label: "Renegociación", icon: "grid", group: "Procedimiento", query: "proc=Renegociaci" },
+      { href: "/clientes", label: "Todas las causas", icon: "user", group: "Causas" },
+      { href: "/revision", label: "Por revisar", icon: "today", group: "Causas", exact: true },
     ],
   },
 ];
@@ -115,6 +130,7 @@ const CRUMBS: [RegExp, string[]][] = [
   [/^\/clientes\/nuevo/, ["Clientes", "Nuevo cliente"]],
   [/^\/clientes\/.+/, ["Clientes", "Ficha del cliente"]],
   [/^\/clientes/, ["Clientes"]],
+  [/^\/tablero/, ["Tablero"]],
   [/^\/plantillas\/.+/, ["Plantillas", "Editor de plantilla"]],
   [/^\/plantillas/, ["Plantillas"]],
   [/^\/documentos/, ["Documentos"]],
@@ -124,40 +140,31 @@ const CRUMBS: [RegExp, string[]][] = [
 const CRUMB_ICON: Record<string, string> = {
   Revisión: "today",
   Clientes: "user",
+  Tablero: "grid",
   Plantillas: "folder",
   Documentos: "report",
   Configuración: "settings",
 };
 
-function UserMenu({
-  name,
-  role,
-  crmUrl,
-}: {
-  name: string;
-  role: Role;
-  crmUrl: string;
-}) {
+function UserMenu({ name, role, crmUrl }: { name: string; role: Role; crmUrl: string }) {
   return (
     <Menu
       trigger={
-        <button
-          className="flex items-center gap-2 rounded-md border-0 bg-transparent p-1 pr-2 hover:bg-surface-2"
-          aria-label="Menú de usuario"
-        >
-          <span className="avatar solid h-8 w-8 text-[11px]">
-            {initials(name) || "?"}
-          </span>
+        <button className="flex items-center gap-2 rounded-md border-0 bg-transparent p-1 pr-2 hover:bg-surface-2" aria-label="Menú de usuario">
+          <span className="avatar solid h-8 w-8 text-[11px]">{initials(name) || "?"}</span>
         </button>
       }
     >
       <MenuLabel>
-        <span className="block truncate text-[13px] font-medium text-fg">
-          {name}
-        </span>
+        <span className="block truncate text-[13px] font-medium text-fg">{name}</span>
         <span className="block text-xs text-muted">{ROLE_LABEL[role]}</span>
       </MenuLabel>
       <MenuSeparator />
+      <MenuItem asChild>
+        <a href={`${crmUrl}/ajustes`}>
+          <Icon name="user" size={16} /> Mi cuenta
+        </a>
+      </MenuItem>
       <MenuItem asChild>
         <a href={crmUrl}>
           <Icon name="leads" size={16} /> Ir al CRM
@@ -170,15 +177,7 @@ function UserMenu({
   );
 }
 
-export function AppShell({
-  children,
-  userId,
-  name,
-  role,
-  permissions,
-  alerts,
-  crmUrl,
-}: Props) {
+export function AppShell({ children, userId, name, role, permissions, alerts, crmUrl }: Props) {
   const path = usePathname();
   const search = useSearchParams();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -198,6 +197,12 @@ export function AppShell({
       icon: "user",
       match: (p) => starts(p, "/clientes"),
     },
+    {
+      href: "/tablero",
+      label: "Tablero",
+      icon: "grid",
+      match: (p) => starts(p, "/tablero"),
+    },
   ];
   if (can("documents.view")) {
     nav.push({
@@ -216,8 +221,7 @@ export function AppShell({
 
   const rawSection = SECTIONS.find((s) => s.match(path));
   const items = rawSection?.items.filter((i) => !i.need || can(i.need)) ?? [];
-  const section =
-    rawSection && items.length > 1 ? { ...rawSection, items } : null;
+  const section = rawSection && items.length > 1 ? { ...rawSection, items } : null;
   const crumbs = CRUMBS.find(([re]) => re.test(path))?.[1] ?? [];
   const isActive = (i: SubItem) => {
     const base = i.href.split("?")[0];
@@ -225,38 +229,21 @@ export function AppShell({
     if (!hit) return false;
     if (i.query) return search.toString().includes(i.query);
     // «Causas activas» no se marca cuando se están viendo las cerradas
-    return !(
-      base === "/clientes" &&
-      search.get("estado") === "cerradas" &&
-      i.exact
-    );
+    return !(base === "/clientes" && search.get("estado") === "cerradas" && i.exact);
   };
 
   return (
     <div className="shell">
       <nav className="rail" aria-label="Navegación principal">
-        <Link
-          href="/revision"
-          className="rail-brand"
-          title="Deuda Libre · Jurídico"
-          aria-label="Deuda Libre · inicio"
-        >
+        <Link href="/revision" className="rail-brand" title="Deuda Libre · Jurídico" aria-label="Deuda Libre · inicio">
           DL
         </Link>
         {nav.map((n) => (
-          <Link
-            key={n.href}
-            href={n.href}
-            className="rail-item"
-            aria-current={n.match(path) ? "page" : undefined}
-          >
+          <Link key={n.href} href={n.href} className="rail-item" aria-current={n.match(path) ? "page" : undefined}>
             <Icon name={n.icon} />
             <span>{n.label}</span>
             {n.href === "/revision" && alerts > 0 && (
-              <span
-                className="rail-badge"
-                title="Causas por revisar o con tareas vencidas"
-              >
+              <span className="rail-badge" title="Causas por revisar o con tareas vencidas">
                 {alerts > 99 ? "99+" : alerts}
               </span>
             )}
@@ -268,11 +255,7 @@ export function AppShell({
         </a>
         <div className="rail-spacer flex-1" />
         {can("legal.settings") && (
-          <Link
-            href="/configuracion"
-            className="rail-item"
-            aria-current={starts(path, "/configuracion") ? "page" : undefined}
-          >
+          <Link href="/configuracion" className="rail-item" aria-current={starts(path, "/configuracion") ? "page" : undefined}>
             <Icon name="settings" />
             <span>Configuración</span>
           </Link>
@@ -280,21 +263,12 @@ export function AppShell({
       </nav>
 
       {section && (
-        <aside
-          className={`submenu ${menuOpen ? "open" : ""}`}
-          aria-label={section.title}
-        >
+        <aside className={`submenu ${menuOpen ? "open" : ""}`} aria-label={section.title}>
           <span className="submenu-title">{section.title}</span>
           {section.items.map((i, k) => (
             <div key={i.href} className="contents">
-              {i.group && i.group !== section.items[k - 1]?.group && (
-                <span className="submenu-group">{i.group}</span>
-              )}
-              <Link
-                href={i.href}
-                className="submenu-item"
-                aria-current={isActive(i) ? "page" : undefined}
-              >
+              {i.group && i.group !== section.items[k - 1]?.group && <span className="submenu-group">{i.group}</span>}
+              <Link href={i.href} className="submenu-item" aria-current={isActive(i) ? "page" : undefined}>
                 <Icon name={i.icon} size={15} />
                 {i.label}
               </Link>
@@ -307,12 +281,7 @@ export function AppShell({
         <header className="topbar">
           <div className="crumbs">
             {section && (
-              <button
-                className="icon-btn plain submenu-toggle"
-                onClick={() => setMenuOpen(!menuOpen)}
-                aria-label="Mostrar submenú"
-                aria-expanded={menuOpen}
-              >
+              <button className="icon-btn plain submenu-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label="Mostrar submenú" aria-expanded={menuOpen}>
                 <Icon name="sidebar" size={18} />
               </button>
             )}
@@ -340,12 +309,7 @@ export function AppShell({
             ))}
           </div>
           <div className="flex items-center gap-1.5">
-            <Link
-              href="/revision"
-              className="topbar-btn"
-              title="Causas por revisar"
-              aria-label="Causas por revisar"
-            >
+            <Link href="/revision" className="topbar-btn" title="Causas por revisar" aria-label="Causas por revisar">
               <Icon name="tasks" size={15} />
             </Link>
             <Notifications userId={userId} />
