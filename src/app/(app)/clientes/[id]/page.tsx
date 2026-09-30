@@ -188,14 +188,20 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
       </Tile>
       <Tile label="Última revisión">
         {lastReview ? (
-          <Link href="/revision/historial" className="flex flex-col gap-0.5">
+          <Link href="/revision/historial" className="flex flex-col gap-1.5">
+            <span className="flex items-center gap-2">
+              <span className="avatar solid h-7 w-7 shrink-0 text-[10.5px]" aria-hidden>
+                {initials(lastReview.reviewer_name ?? "") || "?"}
+              </span>
+              <span className="flex min-w-0 flex-col leading-tight">
+                <span className="truncate text-[13.5px] font-semibold text-fg">Revisó {lastReview.reviewer_name ?? "sin nombre"}</span>
+                <span className="text-xs text-muted">{dateTime(lastReview.reviewed_at, tz)}</span>
+              </span>
+            </span>
             <span className="flex flex-wrap items-center gap-1.5">
               <span className={`tag ${lastReview.had_movement ? "brand" : ""}`}>{lastReview.had_movement ? "Con movimiento" : "Sin movimiento"}</span>
+              {c.next_review_at && <span className="text-xs text-faint">Próxima: {dueLabel(c.next_review_at, tz).text}</span>}
             </span>
-            <span className="text-xs text-muted">
-              {dateTime(lastReview.reviewed_at, tz)} · {lastReview.reviewer_name ?? "—"}
-            </span>
-            {c.next_review_at && <span className="text-xs text-faint">Próxima: {dueLabel(c.next_review_at, tz).text}</span>}
           </Link>
         ) : (
           <Link href="/revision" className="text-[13.5px] text-faint hover:text-accent">
@@ -269,7 +275,7 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
                 {c.rut ? <span className="tabnum">RUT {formatRut(c.rut)}</span> : <span className="text-warning">RUT pendiente</span>}
                 {c.rol && <span className="tabnum"> · {c.rol}</span>}
                 {c.tribunal && ` · ${c.tribunal}`}
-                {c.last_review_at && ` · última revisión ${dateTime(c.last_review_at, tz)}`}
+                {c.last_review_at && ` · última revisión ${dateTime(c.last_review_at, tz)}${lastReview?.reviewer_name ? ` por ${lastReview.reviewer_name}` : ""}`}
               </span>
               {closed && c.close_detail && <span className="text-[12.5px] text-muted">{c.close_detail}</span>}
               {!closed && missing.length > 0 && <span className="text-[12.5px] text-warning">Falta: {missing.join(", ")}</span>}

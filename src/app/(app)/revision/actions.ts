@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import { zonedToIso } from "@/lib/format";
 import { REVIEW_INTERVALS, TASK_KINDS } from "@/lib/legal";
+import { applyStep } from "@/lib/case-steps";
 
 type Result = { error?: string };
 const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
@@ -14,11 +15,16 @@ export type ReviewInput = {
   /** Días hasta la próxima revisión (uno de REVIEW_INTERVALS) */
   nextDays: number;
   task: { title: string; kind: string; dueLocal: string; assigneeId: string } | null;
+  /** Paso de la causa que quedó hecho con este movimiento (opcional). La nota de la revisión pasa a ser la nota del paso. */
+  step: { name: string; date: string; liquidator: string } | null;
+  /** Tarea pendiente que quedó resuelta al revisar (opcional). */
+  resolvedTaskId: string | null;
 };
 
 /**
- * Registra la revisión de una causa: si hubo movimiento, la nota, la tarea que queda pendiente (opcional) y
- * cuándo vuelve a tocar revisarla. El trigger de la base actualiza la causa, el historial y avisa al responsable.
+ * Registra la revisión de una causa en una sola interacción: si hubo movimiento, la nota, el paso que avanzó
+ * (opcional), la tarea que quedó resuelta (opcional), la que queda pendiente (opcional) y cuándo vuelve a tocar
+ * revisarla. El trigger de la base actualiza la causa, el historial y avisa al responsable.
  */
 export async function reviewCase(clientId: string, input: ReviewInput): Promise<Result> {
   const { supabase, user, can, tz } = await getContext();
@@ -28,6 +34,26 @@ export async function reviewCase(clientId: string, input: ReviewInput): Promise<
   if (!interval) return { error: "Elige cuándo vuelve a tocar revisar la causa." };
   const note = input.note.trim().slice(0, 2000);
   if (input.hadMovement && !note) return { error: "Si hubo movimiento, anota qué pasó (qué resolvió o pidió el tribunal)." };
+
+  // Avance de paso: solo tiene sentido si hubo movimiento
+  if (input.step) {
+    if (!input.hadMovement) return { error: "Para marcar un paso, indica que la causa tuvo movimiento." };
+    const r = await applyStep(supabase, clientId, { step: input.step.name, date: input.step.date, note, liquidator: input.step.liquidator });
+    if (r.error) return r;
+  }
+
+  // Tarea pendiente que quedó resuelta con esta revisión
+  if (input.resolvedTaskId) {
+    if (!can("legal.tasks")) return { error: "No tienes permiso para gestionar tareas." };
+    if (!isUuid(input.resolvedTaskId)) return { error: "Tarea no válida." };
+    const { error } = await supabase
+      .from("legal_tasks")
+      .update({ status: "completada", completed_at: new Date().toISOString(), result: note || null })
+      .eq("id", input.resolvedTaskId)
+      .eq("client_id", clientId)
+      .eq("status", "pendiente");
+    if (error) return { error: error.message };
+  }
 
   let taskId: string | null = null;
   if (input.task) {

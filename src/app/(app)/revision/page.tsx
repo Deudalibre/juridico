@@ -103,14 +103,17 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
   const ids = clients.map((c) => c.id);
 
   let tasks: LegalTask[] = [];
-  let lastReview = new Map<string, LegalReview>();
+  const lastReview = new Map<string, LegalReview>();
+  const doneSteps = new Map<string, string[]>(); // pasos hechos por causa: el diálogo ofrece solo los que faltan
   if (ids.length > 0) {
-    const [t, r] = await Promise.all([
+    const [t, r, st] = await Promise.all([
       supabase.from("legal_tasks").select("*").in("client_id", ids).eq("status", "pendiente").order("due_at", { ascending: true, nullsFirst: false }),
       supabase.from("legal_reviews").select("*").in("client_id", ids).order("reviewed_at", { ascending: false }).limit(3000),
+      supabase.from("legal_case_steps").select("client_id, step").in("client_id", ids),
     ]);
     tasks = (t.data ?? []) as LegalTask[];
     for (const rv of (r.data ?? []) as LegalReview[]) if (!lastReview.has(rv.client_id)) lastReview.set(rv.client_id, rv);
+    for (const d of (st.data ?? []) as { client_id: string; step: string }[]) doneSteps.set(d.client_id, [...(doneSteps.get(d.client_id) ?? []), d.step]);
   }
   const nextTask = new Map<string, LegalTask>();
   const overdueTasks = new Map<string, LegalTask>();
@@ -142,6 +145,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
         client={c}
         task={nextTask.get(c.id) ?? null}
         review={lastReview.get(c.id) ?? null}
+        doneSteps={doneSteps.get(c.id) ?? []}
         tz={tz}
         canReview={canReview}
         canTasks={canTasks}
@@ -175,7 +179,8 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
           <HelpPop label="Cómo funciona" title="Revisión de causas">
             <span>Cada causa activa vuelve a la cola cuando se cumple su fecha de próxima revisión (por defecto, {REVIEW_EVERY_DAYS} días después de la última).</span>
             <span>Primero van las que nunca se han revisado, de la más antigua a la más nueva por fecha de ingreso; después las más atrasadas.</span>
-            <span>Al revisar, anota si hubo movimiento, qué pidió el tribunal y deja la tarea pendiente con responsable y fecha. Todo queda con tu nombre, día y hora.</span>
+            <span>Al revisar, anota si hubo movimiento, qué pidió el tribunal, si la causa avanzó de paso y qué tarea quedó resuelta o pendiente. Todo queda con tu nombre, día y hora, sin volver a marcarlo en la ficha.</span>
+            <span>Marcar un paso desde la pestaña «Causa» también cuenta como revisión con movimiento.</span>
           </HelpPop>
           <div className="seg" role="group" aria-label="Vista de Revisión">
             <Link href={link({ modo: undefined, semana: undefined })} aria-current={modo === "lista" ? "true" : undefined}>
@@ -211,6 +216,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                   client={c}
                   task={overdueTasks.get(c.id) ?? null}
                   review={lastReview.get(c.id) ?? null}
+                  doneSteps={doneSteps.get(c.id) ?? []}
                   tz={tz}
                   canReview={canReview}
                   canTasks={canTasks}

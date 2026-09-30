@@ -136,6 +136,7 @@ export function CausaSteps({ clientId, procedure, steps, done, current, tasks, n
                     <button type="button" className="btn-ghost btn-sm" onClick={() => setMarking(null)} disabled={pending}>
                       Cancelar
                     </button>
+                    <span className="basis-full text-[12px] text-muted">Queda registrado también como revisión con movimiento: la causa no volverá a la cola de «Por revisar» por este avance.</span>
                   </form>
                 )}
               </li>

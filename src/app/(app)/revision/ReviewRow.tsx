@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import { finishTask } from "@/app/(app)/clientes/actions";
 import { toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
-import { dateTime, dueLabel, relativeDays } from "@/lib/format";
+import { dateTime, dueLabel, initials, relativeDays } from "@/lib/format";
 import { TASK_KINDS, procedureTone, stepsFor } from "@/lib/legal";
 import type { LegalClient, LegalReview, LegalTask } from "@/lib/data";
 import { ReviewDialog } from "./ReviewDialog";
@@ -15,6 +15,7 @@ type Props = {
   client: LegalClient;
   task: LegalTask | null;
   review: LegalReview | null;
+  doneSteps: string[];
   tz: string;
   canReview: boolean;
   canTasks: boolean;
@@ -24,7 +25,7 @@ type Props = {
 };
 
 /** Fila de la cola de revisión: la causa, su última revisión, la tarea pendiente y el botón «Revisar». */
-export function ReviewRow({ client: c, task, review, tz, canReview, canTasks, lawyerName, lawyers, userId }: Props) {
+export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, canTasks, lawyerName, lawyers, userId }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [open, setOpen] = useState(false);
@@ -58,18 +59,25 @@ export function ReviewRow({ client: c, task, review, tz, canReview, canTasks, la
         </div>
       </div>
 
-      {/* Última revisión: cuándo, quién y si hubo movimiento */}
-      <div className="flex min-w-[210px] flex-col gap-0.5 text-[12px]">
+      {/* Última revisión: quién la revisó (lo más importante), cuándo y si hubo movimiento */}
+      <div className="flex min-w-[230px] flex-col gap-1 text-[12px]">
         {review ? (
           <>
+            <span className="flex items-center gap-2">
+              <span className="avatar solid h-6 w-6 shrink-0 text-[10px]" aria-hidden>
+                {initials(review.reviewer_name ?? "") || "?"}
+              </span>
+              <span className="flex min-w-0 flex-col leading-tight">
+                <span className="truncate text-[13px] font-semibold text-fg">Revisó {review.reviewer_name ?? "sin nombre"}</span>
+                <span className="text-muted">
+                  {relativeDays(review.reviewed_at, tz)} · {dateTime(review.reviewed_at, tz)}
+                </span>
+              </span>
+            </span>
             <span className="flex flex-wrap items-center gap-1.5">
               <span className={`tag ${review.had_movement ? "brand" : ""}`}>{review.had_movement ? "Con movimiento" : "Sin movimiento"}</span>
-              <span className="text-muted">{relativeDays(review.reviewed_at, tz)}</span>
+              {nextDue && <span className={`text-[11.5px] ${nextDue.overdue ? "text-danger" : "text-faint"}`}>Próxima: {nextDue.text}</span>}
             </span>
-            <span className="text-muted">
-              {dateTime(review.reviewed_at, tz)} · {review.reviewer_name ?? "—"}
-            </span>
-            {nextDue && <span className={`text-[11.5px] ${nextDue.overdue ? "text-danger" : "text-faint"}`}>Próxima revisión: {nextDue.text}</span>}
           </>
         ) : (
           <span className="tag warn">Nunca revisada</span>
@@ -107,7 +115,7 @@ export function ReviewRow({ client: c, task, review, tz, canReview, canTasks, la
         )}
       </div>
 
-      {open && <ReviewDialog client={c} pendingTask={task} lawyers={lawyers} defaultAssignee={c.lawyer_id ?? userId} canTasks={canTasks} onClose={() => setOpen(false)} />}
+      {open && <ReviewDialog client={c} pendingTask={task} doneSteps={doneSteps} lawyers={lawyers} defaultAssignee={c.lawyer_id ?? userId} canTasks={canTasks} tz={tz} onClose={() => setOpen(false)} />}
     </div>
   );
 }

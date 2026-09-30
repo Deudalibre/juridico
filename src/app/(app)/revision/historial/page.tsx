@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePermission, type LegalReview } from "@/lib/data";
-import { dateTime } from "@/lib/format";
+import { dateTime, initials } from "@/lib/format";
 import { Icon } from "@/components/icons";
 import { ExportButton } from "@/components/ExportButton";
 
@@ -53,7 +53,7 @@ export default async function HistorialRevisionesPage(props: { searchParams: Pro
         ) : (
           <div className="overflow-x-auto">
             <div role="table" aria-label="Revisiones" className="min-w-[980px]">
-              <div className="grid grid-cols-[170px_minmax(0,1.6fr)_140px_minmax(0,2fr)_150px] items-center gap-3 th-band border-y border-line px-4 py-2.5" role="row">
+              <div className="grid grid-cols-[170px_minmax(0,1.6fr)_140px_minmax(0,2fr)_190px] items-center gap-3 th-band border-y border-line px-4 py-2.5" role="row">
                 {["Cuándo", "Causa", "Movimiento", "Nota y tarea", "Revisó"].map((h) => (
                   <div key={h} className="th" role="columnheader">
                     {h}
@@ -61,7 +61,7 @@ export default async function HistorialRevisionesPage(props: { searchParams: Pro
                 ))}
               </div>
               {rows.map((r) => (
-                <div key={r.id} className="grid grid-cols-[170px_minmax(0,1.6fr)_140px_minmax(0,2fr)_150px] items-center gap-3 row min-h-[50px] px-4 py-2" role="row">
+                <div key={r.id} className="grid grid-cols-[170px_minmax(0,1.6fr)_140px_minmax(0,2fr)_190px] items-center gap-3 row min-h-[50px] px-4 py-2" role="row">
                   <div role="cell" className="tabnum text-[12.5px] text-soft">
                     {dateTime(r.reviewed_at, tz)}
                   </div>
@@ -78,8 +78,11 @@ export default async function HistorialRevisionesPage(props: { searchParams: Pro
                     {r.note ? <span className="truncate text-soft" title={r.note}>{r.note}</span> : <span className="text-faint">Sin nota</span>}
                     {r.legal_tasks?.title && <span className="truncate text-[11.5px] text-muted">Tarea: {r.legal_tasks.title}</span>}
                   </div>
-                  <div role="cell" className="truncate text-[12.5px] text-soft">
-                    {r.reviewer_name ?? "—"}
+                  <div role="cell" className="flex min-w-0 items-center gap-2">
+                    <span className="avatar solid h-6 w-6 shrink-0 text-[10px]" aria-hidden>
+                      {initials(r.reviewer_name ?? "") || "?"}
+                    </span>
+                    <span className="truncate text-[13px] font-semibold text-fg">{r.reviewer_name ?? "Sin nombre"}</span>
                   </div>
                 </div>
               ))}
