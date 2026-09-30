@@ -1,10 +1,12 @@
 // Vocabulario del área jurídica (Ley 20.720). Los pasos de cada procedimiento los definió el estudio;
 // aquí se declaran una sola vez para que ficha, lista, tareas y (más adelante) el tablero usen los mismos nombres.
 
-export const PROCEDURES = ["Liquidación voluntaria", "Liquidación simplificada", "Renegociación"] as const;
+// Solo dos procedimientos (confirmado por el estudio el 2026-09-30): la liquidación «simplificada» no se
+// distingue de la voluntaria en el sistema.
+export const PROCEDURES = ["Liquidación voluntaria", "Renegociación"] as const;
 export type Procedure = (typeof PROCEDURES)[number];
 
-/** Pasos de la liquidación voluntaria (y simplificada), en orden. */
+/** Pasos de la liquidación voluntaria, en orden. */
 export const LIQUIDACION_STEPS = [
   "Preparación de documentos",
   "Ingreso de demanda",
