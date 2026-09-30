@@ -5,7 +5,7 @@ import { getContext } from "@/lib/data";
 import { cleanRut, isValidRut } from "@/lib/rut";
 import { zonedToIso } from "@/lib/format";
 import { CLOSE_REASONS, STEP_RESOLUTION, TASK_KINDS, currentStep, isProcedure } from "@/lib/legal";
-import { applyStep, nextReviewAt, stepContext } from "@/lib/case-steps";
+import { applyStep, cadenceDays, nextReviewAt, stepContext } from "@/lib/case-steps";
 
 type Result = { error?: string };
 
@@ -155,7 +155,7 @@ export async function completeStep(id: string, fd: FormData): Promise<Result> {
   if (r.error) return r;
   const rev = await supabase
     .from("legal_reviews")
-    .insert({ client_id: id, reviewed_by: user.id, had_movement: true, note: note ? `${step}: ${note}` : `Paso completado: ${step}`, next_review_at: nextReviewAt() });
+    .insert({ client_id: id, reviewed_by: user.id, had_movement: true, note: note ? `${step}: ${note}` : `Paso completado: ${step}`, next_review_at: nextReviewAt(await cadenceDays(supabase, id)) });
   if (rev.error) return { error: rev.error.message };
   revalidatePath(`/clientes/${id}`);
   revalidatePath("/clientes");

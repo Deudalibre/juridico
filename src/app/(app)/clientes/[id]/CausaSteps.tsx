@@ -199,7 +199,7 @@ export function CausaSteps({ clientId, procedure, steps, done, current, tasks, n
               <div className="flex flex-wrap items-center gap-2">
                 {due ? <span className={`tag tabnum ${due.overdue ? "danger" : due.today ? "brand" : ""}`}>{due.text}</span> : <span className="tag warn">Sin fecha</span>}
               </div>
-              {canTasks && !closed && <TaskClose task={t} clientId={clientId} mode="inline" />}
+              {canTasks && !closed && <TaskClose task={t} clientId={clientId} layout="inline" />}
             </div>
           );
         })}

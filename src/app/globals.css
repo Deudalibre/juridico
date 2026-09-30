@@ -542,6 +542,30 @@ textarea::placeholder {
     color: var(--danger);
   }
 
+  /* Tarjeta de opción (diálogo de revisión): dos alternativas grandes, una seleccionada */
+  .option-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: var(--r-control);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-primary);
+    transition:
+      border-color var(--dur-fast) var(--ease-standard),
+      background-color var(--dur-fast) var(--ease-standard);
+  }
+  .option-card:hover {
+    border-color: var(--brand-line);
+  }
+  .option-card.selected {
+    border-color: var(--brand-primary);
+    background: var(--surface-active);
+    box-shadow: 0 0 0 1px var(--brand-primary) inset;
+  }
+
   /* Selector segmentado */
   .seg {
     display: inline-flex;

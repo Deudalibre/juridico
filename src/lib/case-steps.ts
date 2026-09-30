@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { REVIEW_EVERY_DAYS, STEP_LIQUIDATOR, STEP_RESOLUTION, currentStep, stepsFor } from "@/lib/legal";
+import { REVIEW_EVERY_DAYS, STEP_LIQUIDATOR, STEP_RESOLUTION, currentStep, reviewCadence, stepsFor } from "@/lib/legal";
 
 // Lógica compartida para marcar un paso de la causa como hecho. La usan dos acciones: «Marcar hecho» en la
 // pestaña Causa y «Revisar» en la cola de revisión, así el abogado registra el avance una sola vez.
@@ -14,6 +14,12 @@ export function nextReviewAt(days = REVIEW_EVERY_DAYS): string {
   const next = new Date(Date.now() + days * 86400_000);
   next.setUTCHours(12, 0, 0, 0);
   return next.toISOString();
+}
+
+/** Días hasta la próxima revisión según el estado actual de la causa (se llama después de aplicar el paso). */
+export async function cadenceDays(supabase: SupabaseClient, clientId: string): Promise<number> {
+  const { client, done } = await stepContext(supabase, clientId);
+  return reviewCadence(client?.procedure_type, done).days;
 }
 
 /** Carga lo mínimo de la causa y sus pasos hechos para validar un cambio de paso. */

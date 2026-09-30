@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import { zonedToIso } from "@/lib/format";
-import { REVIEW_INTERVALS, TASK_KINDS } from "@/lib/legal";
-import { applyStep } from "@/lib/case-steps";
+import { TASK_KINDS } from "@/lib/legal";
+import { applyStep, cadenceDays, nextReviewAt } from "@/lib/case-steps";
 
 type Result = { error?: string };
 const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
@@ -12,8 +12,6 @@ const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
 export type ReviewInput = {
   hadMovement: boolean;
   note: string;
-  /** Días hasta la próxima revisión (uno de REVIEW_INTERVALS) */
-  nextDays: number;
   task: { title: string; kind: string; dueLocal: string; assigneeId: string } | null;
   /** Paso de la causa que quedó hecho con este movimiento (opcional). La nota de la revisión pasa a ser la nota del paso. */
   step: { name: string; date: string; liquidator: string } | null;
@@ -30,8 +28,6 @@ export async function reviewCase(clientId: string, input: ReviewInput): Promise<
   const { supabase, user, can, tz } = await getContext();
   if (!can("legal.edit")) return { error: "No tienes permiso para revisar causas." };
   if (!isUuid(clientId)) return { error: "Causa no válida." };
-  const interval = REVIEW_INTERVALS.find((i) => i.days === input.nextDays) ?? null;
-  if (!interval) return { error: "Elige cuándo vuelve a tocar revisar la causa." };
   const note = input.note.trim().slice(0, 2000);
   if (input.hadMovement && !note) return { error: "Si hubo movimiento, anota qué pasó (qué resolvió o pidió el tribunal)." };
 
@@ -74,15 +70,32 @@ export async function reviewCase(clientId: string, input: ReviewInput): Promise<
     taskId = data.id;
   }
 
-  const next = new Date(Date.now() + interval.days * 86400_000);
-  next.setUTCHours(12, 0, 0, 0); // mediodía UTC: cae dentro del día correcto en Chile
+  // La próxima revisión sale de la cadencia de la causa (con el paso ya aplicado, si lo hubo)
+  const next = nextReviewAt(await cadenceDays(supabase, clientId));
   const { error } = await supabase
     .from("legal_reviews")
-    .insert({ client_id: clientId, reviewed_by: user.id, had_movement: input.hadMovement, note: note || null, next_review_at: next.toISOString(), task_id: taskId });
+    .insert({ client_id: clientId, reviewed_by: user.id, had_movement: input.hadMovement, note: note || null, next_review_at: next, task_id: taskId });
   if (error) return { error: error.message };
   revalidatePath("/revision");
   revalidatePath(`/clientes/${clientId}`);
   revalidatePath("/clientes");
   revalidatePath("/revision/tareas");
+  return {};
+}
+
+/**
+ * Revisión rápida «Sin movimiento»: un clic desde la cola para los días en que no pasa nada. Deja la revisión
+ * con nombre, día y hora, y la causa vuelve a la cola según su cadencia.
+ */
+export async function quickReview(clientId: string): Promise<Result> {
+  const { supabase, user, can } = await getContext();
+  if (!can("legal.edit")) return { error: "No tienes permiso para revisar causas." };
+  if (!isUuid(clientId)) return { error: "Causa no válida." };
+  const next = nextReviewAt(await cadenceDays(supabase, clientId));
+  const { error } = await supabase.from("legal_reviews").insert({ client_id: clientId, reviewed_by: user.id, had_movement: false, note: null, next_review_at: next });
+  if (error) return { error: error.message };
+  revalidatePath("/revision");
+  revalidatePath(`/clientes/${clientId}`);
+  revalidatePath("/clientes");
   return {};
 }

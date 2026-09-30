@@ -114,10 +114,18 @@ export const CHECKLIST_ENABLED = false;
 
 /** Revisión de causas: cada cuánto vuelve a tocar revisar una causa (días); el revisor puede elegir otro plazo. */
 export const REVIEW_EVERY_DAYS = 7;
-export const REVIEW_INTERVALS: { days: number; label: string }[] = [
-  { days: 1, label: "Mañana" },
-  { days: 3, label: "En 3 días" },
-  { days: 7, label: "En una semana" },
-  { days: 14, label: "En dos semanas" },
-  { days: 30, label: "En un mes" },
-];
+
+/**
+ * Cadencia de revisión según el estado de la causa (misma regla que legal_review_cadence_days en la base):
+ * mientras no tenga su hito (resolución de liquidación; «Ejecución» en renegociación) se revisa cada 3 días,
+ * porque es cuando el tribunal puede pedir algo con plazo; después, cada 7. Quien revisa no elige la fecha.
+ */
+export const REVIEW_CADENCE = { critical: 3, settled: 7 } as const;
+export const STEP_RENEGOCIACION_HITO = "Ejecución";
+export const hitoFor = (p: string | null | undefined) => (p === "Renegociación" ? STEP_RENEGOCIACION_HITO : STEP_RESOLUTION);
+
+export function reviewCadence(p: string | null | undefined, done: readonly string[]): { days: number; critical: boolean; label: string; reason: string } {
+  const hito = hitoFor(p);
+  if (done.includes(hito)) return { days: REVIEW_CADENCE.settled, critical: false, label: "Con " + hito.toLowerCase(), reason: `ya tiene ${hito.toLowerCase()}` };
+  return { days: REVIEW_CADENCE.critical, critical: true, label: "Sin " + hito.toLowerCase(), reason: `aún sin ${hito.toLowerCase()}` };
+}

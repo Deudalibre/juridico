@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { toast } from "@/components/ui";
+import { Icon } from "@/components/icons";
 import { TaskClose } from "@/components/TaskClose";
 import { dateTime, dueLabel, initials, relativeDays } from "@/lib/format";
-import { TASK_KINDS, procedureTone, stepsFor } from "@/lib/legal";
+import { TASK_KINDS, procedureTone, reviewCadence, stepsFor } from "@/lib/legal";
 import type { LegalClient, LegalReview, LegalTask } from "@/lib/data";
 import { ReviewDialog } from "./ReviewDialog";
+import { quickReview } from "./actions";
 
 type Props = {
   client: LegalClient;
@@ -22,14 +25,29 @@ type Props = {
   userId: string;
 };
 
-/** Fila de la cola de revisión: la causa, su última revisión, la tarea pendiente y el botón «Revisar». */
+/**
+ * Fila de la cola de revisión: la causa, su última revisión, la tarea pendiente y dos salidas: «Sin movimiento»
+ * (un clic, para los días en que no pasa nada) y «Revisar» (el diálogo completo).
+ */
 export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, canTasks, lawyerName, lawyers, userId }: Props) {
   const router = useRouter();
+  const [pending, start] = useTransition();
   const [open, setOpen] = useState(false);
   const href = `/clientes/${c.id}?tab=Causa`;
   const due = task?.due_at ? dueLabel(task.due_at, tz) : null;
   const step = c.current_step ?? stepsFor(c.procedure_type)[0] ?? null;
   const nextDue = c.next_review_at ? dueLabel(c.next_review_at, tz) : null;
+  const cadence = reviewCadence(c.procedure_type, doneSteps);
+
+  const noMovement = () =>
+    start(async () => {
+      const r = await quickReview(c.id);
+      if (r.error) toast(r.error, true);
+      else {
+        toast(`Sin movimiento · ${c.full_name} · vuelve en ${cadence.days} días`);
+        router.refresh();
+      }
+    });
 
   return (
     <div className="row flex flex-wrap items-center gap-x-4 gap-y-2 py-3" onClick={() => router.push(href)} role="link" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && router.push(href)}>
@@ -37,6 +55,11 @@ export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, c
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[13.5px] font-semibold">{c.full_name}</span>
           {c.procedure_type && <span className={`tag ${procedureTone(c.procedure_type)}`}>{c.procedure_type}</span>}
+          {cadence.critical && c.procedure_type && (
+            <span className="tag warn" title={`${cadence.reason}: se revisa cada ${cadence.days} días`}>
+              {cadence.label}
+            </span>
+          )}
           {lawyerName && <span className="text-xs text-muted">{lawyerName}</span>}
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12.5px]">
@@ -62,7 +85,7 @@ export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, c
             </span>
             <span className="flex flex-wrap items-center gap-1.5">
               <span className={`tag ${review.had_movement ? "brand" : ""}`}>{review.had_movement ? "Con movimiento" : "Sin movimiento"}</span>
-              {nextDue && <span className={`text-[11.5px] ${nextDue.overdue ? "text-danger" : "text-faint"}`}>Próxima: {nextDue.text}</span>}
+              {nextDue && <span className={`text-[11.5px] ${nextDue.overdue ? "text-danger" : "text-faint"}`}>Toca: {nextDue.text}</span>}
             </span>
           </>
         ) : (
@@ -84,12 +107,19 @@ export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, c
         )}
       </div>
 
+      {/* Cerrar la tarea: los botones quedan aquí y el recuadro de resultado ocupa toda la fila */}
+      {task && canTasks && <TaskClose task={task} clientId={c.id} layout="row" allowCancel={false} />}
+
       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-        {task && canTasks && <TaskClose task={task} clientId={c.id} mode="popover" />}
         {canReview ? (
-          <button className="btn-primary btn-sm" onClick={() => setOpen(true)}>
-            Revisar
-          </button>
+          <>
+            <button className="btn-secondary btn-sm" disabled={pending} onClick={noMovement} title={`Registrar que no hubo movimiento; vuelve a la cola en ${cadence.days} días`}>
+              <Icon name="check" size={13} /> Sin movimiento
+            </button>
+            <button className="btn-primary btn-sm" disabled={pending} onClick={() => setOpen(true)}>
+              Revisar
+            </button>
+          </>
         ) : (
           <Link href={href} className="btn-secondary btn-sm">
             Ver causa
@@ -97,7 +127,9 @@ export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, c
         )}
       </div>
 
-      {open && <ReviewDialog client={c} pendingTask={task} doneSteps={doneSteps} lawyers={lawyers} defaultAssignee={c.lawyer_id ?? userId} canTasks={canTasks} tz={tz} onClose={() => setOpen(false)} />}
+      {open && (
+        <ReviewDialog client={c} pendingTask={task} lastReview={review} doneSteps={doneSteps} lawyers={lawyers} defaultAssignee={c.lawyer_id ?? userId} canTasks={canTasks} tz={tz} onClose={() => setOpen(false)} />
+      )}
     </div>
   );
 }

@@ -11,8 +11,10 @@ import type { LegalTask } from "@/lib/data";
 type Props = {
   task: LegalTask;
   clientId: string;
-  /** «popover»: el recuadro flota bajo los botones (filas apretadas). «inline»: ocupa el ancho del contenedor. */
-  mode?: "inline" | "popover";
+  /** «inline»: botones y recuadro apilados. «row»: los botones van en su sitio y el recuadro ocupa todo el ancho de la fila (flex-wrap). */
+  layout?: "inline" | "row";
+  /** Si se muestra «Cancelar» además de «Completar». */
+  allowCancel?: boolean;
   onDone?: () => void;
 };
 
@@ -21,34 +23,19 @@ type Props = {
  * (obligatorio, corto) con respuestas frecuentes según el tipo de tarea. Queda quién, cuándo y qué resultado,
  * en la tarea y en el historial de la causa.
  */
-export function TaskClose({ task, clientId, mode = "inline", onDone }: Props) {
+export function TaskClose({ task, clientId, layout = "inline", allowCancel = true, onDone }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [status, setStatus] = useState<"completada" | "cancelada" | null>(null);
   const [result, setResult] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (status) inputRef.current?.focus();
   }, [status]);
 
-  // Popover: se cierra al hacer clic fuera o con Escape
-  useEffect(() => {
-    if (!status || mode !== "popover") return;
-    const onDown = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setStatus(null);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setStatus(null);
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [status, mode]);
-
   const quick = status === "cancelada" ? CANCEL_REASONS : TASK_QUICK_RESULTS[task.kind] ?? TASK_QUICK_RESULTS.otra;
+  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
   const save = (value = result) => {
     const text = value.trim();
@@ -67,19 +54,36 @@ export function TaskClose({ task, clientId, mode = "inline", onDone }: Props) {
     });
   };
 
+  const buttons = !status && (
+    <>
+      <button className="btn-outline btn-sm" disabled={pending} onClick={(e) => (stop(e), setStatus("completada"))} title="Marcar la tarea como completada">
+        <Icon name="check" size={13} /> Completar
+      </button>
+      {allowCancel && (
+        <button className="btn-ghost btn-sm" disabled={pending} onClick={(e) => (stop(e), setStatus("cancelada"))}>
+          Cancelar
+        </button>
+      )}
+    </>
+  );
+
   const panel = status && (
     <div
-      ref={boxRef}
-      className={`card flex flex-col gap-2 p-3 text-left ${mode === "popover" ? "absolute right-0 top-full z-30 mt-1 w-[340px] shadow-lg" : "w-full"}`}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
-      role="dialog"
+      className={`flex flex-col gap-2 rounded-lg border border-line bg-surface p-3 text-left ${layout === "row" ? "order-last basis-full" : "w-full"}`}
+      onClick={stop}
+      onKeyDown={stop}
+      role="group"
       aria-label={status === "completada" ? "Resultado de la tarea" : "Motivo de la cancelación"}
     >
-      <span className="text-[12.5px] font-semibold text-fg">{status === "completada" ? "¿Qué resultado tuvo?" : "¿Por qué se cancela?"}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[12.5px] font-semibold text-fg">
+          {status === "completada" ? "Completar" : "Cancelar"} «{task.title}» · {status === "completada" ? "¿qué resultado tuvo?" : "¿por qué?"}
+        </span>
+        <span className="text-[11.5px] text-muted">Queda con tu nombre, día y hora en el historial.</span>
+      </div>
       <div className="flex flex-wrap gap-1.5">
         {quick.map((q) => (
-          <button key={q} type="button" className={`row-chip ${result === q ? "brand" : ""}`} disabled={pending} onClick={() => save(q)} title="Guardar con esta respuesta">
+          <button key={q} type="button" className="row-chip" disabled={pending} onClick={() => save(q)} title="Guardar con esta respuesta">
             {q}
           </button>
         ))}
@@ -91,7 +95,7 @@ export function TaskClose({ task, clientId, mode = "inline", onDone }: Props) {
           save();
         }}
       >
-        <input ref={inputRef} className="input !min-h-[32px] flex-1 text-[12.5px]" value={result} onChange={(e) => setResult(e.target.value)} maxLength={300} placeholder="O escribe el resultado…" disabled={pending} />
+        <input ref={inputRef} className="input !min-h-[32px] flex-1 text-[12.5px]" value={result} onChange={(e) => setResult(e.target.value)} maxLength={300} placeholder="O escribe el resultado y pulsa Enter…" disabled={pending} />
         <button className="btn-primary btn-sm" disabled={pending}>
           {pending ? "…" : "Guardar"}
         </button>
@@ -99,24 +103,13 @@ export function TaskClose({ task, clientId, mode = "inline", onDone }: Props) {
           Volver
         </button>
       </form>
-      <span className="text-[11.5px] text-muted">Queda con tu nombre, día y hora en el historial de la causa.</span>
     </div>
   );
 
+  // «row»: el contenedor desaparece (display: contents) para que botones y recuadro sean hijos directos de la fila
   return (
-    <div className={`flex flex-wrap items-center gap-1.5 ${mode === "popover" ? "relative" : ""}`}>
-      {!status && (
-        <>
-          <button className={mode === "popover" ? "btn-ghost btn-sm" : "btn-outline btn-sm"} disabled={pending} onClick={() => setStatus("completada")} title="Marcar la tarea como completada">
-            <Icon name="check" size={13} /> Completar
-          </button>
-          {mode === "inline" && (
-            <button className="btn-ghost btn-sm" disabled={pending} onClick={() => setStatus("cancelada")}>
-              Cancelar
-            </button>
-          )}
-        </>
-      )}
+    <div className={layout === "row" ? "contents" : "flex flex-wrap items-center gap-1.5"} onClick={stop}>
+      {buttons}
       {panel}
     </div>
   );
