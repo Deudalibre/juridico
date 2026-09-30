@@ -26,7 +26,7 @@ type Props = {
 
 const GRID_CLOSED = "grid grid-cols-[minmax(0,2fr)_1.1fr_0.9fr_1.1fr_1.3fr_1.1fr_1.3fr_336px] items-center gap-3";
 // Activas: además de la próxima acción, cuándo y quién revisó la causa por última vez
-const GRID_ACTIVE = "grid grid-cols-[minmax(0,2fr)_1.1fr_0.9fr_1.1fr_1.3fr_1.1fr_1.3fr_1.1fr_336px] items-center gap-3";
+const GRID_ACTIVE = "grid grid-cols-[minmax(0,2fr)_1.1fr_0.9fr_1.1fr_1.3fr_1.1fr_1.5fr_1fr_336px] items-center gap-3";
 
 /** Lista de clientes con la misma estructura que «Todos los leads»: filas de 54 px y acciones al final. */
 export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }: Props) {
@@ -85,12 +85,14 @@ export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }
                 {c.archived_at ? shortDate(c.archived_at, tz) : "—"}
               </div>
             ) : (
-              <div role="cell" className="flex min-w-0 flex-col gap-0.5">
+              <div role="cell" className="flex min-w-0 flex-col gap-0.5 overflow-hidden">
                 {task ? (
                   <>
-                    <span className="truncate text-[12.5px] font-medium text-fg">{task.title}</span>
-                    <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                      {TASK_KINDS[task.kind] ?? task.kind}
+                    <span className="truncate text-[12.5px] font-medium text-fg" title={task.title}>
+                      {task.title}
+                    </span>
+                    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted">
+                      <span className="truncate">{TASK_KINDS[task.kind] ?? task.kind}</span>
                       {due && <span className={`tag tabnum ${due.overdue ? "danger" : due.today ? "brand" : ""}`}>{due.text}</span>}
                     </span>
                   </>
