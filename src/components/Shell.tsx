@@ -13,6 +13,7 @@ type Props = { children: ReactNode; name: string; role: Role; permissions: Permi
 const starts = (p: string, base: string) => p === base || p.startsWith(base + "/");
 
 const CRUMBS: [RegExp, string[]][] = [
+  [/^\/hoy/, ["Mi día"]],
   [/^\/clientes\/nuevo/, ["Clientes", "Nuevo cliente"]],
   [/^\/clientes\/.+/, ["Clientes", "Ficha del cliente"]],
   [/^\/clientes/, ["Clientes"]],
@@ -59,6 +60,7 @@ export function Shell({ children, name, role, permissions, crmUrl }: Props) {
   const path = usePathname();
   const can = (p: Permission) => permissions.includes(p);
   const nav = [
+    { href: "/hoy", label: "Mi día", icon: "today", show: can("legal.view") },
     { href: "/clientes", label: "Clientes", icon: "user", show: can("legal.view") },
     { href: "/plantillas", label: "Plantillas", icon: "folder", show: can("documents.view") },
     { href: "/documentos", label: "Documentos", icon: "report", show: can("documents.view") },
@@ -69,7 +71,7 @@ export function Shell({ children, name, role, permissions, crmUrl }: Props) {
   return (
     <div className="shell">
       <nav className="rail" aria-label="Navegación principal">
-        <Link href="/clientes" className="rail-brand" title="Deuda Libre · Jurídico" aria-label="Deuda Libre · inicio">
+        <Link href="/hoy" className="rail-brand" title="Deuda Libre · Jurídico" aria-label="Deuda Libre · inicio">
           DL
         </Link>
         {nav.map((n) => (

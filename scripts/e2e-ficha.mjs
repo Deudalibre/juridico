@@ -110,6 +110,14 @@ try {
   const listaTarea = await page(jur, "/clientes");
   ok("Lista: la próxima acción muestra el apercibimiento con su fecha", listaTarea.status === 200 && /Acompañar certificado de deudas/.test(listaTarea.text) && /Apercibimiento/.test(listaTarea.text) && /Paso/.test(listaTarea.text));
 
+  // Mi día del abogado e Historial
+  const hoy = await page(jur, "/hoy");
+  ok("Mi día: la causa aparece con su apercibimiento en un grupo por urgencia", hoy.status === 200 && /JUR Ficha Prueba/.test(hoy.text) && /Acompañar certificado de deudas/.test(hoy.text) && /(Vencidas|Hoy|Esta semana|Más adelante)/.test(hoy.text) && /Mi día/.test(hoy.text), String(hoy.status));
+  const raiz = await fetch(`${BASE}/`, { headers: { cookie: jur.cookie }, redirect: "manual" });
+  ok("La raíz lleva a Mi día", raiz.status === 307 && /\/hoy/.test(raiz.headers.get("location") ?? ""), String(raiz.status));
+  const historial = await page(jur, `/clientes/${id}?tab=Historial`);
+  ok("Historial: muestra los pasos completados con fecha y autor", historial.status === 200 && /Paso completado: Preparación de documentos/.test(historial.text) && /JUR juridico/.test(historial.text), String(historial.status));
+
   // Cierre con motivo y lista de cerradas
   const close = await jur.c.from("legal_clients").update({ archived_at: new Date().toISOString(), close_reason: "Dejó de pagar", close_detail: "Última cuota en agosto" }).eq("id", id).select();
   ok("Cerrar la causa con motivo (RLS legal.edit)", !close.error && close.data?.[0]?.close_reason === "Dejó de pagar", close.error?.message);
