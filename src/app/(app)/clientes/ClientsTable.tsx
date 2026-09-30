@@ -24,9 +24,12 @@ type Props = {
   tz: string;
 };
 
-const GRID_CLOSED = "grid grid-cols-[minmax(0,2fr)_1.1fr_0.9fr_1.1fr_1.3fr_1.1fr_1.3fr_336px] items-center gap-3";
+// Columnas que truncan texto (cliente, tribunal, abogado, próxima acción) van con minmax(0,…) y recortan por su cuenta;
+// las de etiquetas sin salto de línea (procedimiento, rol, paso, revisada) conservan el mínimo de contenido, así la etiqueta
+// ensancha su columna (y la tabla desplaza en horizontal) en vez de montarse sobre la vecina.
+const GRID_CLOSED = "grid grid-cols-[minmax(0,2fr)_1.1fr_0.9fr_minmax(0,1.1fr)_1.3fr_minmax(0,1.1fr)_1.3fr_336px] items-center gap-3";
 // Activas: además de la próxima acción, cuándo y quién revisó la causa por última vez
-const GRID_ACTIVE = "grid grid-cols-[minmax(0,2fr)_1.1fr_0.9fr_1.1fr_1.3fr_1.1fr_1.5fr_1fr_336px] items-center gap-3";
+const GRID_ACTIVE = "grid grid-cols-[minmax(0,2fr)_1.1fr_0.9fr_minmax(0,1.1fr)_1.3fr_minmax(0,1.1fr)_minmax(0,1.5fr)_1fr_336px] items-center gap-3";
 
 /** Lista de clientes con la misma estructura que «Todos los leads»: filas de 54 px y acciones al final. */
 export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }: Props) {
@@ -77,7 +80,7 @@ export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }
                 {step ? <span className={`tag ${step === COMPLETED ? "success" : "brand"}`}>{step}</span> : <span className="text-faint">Sin procedimiento</span>}
               </div>
             )}
-            <div role="cell" className="min-w-0" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+            <div role="cell" className="min-w-0 overflow-hidden" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
               <LawyerSelect clientId={c.id} lawyerId={c.lawyer_id} members={members} canAssign={canAssign && !closed} compact />
             </div>
             {closed ? (
@@ -102,7 +105,7 @@ export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }
               </div>
             )}
             {!closed && (
-              <div role="cell" className="flex min-w-0 flex-col gap-0.5 text-[12px]">
+              <div role="cell" className="flex flex-col items-start gap-0.5 text-[12px]">
                 {c.last_review_at ? (
                   <>
                     <span className="tabnum text-soft">{shortDate(c.last_review_at, tz)}</span>
