@@ -2,25 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import {
-  deleteDocument,
-  documentUrl,
-  registerDocument,
-  setDocumentStatus,
-  setItemNotApplicable,
-  startChecklist,
-} from "../documents-actions";
+import { deleteDocument, documentUrl, registerDocument, setDocumentStatus, setItemNotApplicable, startChecklist } from "../documents-actions";
 import { linkClientFolder, linkDriveFile } from "../drive-actions";
 import { toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { createClient } from "@/lib/supabase/client";
 import { dateTime } from "@/lib/format";
-import {
-  CHECKLIST_ENABLED,
-  DOC_MAX_BYTES,
-  DOC_MIMES,
-  DOC_STATUS,
-} from "@/lib/legal";
+import { CHECKLIST_ENABLED, DOC_MAX_BYTES, DOC_MIMES, DOC_STATUS } from "@/lib/legal";
 import type { ChecklistItem, DocCategory, LegalDocument } from "@/lib/data";
 import type { ClientDrive } from "@/lib/drive-client";
 import type { DriveFile } from "@/lib/google";
@@ -41,14 +29,8 @@ type Props = {
   tz: string;
 };
 
-const fmtSize = (n: number | null) =>
-  n == null
-    ? ""
-    : n > 1024 * 1024
-      ? `${(n / 1024 / 1024).toFixed(1)} MB`
-      : `${Math.max(1, Math.round(n / 1024))} KB`;
-const previewUrl = (fileId: string) =>
-  `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview`;
+const fmtSize = (n: number | null) => (n == null ? "" : n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+const previewUrl = (fileId: string) => `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview`;
 const kindOf = (mime: string) =>
   mime.includes("pdf")
     ? "PDF"
@@ -63,21 +45,7 @@ const kindOf = (mime: string) =>
             : "Archivo";
 
 /** Pestaña «Documentos»: la carpeta del cliente en el Drive con vista previa, el checklist del procedimiento y otros archivos. */
-export function DocumentsTab({
-  clientId,
-  procedure,
-  items,
-  docs,
-  categories,
-  templateCount,
-  drive,
-  canUpload,
-  canEdit,
-  canEditDocs,
-  canManage,
-  closed,
-  tz,
-}: Props) {
+export function DocumentsTab({ clientId, procedure, items, docs, categories, templateCount, drive, canUpload, canEdit, canEditDocs, canManage, closed, tz }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [uploading, setUploading] = useState<string | null>(null);
@@ -89,17 +57,12 @@ export function DocumentsTab({
   const [linking, setLinking] = useState<DriveFile | null>(null); // archivo del Drive que se está vinculando a un antecedente
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
   const byId = new Map(docs.map((d) => [d.id, d]));
-  const catName = (id: string | null) =>
-    categories.find((c) => c.id === id)?.name ?? null;
+  const catName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? null;
   const editable = !closed;
   const done = items.filter((it) => it.satisfied || it.not_applicable).length;
   // Con el checklist apagado, todos los archivos del almacén se listan juntos y no se vinculan a antecedentes
-  const others = docs.filter(
-    (d) => (CHECKLIST_ENABLED ? !d.checklist_item_id : true) && d.is_current,
-  );
-  const pendingItems = CHECKLIST_ENABLED
-    ? items.filter((it) => !it.satisfied && !it.not_applicable)
-    : [];
+  const others = docs.filter((d) => (CHECKLIST_ENABLED ? !d.checklist_item_id : true) && d.is_current);
+  const pendingItems = CHECKLIST_ENABLED ? items.filter((it) => !it.satisfied && !it.not_applicable) : [];
 
   useEffect(() => {
     if (!preview) return;
@@ -108,11 +71,7 @@ export function DocumentsTab({
     return () => window.removeEventListener("keydown", onKey);
   }, [preview]);
 
-  const run = (
-    fn: () => Promise<{ error?: string }>,
-    okMsg: string,
-    after?: () => void,
-  ) =>
+  const run = (fn: () => Promise<{ error?: string }>, okMsg: string, after?: () => void) =>
     start(async () => {
       const r = await fn();
       if (r.error) toast(r.error, true);
@@ -124,29 +83,16 @@ export function DocumentsTab({
     });
 
   // Subida directa desde el navegador al bucket (respaldo cuando no hay Drive); después se registra la fila.
-  const upload = async (
-    file: File,
-    itemId: string | null,
-    categoryId: string | null,
-  ) => {
-    if (!(file.type in DOC_MIMES))
-      return toast(
-        "Tipo de archivo no admitido: usa PDF, JPG, PNG, DOC o DOCX.",
-        true,
-      );
-    if (file.size > DOC_MAX_BYTES)
-      return toast("El archivo supera los 25 MB.", true);
+  const upload = async (file: File, itemId: string | null, categoryId: string | null) => {
+    if (!(file.type in DOC_MIMES)) return toast("Tipo de archivo no admitido: usa PDF, JPG, PNG, DOC o DOCX.", true);
+    if (file.size > DOC_MAX_BYTES) return toast("El archivo supera los 25 MB.", true);
     const key = itemId ?? "otro";
     setUploading(key);
     try {
       const path = `${clientId}/${crypto.randomUUID()}.${DOC_MIMES[file.type]}`;
-      const { error } = await createClient()
-        .storage.from("legal-documents")
-        .upload(path, file, { contentType: file.type, upsert: false });
+      const { error } = await createClient().storage.from("legal-documents").upload(path, file, { contentType: file.type, upsert: false });
       if (error) return toast(`No se pudo subir: ${error.message}`, true);
-      const name = itemId
-        ? (items.find((it) => it.id === itemId)?.label ?? file.name)
-        : file.name.replace(/\.[a-z0-9]+$/i, "");
+      const name = itemId ? (items.find((it) => it.id === itemId)?.label ?? file.name) : file.name.replace(/\.[a-z0-9]+$/i, "");
       const r = await registerDocument(clientId, {
         path,
         name,
@@ -170,9 +116,7 @@ export function DocumentsTab({
       return setPreview({
         id: d.drive_file_id,
         name: d.name,
-        link:
-          d.drive_link ??
-          `https://drive.google.com/file/d/${d.drive_file_id}/view`,
+        link: d.drive_link ?? `https://drive.google.com/file/d/${d.drive_file_id}/view`,
       });
     start(async () => {
       const r = await documentUrl(d.id);
@@ -181,11 +125,7 @@ export function DocumentsTab({
     });
   };
 
-  const fileInput = (
-    key: string,
-    itemId: string | null,
-    categoryId: string | null,
-  ) => (
+  const fileInput = (key: string, itemId: string | null, categoryId: string | null) => (
     <input
       ref={(el) => {
         inputs.current[key] = el;
@@ -212,20 +152,14 @@ export function DocumentsTab({
         <Icon name={d.drive_file_id ? "eye" : "download"} size={12} /> {d.name}
       </button>
       <span>
-        {d.drive_file_id ? "Drive" : fmtSize(d.file_size)} · v{d.version} ·{" "}
-        {dateTime(d.uploaded_at, tz)}
+        {d.drive_file_id ? "Drive" : fmtSize(d.file_size)} · v{d.version} · {dateTime(d.uploaded_at, tz)}
       </span>
       {canEditDocs && editable ? (
         <select
           className="input !min-h-[26px] !py-0 text-[12px]"
           value={d.status}
           disabled={pending}
-          onChange={(e) =>
-            run(
-              () => setDocumentStatus(d.id, clientId, e.target.value),
-              "Estado actualizado",
-            )
-          }
+          onChange={(e) => run(() => setDocumentStatus(d.id, clientId, e.target.value), "Estado actualizado")}
           aria-label="Estado del documento"
         >
           {["recibido", "preparado", "firmado", "presentado"].map((s) => (
@@ -238,13 +172,7 @@ export function DocumentsTab({
         <span className="tag">{DOC_STATUS[d.status] ?? d.status}</span>
       )}
       {canManage && editable && (
-        <button
-          className="btn-ghost btn-sm text-danger"
-          disabled={pending}
-          onClick={() =>
-            run(() => deleteDocument(d.id, clientId), "Documento quitado")
-          }
-        >
+        <button className="btn-ghost btn-sm text-danger" disabled={pending} onClick={() => run(() => deleteDocument(d.id, clientId), "Documento quitado")}>
           Quitar
         </button>
       )}
@@ -256,17 +184,10 @@ export function DocumentsTab({
       return (
         <div className="px-4 py-6 text-center text-[12.5px] text-faint">
           Google Drive no está conectado.{" "}
-          {canManage
-            ? "Conéctalo en Configuración para ver aquí la carpeta del cliente."
-            : "Pídele al administrador que lo conecte en Configuración."}
+          {canManage ? "Conéctalo en Configuración para ver aquí la carpeta del cliente." : "Pídele al administrador que lo conecte en Configuración."}
         </div>
       );
-    if (drive.error)
-      return (
-        <div className="px-4 py-4 text-[12.5px] text-danger">
-          No se pudo leer el Drive: {drive.error}
-        </div>
-      );
+    if (drive.error) return <div className="px-4 py-4 text-[12.5px] text-danger">No se pudo leer el Drive: {drive.error}</div>;
     if (!drive.folder)
       return (
         <div className="flex flex-col gap-3 px-4 py-4">
@@ -282,33 +203,14 @@ export function DocumentsTab({
               key={c.id}
               className="btn-outline btn-sm self-start"
               disabled={pending}
-              onClick={() =>
-                run(
-                  () => linkClientFolder(clientId, c.webViewLink),
-                  `Carpeta vinculada: ${c.name}`,
-                )
-              }
+              onClick={() => run(() => linkClientFolder(clientId, c.webViewLink), `Carpeta vinculada: ${c.name}`)}
             >
               <Icon name="folder" size={13} /> {c.name}
             </button>
           ))}
           {canEdit && editable && (
-            <form
-              action={(fd) =>
-                run(
-                  () => linkClientFolder(clientId, String(fd.get("url") ?? "")),
-                  "Carpeta vinculada",
-                )
-              }
-              className="flex flex-wrap gap-2"
-            >
-              <input
-                name="url"
-                type="url"
-                className="input min-w-[220px] flex-1"
-                placeholder="https://drive.google.com/drive/folders/…"
-                disabled={pending}
-              />
+            <form action={(fd) => run(() => linkClientFolder(clientId, String(fd.get("url") ?? "")), "Carpeta vinculada")} className="flex flex-wrap gap-2">
+              <input name="url" type="url" className="input min-w-[220px] flex-1" placeholder="https://drive.google.com/drive/folders/…" disabled={pending} />
               <button className="btn-primary btn-sm" disabled={pending}>
                 Vincular
               </button>
@@ -316,19 +218,11 @@ export function DocumentsTab({
           )}
         </div>
       );
-    if (drive.files.length === 0)
-      return (
-        <div className="px-4 py-6 text-center text-[12.5px] text-faint">
-          La carpeta «{drive.folder.name}» está vacía.
-        </div>
-      );
+    if (drive.files.length === 0) return <div className="px-4 py-6 text-center text-[12.5px] text-faint">La carpeta «{drive.folder.name}» está vacía.</div>;
     return (
       <ul className="flex flex-col">
         {drive.files.map((f) => (
-          <li
-            key={f.id}
-            className="flex flex-wrap items-center gap-2 border-b border-line-soft px-4 py-2.5 last:border-b-0"
-          >
+          <li key={f.id} className="flex flex-wrap items-center gap-2 border-b border-line-soft px-4 py-2.5 last:border-b-0">
             {f.isFolder ? (
               <a
                 href={f.webViewLink}
@@ -336,39 +230,31 @@ export function DocumentsTab({
                 rel="noopener noreferrer"
                 className="inline-flex min-w-0 flex-1 items-center gap-2 text-[13px] font-medium text-fg hover:text-accent"
               >
-                <Icon name="folder" size={14} />{" "}
-                <span className="truncate">{f.name}</span>
+                <Icon name="folder" size={14} /> <span className="truncate">{f.name}</span>
               </a>
             ) : (
               <button
                 className="inline-flex min-w-0 flex-1 items-center gap-2 text-left text-[13px] font-medium text-fg hover:text-accent"
-                onClick={() =>
-                  setPreview({ id: f.id, name: f.name, link: f.webViewLink })
-                }
+                onClick={() => setPreview({ id: f.id, name: f.name, link: f.webViewLink })}
                 title="Vista previa"
               >
-                <Icon name="eye" size={14} />{" "}
-                <span className="truncate">{f.name}</span>
+                <Icon name="eye" size={14} /> <span className="truncate">{f.name}</span>
               </button>
             )}
             <span className="text-[11.5px] text-muted">
               {kindOf(f.mimeType)}
-              {f.size != null ? ` · ${fmtSize(f.size)}` : ""} ·{" "}
-              {dateTime(f.modifiedTime, tz)}
+              {f.size != null ? ` · ${fmtSize(f.size)}` : ""} · {dateTime(f.modifiedTime, tz)}
             </span>
-            {!f.isFolder &&
-              canUpload &&
-              editable &&
-              pendingItems.length > 0 && (
-                <button
-                  className="btn-ghost btn-sm"
-                  disabled={pending}
-                  onClick={() => setLinking(linking?.id === f.id ? null : f)}
-                  title="Marcar un antecedente del checklist como recibido con este archivo"
-                >
-                  Es un antecedente
-                </button>
-              )}
+            {!f.isFolder && canUpload && editable && pendingItems.length > 0 && (
+              <button
+                className="btn-ghost btn-sm"
+                disabled={pending}
+                onClick={() => setLinking(linking?.id === f.id ? null : f)}
+                title="Marcar un antecedente del checklist como recibido con este archivo"
+              >
+                Es un antecedente
+              </button>
+            )}
             {linking?.id === f.id && (
               <select
                 className="input !min-h-[28px] !py-0 text-[12px]"
@@ -378,8 +264,7 @@ export function DocumentsTab({
                 onChange={(e) => {
                   const itemId = e.target.value;
                   if (!itemId) return;
-                  const label =
-                    items.find((it) => it.id === itemId)?.label ?? f.name;
+                  const label = items.find((it) => it.id === itemId)?.label ?? f.name;
                   run(
                     () =>
                       linkDriveFile(clientId, {
@@ -410,15 +295,11 @@ export function DocumentsTab({
 
   return (
     <>
-      <div
-        className={`grid gap-3 ${CHECKLIST_ENABLED ? "lg:grid-cols-[minmax(0,1fr)_420px]" : ""}`}
-      >
+      <div className={`grid gap-3 ${CHECKLIST_ENABLED ? "lg:grid-cols-[minmax(0,1fr)_420px]" : ""}`}>
         <div className="flex flex-col gap-3">
           <section className="panel">
             <div className="panel-head">
-              <span className="card-title">
-                Carpeta del cliente en el Drive
-              </span>
+              <span className="card-title">Carpeta del cliente en el Drive</span>
               {drive?.folder && (
                 <a
                   href={drive.folder.webViewLink}
@@ -435,19 +316,11 @@ export function DocumentsTab({
 
           <section className="panel">
             <div className="panel-head">
-              <span className="card-title">
-                {CHECKLIST_ENABLED
-                  ? "Otros documentos"
-                  : "Documentos en el almacén"}
-              </span>
+              <span className="card-title">{CHECKLIST_ENABLED ? "Otros documentos" : "Documentos en el almacén"}</span>
               {canUpload && editable && (
                 <>
                   {fileInput("otro", null, null)}
-                  <button
-                    className="btn-outline btn-sm ml-auto"
-                    disabled={uploading !== null || pending}
-                    onClick={() => inputs.current["otro"]?.click()}
-                  >
+                  <button className="btn-outline btn-sm ml-auto" disabled={uploading !== null || pending} onClick={() => inputs.current["otro"]?.click()}>
                     {uploading === "otro" ? "Subiendo…" : "+ Subir al almacén"}
                   </button>
                 </>
@@ -455,16 +328,12 @@ export function DocumentsTab({
             </div>
             {others.length === 0 ? (
               <div className="px-4 py-5 text-center text-[12.5px] text-faint">
-                Archivos guardados en el almacén de la app (respaldo cuando no
-                están en el Drive). PDF, imágenes o Word, hasta 25 MB.
+                Archivos guardados en el almacén de la app (respaldo cuando no están en el Drive). PDF, imágenes o Word, hasta 25 MB.
               </div>
             ) : (
               <ul className="flex flex-col">
                 {others.map((d) => (
-                  <li
-                    key={d.id}
-                    className="border-b border-line-soft px-4 py-3 last:border-b-0"
-                  >
+                  <li key={d.id} className="border-b border-line-soft px-4 py-3 last:border-b-0">
                     {docLine(d)}
                   </li>
                 ))}
@@ -484,10 +353,7 @@ export function DocumentsTab({
             </div>
             {items.length > 0 && (
               <div className="px-4 pt-3">
-                <span
-                  className="block h-1.5 w-full overflow-hidden rounded-full bg-surface-2"
-                  aria-hidden
-                >
+                <span className="block h-1.5 w-full overflow-hidden rounded-full bg-surface-2" aria-hidden>
                   <span
                     className="block h-full rounded-full bg-accent"
                     style={{
@@ -499,11 +365,7 @@ export function DocumentsTab({
             )}
             {items.length === 0 ? (
               <div className="empty">
-                <span className="empty-title">
-                  {procedure
-                    ? "Sin checklist aún para esta causa"
-                    : "Define primero el procedimiento"}
-                </span>
+                <span className="empty-title">{procedure ? "Sin checklist aún para esta causa" : "Define primero el procedimiento"}</span>
                 <span className="empty-text">
                   {procedure
                     ? templateCount > 0
@@ -512,13 +374,7 @@ export function DocumentsTab({
                     : "En Antecedentes, elige el procedimiento para cargar su checklist."}
                 </span>
                 {procedure && templateCount > 0 && canEdit && editable && (
-                  <button
-                    className="btn-primary"
-                    disabled={pending}
-                    onClick={() =>
-                      run(() => startChecklist(clientId), "Checklist creado")
-                    }
-                  >
+                  <button className="btn-primary" disabled={pending} onClick={() => run(() => startChecklist(clientId), "Checklist creado")}>
                     Iniciar checklist
                   </button>
                 )}
@@ -526,56 +382,25 @@ export function DocumentsTab({
             ) : (
               <ol className="flex flex-col">
                 {items.map((it) => {
-                  const d = it.document_id
-                    ? byId.get(it.document_id)
-                    : undefined;
-                  const state = it.not_applicable
-                    ? "na"
-                    : it.satisfied && d
-                      ? "ok"
-                      : "pending";
+                  const d = it.document_id ? byId.get(it.document_id) : undefined;
+                  const state = it.not_applicable ? "na" : it.satisfied && d ? "ok" : "pending";
                   return (
-                    <li
-                      key={it.id}
-                      className="flex flex-col gap-1.5 border-b border-line-soft px-4 py-3 last:border-b-0"
-                    >
+                    <li key={it.id} className="flex flex-col gap-1.5 border-b border-line-soft px-4 py-3 last:border-b-0">
                       <div className="flex flex-wrap items-center gap-2.5">
                         <span
                           className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                            state === "ok"
-                              ? "bg-[var(--success-bg)] text-success"
-                              : state === "na"
-                                ? "bg-surface-2 text-faint"
-                                : "bg-[var(--warning-bg)] text-warning"
+                            state === "ok" ? "bg-[var(--success-bg)] text-success" : state === "na" ? "bg-surface-2 text-faint" : "bg-[var(--warning-bg)] text-warning"
                           }`}
                           aria-hidden
                         >
-                          {state === "ok" ? (
-                            <Icon name="check" size={13} />
-                          ) : state === "na" ? (
-                            "–"
-                          ) : (
-                            it.position
-                          )}
+                          {state === "ok" ? <Icon name="check" size={13} /> : state === "na" ? "–" : it.position}
                         </span>
                         <div className="flex min-w-0 flex-1 flex-col">
-                          <span
-                            className={`text-[13px] ${state === "na" ? "text-faint line-through" : "font-medium text-fg"}`}
-                          >
-                            {it.label}
-                          </span>
+                          <span className={`text-[13px] ${state === "na" ? "text-faint line-through" : "font-medium text-fg"}`}>{it.label}</span>
                           <span className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted">
-                            {catName(it.category_id) && (
-                              <span className="tag">
-                                {catName(it.category_id)}
-                              </span>
-                            )}
-                            {state === "pending" && (
-                              <span className="tag warn">Pendiente</span>
-                            )}
-                            {state === "na" && (
-                              <span className="tag">No aplica</span>
-                            )}
+                            {catName(it.category_id) && <span className="tag">{catName(it.category_id)}</span>}
+                            {state === "pending" && <span className="tag warn">Pendiente</span>}
+                            {state === "na" && <span className="tag">No aplica</span>}
                           </span>
                         </div>
                       </div>
@@ -590,11 +415,7 @@ export function DocumentsTab({
                                 onClick={() => inputs.current[it.id]?.click()}
                                 title="Subir al almacén de la app"
                               >
-                                {uploading === it.id
-                                  ? "Subiendo…"
-                                  : d
-                                    ? "Reemplazar"
-                                    : "Subir"}
+                                {uploading === it.id ? "Subiendo…" : d ? "Reemplazar" : "Subir"}
                               </button>
                             </>
                           )}
@@ -603,17 +424,7 @@ export function DocumentsTab({
                               className="btn-ghost btn-sm"
                               disabled={pending}
                               onClick={() =>
-                                run(
-                                  () =>
-                                    setItemNotApplicable(
-                                      it.id,
-                                      clientId,
-                                      !it.not_applicable,
-                                    ),
-                                  it.not_applicable
-                                    ? "Vuelve a exigirse"
-                                    : "Marcado como no aplica",
-                                )
+                                run(() => setItemNotApplicable(it.id, clientId, !it.not_applicable), it.not_applicable ? "Vuelve a exigirse" : "Marcado como no aplica")
                               }
                             >
                               {it.not_applicable ? "Sí aplica" : "No aplica"}
@@ -639,36 +450,17 @@ export function DocumentsTab({
           aria-modal="true"
           aria-label={`Vista previa de ${preview.name}`}
         >
-          <div
-            className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-surface shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-surface shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
-              <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">
-                {preview.name}
-              </span>
-              <a
-                href={preview.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-outline btn-sm"
-              >
+              <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">{preview.name}</span>
+              <a href={preview.link} target="_blank" rel="noopener noreferrer" className="btn-outline btn-sm">
                 <Icon name="external" size={13} /> Abrir en Drive
               </a>
-              <button
-                className="btn-ghost btn-sm"
-                onClick={() => setPreview(null)}
-                aria-label="Cerrar"
-              >
+              <button className="btn-ghost btn-sm" onClick={() => setPreview(null)} aria-label="Cerrar">
                 <Icon name="close" size={14} />
               </button>
             </div>
-            <iframe
-              src={previewUrl(preview.id)}
-              title={preview.name}
-              className="h-full w-full flex-1 border-0 bg-surface-2"
-              allow="autoplay"
-            />
+            <iframe src={previewUrl(preview.id)} title={preview.name} className="h-full w-full flex-1 border-0 bg-surface-2" allow="autoplay" />
           </div>
         </div>
       )}

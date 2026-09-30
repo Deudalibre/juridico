@@ -52,7 +52,7 @@ try {
   ok("Insignia en «Revisión» con las causas por revisar", Number(badge) >= 2, String(badge));
 
   // 2. Registrar una revisión con tarea pendiente (como haría el diálogo): tarea + revisión
-  const task = await jur.c.from("legal_tasks").insert({ client_id: idA, kind: "solicitar_documento", title: "Pedir liquidaciones de sueldo", due_at: "2026-10-05T15:00:00Z", assignee_id: abo.id }).select().single();
+  const task = await jur.c.from("legal_tasks").insert({ client_id: idA, kind: "solicitar_documento", title: "Pedir liquidaciones de sueldo", due_at: new Date(Date.now() + 3600_000).toISOString(), assignee_id: abo.id }).select().single();
   ok("Tarea pendiente creada y asignada al abogado", !task.error, task.error?.message);
   const notifTask = sql(`select title, body, client_id from notifications where user_id = '${abo.id}' and client_id = '${idA}' order by created_at`);
   ok("Notificación al responsable por la tarea asignada (trigger)", notifTask.length === 1 && /Tarea asignada/.test(notifTask[0].title) && /Pedir liquidaciones/.test(notifTask[0].body), JSON.stringify(notifTask));
@@ -101,6 +101,19 @@ try {
   ok("Ficha: tile «Última revisión» con movimiento, fecha, revisor y próxima", ficha.status === 200 && /Última revisión/.test(ficha.text) && /Con movimiento/.test(ficha.text) && /Próxima:/.test(ficha.text));
   const fichaHist = await page(jur, `/clientes/${idA}?tab=Historial`);
   ok("Ficha › Historial: la revisión aparece como «Revisión»", /Revisión: con movimiento/.test(fichaHist.text));
+  // 5. Paridad con el CRM: calendario, tablero por paso, filtros y exportación
+  const cal = await page(jur, "/revision?modo=calendario");
+  ok("Revisión › Calendario: semana con la tarea pendiente en su día", cal.status === 200 && /Semana del/.test(cal.text) && /Pedir liquidaciones de sueldo/.test(cal.text) && /JUR Revisión Antigua/.test(cal.text), String(cal.status));
+  const board = await page(jur, "/tablero");
+  ok("Tablero por paso: columnas de la liquidación y la causa en su paso", board.status === 200 && /Preparación de documentos/.test(board.text) && /Certificado de ejecutoria/.test(board.text) && /Completada/.test(board.text) && /JUR Revisión Antigua/.test(board.text) && !/JUR Revisión Nueva/.test(board.text), String(board.status));
+  const boardRen = await page(jur, "/tablero?proc=Renegociaci%C3%B3n");
+  ok("Tablero: cambiar de procedimiento cambia las columnas y las causas", boardRen.status === 200 && /Audiencia de renegociación/.test(boardRen.text) && /JUR Revisión Nueva/.test(boardRen.text) && !/JUR Revisión Antigua/.test(boardRen.text));
+  const filtered = await page(jur, `/clientes?abogado=${abo.id}&proc=Renegociaci%C3%B3n`);
+  ok("Lista de causas: filtros por abogado y procedimiento, botón Filtros con contador y Exportar", filtered.status === 200 && /JUR Revisión Nueva/.test(filtered.text) && !/JUR Revisión Antigua/.test(filtered.text) && /Filtros\s*2/.test(filtered.text) && /Exportar/.test(filtered.text));
+  const filteredStep = await page(jur, `/clientes?paso=Preparaci%C3%B3n%20de%20documentos`);
+  ok("Lista de causas: filtro por paso actual", filteredStep.status === 200 && /JUR Revisión Antigua/.test(filteredStep.text) && /JUR Revisión Nueva/.test(filteredStep.text));
+  ok("Historial de revisiones: botón Exportar", /Exportar/.test(histPage.text));
+  ok("Marco: Tablero en la barra lateral y menú de usuario (Radix, se abre al pulsar)", /Tablero/.test(rev.text) && /aria-label="Menú de usuario"/.test(rev.html));
   const ejePage = await page(eje, "/revision");
   ok("Un ejecutivo no entra a Revisión", ejePage.status === 307 || /Sin acceso/.test(ejePage.text), String(ejePage.status));
 } catch (e) {

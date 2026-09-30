@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePermission, type LegalReview } from "@/lib/data";
 import { dateTime } from "@/lib/format";
 import { Icon } from "@/components/icons";
+import { ExportButton } from "@/components/ExportButton";
 
 // Historial de revisiones del estudio: qué causa, cuándo, quién, si hubo movimiento y qué quedó pendiente.
 export default async function HistorialRevisionesPage(props: { searchParams: Promise<{ q?: string }> }) {
@@ -29,6 +30,11 @@ export default async function HistorialRevisionesPage(props: { searchParams: Pro
           <form action="/revision/historial" className="contents" role="search">
             <input name="q" defaultValue={sp.q ?? ""} className="search !min-h-[36px]" placeholder="Buscar causa o revisor…" aria-label="Buscar en el historial" />
           </form>
+          <ExportButton
+            filename="revisiones.csv"
+            header={["Cuándo", "Causa", "Procedimiento", "Rol", "Movimiento", "Nota", "Tarea", "Revisó"]}
+            rows={rows.map((r) => [dateTime(r.reviewed_at, tz), r.legal_clients?.full_name ?? "", r.legal_clients?.procedure_type ?? "", r.legal_clients?.rol ?? "", r.had_movement ? "Con movimiento" : "Sin movimiento", r.note ?? "", r.legal_tasks?.title ?? "", r.reviewer_name ?? ""])}
+          />
           <Link href="/revision" className="btn-secondary">
             Por revisar
           </Link>

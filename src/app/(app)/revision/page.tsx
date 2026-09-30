@@ -1,11 +1,16 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { getMembers, requirePermission, type LegalClient, type LegalReview, type LegalTask } from "@/lib/data";
-import { hourIn, longToday } from "@/lib/format";
-import { PROCEDURES } from "@/lib/legal";
+import { addDaysKey, dayKey, hourIn, longToday, mondayOf, zonedToIso } from "@/lib/format";
+import { PROCEDURES, REVIEW_EVERY_DAYS } from "@/lib/legal";
 import { Icon } from "@/components/icons";
+import { HelpPop } from "@/components/HelpPop";
 import { ReviewRow } from "./ReviewRow";
 import { Filters } from "./Filters";
+import { WeekCalendar, type CalTask } from "./WeekCalendar";
+
+const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const fmtKey = (k: string) => `${Number(k.slice(8, 10))} ${MONTHS[Number(k.slice(5, 7)) - 1]}`;
 
 // Revisión de causas: todas las causas activas pasan por aquí una por una. La cola ordena primero las que
 // nunca se han revisado (más antiguas primero) y luego las que ya cumplieron su fecha de próxima revisión.
@@ -25,7 +30,7 @@ function Group({ title, hint, count, tone, children }: { title: string; hint?: s
   );
 }
 
-export default async function RevisionPage(props: { searchParams: Promise<{ ver?: string; proc?: string }> }) {
+export default async function RevisionPage(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string }> }) {
   const sp = await props.searchParams;
   const { supabase, user, profile, tz, can } = await requirePermission("legal.view");
   const members = await getMembers(supabase);
@@ -33,6 +38,60 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
   const wanted = sp.ver ?? "equipo";
   const view = wanted === "equipo" || wanted === "mios" || lawyers.some((m) => m.id === wanted) ? wanted : "equipo";
   const proc = (PROCEDURES as readonly string[]).includes(sp.proc ?? "") ? sp.proc! : "";
+  const modo = sp.modo === "calendario" ? "calendario" : "lista";
+  const link = (patch: Record<string, string | undefined>) => {
+    const p = new URLSearchParams();
+    Object.entries({ ver: view !== "equipo" ? view : undefined, proc: proc || undefined, modo: modo === "calendario" ? modo : undefined, semana: sp.semana, ...patch }).forEach(([k, v]) => v && p.set(k, v));
+    const s = p.toString();
+    return s ? `/revision?${s}` : "/revision";
+  };
+
+  // ---------- Calendario: apercibimientos, audiencias y tareas con fecha, por semana ----------
+  let calendar: ReactNode = null;
+  if (modo === "calendario") {
+    const todayKey = dayKey(new Date(), tz);
+    const start = mondayOf(/^\d{4}-\d{2}-\d{2}$/.test(sp.semana ?? "") ? sp.semana! : todayKey);
+    const days = Array.from({ length: 7 }, (_, i) => addDaysKey(start, i));
+    let tq = supabase
+      .from("legal_tasks")
+      .select("id, client_id, kind, title, due_at, status, description, assignee_id, legal_clients!inner(full_name, rol, lawyer_id, archived_at)")
+      .in("status", ["pendiente", "completada"])
+      .gte("due_at", zonedToIso(`${days[0]}T00:00`, tz)!)
+      .lt("due_at", zonedToIso(`${addDaysKey(days[6], 1)}T00:00`, tz)!)
+      .order("due_at")
+      .limit(1000);
+    if (view === "mios") tq = tq.eq("legal_clients.lawyer_id", user.id);
+    else if (view !== "equipo") tq = tq.eq("legal_clients.lawyer_id", view);
+    const { data: tdata, error: terr } = await tq;
+    if (terr) throw new Error(terr.message);
+    const nameOfId = new Map(members.map((m) => [m.id, m.full_name || m.email]));
+    type Raw = Omit<CalTask, "assignee" | "client"> & { assignee_id: string | null; legal_clients: { full_name: string; rol: string | null } | null };
+    const rows = ((tdata ?? []) as unknown as Raw[]).map((t) => ({
+      id: t.id,
+      client_id: t.client_id,
+      kind: t.kind,
+      title: t.title,
+      due_at: t.due_at,
+      status: t.status,
+      description: t.description,
+      assignee: t.assignee_id ? nameOfId.get(t.assignee_id) ?? null : null,
+      client: t.legal_clients,
+      dayKey: dayKey(t.due_at, tz),
+    }));
+    calendar = (
+      <WeekCalendar
+        days={days}
+        tasks={rows}
+        tz={tz}
+        todayKey={todayKey}
+        showAssignee={view !== "mios"}
+        prevHref={link({ semana: addDaysKey(start, -7) })}
+        nextHref={link({ semana: addDaysKey(start, 7) })}
+        todayHref={link({ semana: undefined })}
+        rangeLabel={`Semana del ${fmtKey(days[0])} al ${fmtKey(days[6])}`}
+      />
+    );
+  }
 
   let q = supabase.from("legal_clients").select("*").is("archived_at", null).limit(1000);
   if (view === "mios") q = q.eq("lawyer_id", user.id);
@@ -113,6 +172,19 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <HelpPop label="Cómo funciona" title="Revisión de causas">
+            <span>Cada causa activa vuelve a la cola cuando se cumple su fecha de próxima revisión (por defecto, {REVIEW_EVERY_DAYS} días después de la última).</span>
+            <span>Primero van las que nunca se han revisado, de la más antigua a la más nueva por fecha de ingreso; después las más atrasadas.</span>
+            <span>Al revisar, anota si hubo movimiento, qué pidió el tribunal y deja la tarea pendiente con responsable y fecha. Todo queda con tu nombre, día y hora.</span>
+          </HelpPop>
+          <div className="seg" role="group" aria-label="Vista de Revisión">
+            <Link href={link({ modo: undefined, semana: undefined })} aria-current={modo === "lista" ? "true" : undefined}>
+              Lista
+            </Link>
+            <Link href={link({ modo: "calendario" })} aria-current={modo === "calendario" ? "true" : undefined}>
+              Calendario
+            </Link>
+          </div>
           <Filters view={view} proc={proc} lawyers={lawyers.map((m) => ({ id: m.id, name: m.full_name || m.email }))} />
           <Link href="/revision/historial" className="btn-secondary">
             <Icon name="history" size={14} /> Historial
@@ -120,7 +192,8 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
         </div>
       </div>
 
-      {clients.length === 0 ? (
+      {calendar}
+      {modo === "calendario" ? null : clients.length === 0 ? (
         <section className="panel empty">
           <span className="icon-tile">
             <Icon name="today" />

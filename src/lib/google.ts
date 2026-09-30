@@ -2,7 +2,12 @@
 // Integración con el Google Drive del estudio: una conexión para todos, carpetas por cliente.
 // Permisos pedidos: leer el Drive (listar y previsualizar) y crear archivos en las carpetas (subidas
 // desde la app). Nunca se borra nada en el Drive desde aquí.
+import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+// Llave que solo conoce el servidor: la base la exige en drive_tokens()/drive_save_access() cuando existe en la
+// bóveda (migración 0017). Sin ella configurada, la base sigue aceptando las llamadas (ver auditoría 2026-09-30).
+const SERVER_KEY = process.env.DRIVE_SERVER_KEY ?? null;
 
 export const GOOGLE_SCOPE = ["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/userinfo.email"].join(" ");
 
@@ -125,17 +130,17 @@ export async function driveState(supabase: SupabaseClient): Promise<DriveState> 
 
 /** Access token vigente (refresca con el refresh token cuando caduca). null si no hay conexión. */
 export async function driveAccess(supabase: SupabaseClient): Promise<string | null> {
-  const { data, error } = await supabase.rpc("drive_tokens");
+  const { data, error } = await supabase.rpc("drive_tokens", { p_key: SERVER_KEY });
   if (error) throw new Error(error.message);
   const row = (data as { access_token: string | null; expires_at: string | null; refresh_token: string }[] | null)?.[0];
   if (!row) return null;
   if (row.access_token && row.expires_at && Date.parse(row.expires_at) > Date.now() + 30_000) return row.access_token;
   try {
     const t = await refreshAccess(row.refresh_token);
-    await supabase.rpc("drive_save_access", { p_access: t.access_token, p_expires_at: new Date(Date.now() + (t.expires_in - 60) * 1000).toISOString(), p_error: null });
+    await supabase.rpc("drive_save_access", { p_access: t.access_token, p_expires_at: new Date(Date.now() + (t.expires_in - 60) * 1000).toISOString(), p_error: null, p_key: SERVER_KEY });
     return t.access_token;
   } catch (e) {
-    await supabase.rpc("drive_save_access", { p_access: null, p_expires_at: null, p_error: (e as Error).message });
+    await supabase.rpc("drive_save_access", { p_access: null, p_expires_at: null, p_error: (e as Error).message, p_key: SERVER_KEY });
     throw e;
   }
 }
