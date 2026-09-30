@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PROCEDURES } from "@/lib/legal";
@@ -44,13 +45,22 @@ export function NewTemplate() {
   };
 
   return (
-    <div className="relative z-20">
-      <button type="button" className="btn-primary" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+    <>
+      <button type="button" className="btn-primary" onClick={() => setOpen(true)} aria-expanded={open}>
         + Subir plantilla
       </button>
-      {open && (
-        <div className="panel absolute right-0 top-[calc(100%+6px)] w-[360px] p-4 shadow-lg" role="dialog" aria-label="Subir plantilla">
-          <div className="flex flex-col gap-3">
+      {open &&
+        createPortal(
+        // Portal al body: dentro de la cabecera, la ventana quedaba por debajo del panel siguiente (contexto de apilamiento propio)
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh]" onClick={() => !busy && setOpen(false)} role="dialog" aria-modal="true" aria-label="Subir plantilla">
+          <div className="panel w-full max-w-[400px] p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <span className="card-title">Subir plantilla</span>
+              <button type="button" className="btn-ghost btn-sm" onClick={() => setOpen(false)} disabled={busy} aria-label="Cerrar">
+                ✕
+              </button>
+            </div>
+            <div className="flex flex-col gap-3">
             <Field label="Archivo Word (.docx)">
               <input ref={input} type="file" accept=".docx" className="hidden" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
               <button type="button" className="btn-outline w-full justify-start truncate" onClick={() => input.current?.click()}>
@@ -78,9 +88,11 @@ export function NewTemplate() {
                 {busy ? "Subiendo…" : "Subir y abrir el editor"}
               </button>
             </div>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
