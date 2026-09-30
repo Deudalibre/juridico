@@ -39,6 +39,12 @@ export type LegalClient = {
   procedure_type: string | null;
   tribunal: string | null;
   rol: string | null;
+  caratula: string | null;
+  intake_date: string | null;
+  /** Solo indica si hay Clave Única guardada; el valor vive cifrado en la bóveda */
+  clave_unica_secret_id: string | null;
+  drive_folder_url: string | null;
+  pjud_url: string | null;
   status_id: string | null;
   lawyer_id: string | null;
   lead_id: string | null;
