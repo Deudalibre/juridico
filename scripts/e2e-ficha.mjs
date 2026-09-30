@@ -113,11 +113,12 @@ try {
   const listaTarea = await page(jur, "/clientes");
   ok("Lista: la próxima acción muestra el apercibimiento con su fecha", listaTarea.status === 200 && /Acompañar certificado de deudas/.test(listaTarea.text) && /Apercibimiento/.test(listaTarea.text) && /Paso/.test(listaTarea.text));
 
-  // Mi día del abogado e Historial
-  const hoy = await page(jur, "/hoy");
-  ok("Mi día: la causa aparece con su apercibimiento en un grupo por urgencia", hoy.status === 200 && /JUR Ficha Prueba/.test(hoy.text) && /Acompañar certificado de deudas/.test(hoy.text) && /(Vencidas|Hoy|Esta semana|Más adelante)/.test(hoy.text) && /Mi día/.test(hoy.text), String(hoy.status));
+  // Revisión (antes «Mi día») e Historial
+  const rev = await page(jur, "/revision");
+  ok("Revisión: la causa nunca revisada está en la cola con su tarea pendiente", rev.status === 200 && /JUR Ficha Prueba/.test(rev.text) && /Acompañar certificado de deudas/.test(rev.text) && /Nunca revisada/.test(rev.text) && /Por revisar/.test(rev.text), String(rev.status));
   const raiz = await fetch(`${BASE}/`, { headers: { cookie: jur.cookie }, redirect: "manual" });
-  ok("La raíz lleva a Mi día", raiz.status === 307 && /\/hoy/.test(raiz.headers.get("location") ?? ""), String(raiz.status));
+  const hoyOld = await fetch(`${BASE}/hoy`, { headers: { cookie: jur.cookie }, redirect: "manual" });
+  ok("La raíz y el antiguo /hoy llevan a Revisión", raiz.status === 307 && /\/revision/.test(raiz.headers.get("location") ?? "") && (hoyOld.status === 307 || hoyOld.status === 308) && /\/revision/.test(hoyOld.headers.get("location") ?? ""), `${raiz.status} ${hoyOld.status}`);
   const historial = await page(jur, `/clientes/${id}?tab=Historial`);
   ok("Historial: muestra los pasos completados con fecha y autor", historial.status === 200 && /Paso completado: Preparación de documentos/.test(historial.text) && /JUR juridico/.test(historial.text), String(historial.status));
 
@@ -128,7 +129,8 @@ try {
   ok("Jurídico crea el checklist del cliente (RLS legal.edit)", !ck.error && (ck.data ?? []).length === tplItems.length, ck.error?.message);
   const item = (ck.data ?? [])[0];
   const docsEmpty = await page(jur, `/clientes/${id}?tab=Documentos`);
-  ok("Pestaña Documentos: checklist con todos los antecedentes pendientes", docsEmpty.status === 200 && new RegExp(`0 de ${tplItems.length}`).test(docsEmpty.text) && /Pendiente/.test(docsEmpty.text) && /Otros documentos/.test(docsEmpty.text), String(docsEmpty.status));
+  // El checklist está apagado en la interfaz (CHECKLIST_ENABLED = false): la pestaña muestra el Drive y el almacén, sin antecedentes
+  ok("Pestaña Documentos: carpeta del Drive y almacén, sin checklist en pantalla", docsEmpty.status === 200 && /Carpeta del cliente en el Drive/.test(docsEmpty.text) && /Documentos en el almacén/.test(docsEmpty.text) && !/Checklist de antecedentes/.test(docsEmpty.text), String(docsEmpty.status));
   const pdf = Buffer.from("%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
   const path = `${id}/${crypto.randomUUID()}.pdf`;
   const up = await jur.c.storage.from("legal-documents").upload(path, pdf, { contentType: "application/pdf" });
@@ -140,9 +142,9 @@ try {
   const link = await jur.c.from("legal_checklist_items").update({ satisfied: true, document_id: doc.data?.id }).eq("id", item.id).select();
   const docsOne = await page(jur, `/clientes/${id}?tab=Documentos`);
   ok(
-    "Pestaña Documentos: 1 antecedente recibido con versión, tamaño y estado",
+    "Pestaña Documentos: el archivo subido aparece con versión, tamaño y estado",
     // React separa «v» y «1» con un comentario en el HTML: al quitar etiquetas queda «v 1»
-    !link.error && docsOne.status === 200 && new RegExp(`1 de ${tplItems.length}`).test(docsOne.text) && /1 KB · v ?1/.test(docsOne.text) && /Recibido/.test(docsOne.text),
+    !link.error && docsOne.status === 200 && /1 KB · v ?1/.test(docsOne.text) && /Recibido/.test(docsOne.text),
     `${link.error?.message ?? ""} status=${docsOne.status}`
   );
   const signed = await jur.c.storage.from("legal-documents").createSignedUrl(path, 60);
@@ -150,7 +152,7 @@ try {
   const ejeDocs = await eje.c.from("legal_documents").select("id").eq("client_id", id);
   ok("Ejecutivo no ve los documentos (RLS)", (ejeDocs.data ?? []).length === 0);
   const fichaDocs = await page(jur, `/clientes/${id}`);
-  ok("Resumen de la ficha: avance del checklist", new RegExp(`1 de ${tplItems.length} antecedentes`).test(fichaDocs.text));
+  ok("Resumen de la ficha: tile Documentos apunta a la carpeta del Drive (checklist apagado)", /Carpeta del Drive (por vincular|vinculada)/.test(fichaDocs.text) && !/Sin checklist/.test(fichaDocs.text));
 
   // Google Drive: conexión del estudio (solo administrador), tokens en la bóveda, estado visible para el área.
   // Si el estudio ya tiene el Drive conectado de verdad, se aparta y se restaura al final (la prueba usa una conexión ficticia).

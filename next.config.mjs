@@ -17,6 +17,10 @@ const nextConfig = {
     staleTimes: { dynamic: 30 },
     dynamicOnHover: true,
   },
+  // «Mi día» pasó a llamarse «Revisión» (2026-09-30): los enlaces antiguos siguen funcionando
+  async redirects() {
+    return [{ source: "/hoy", destination: "/revision", permanent: true }];
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

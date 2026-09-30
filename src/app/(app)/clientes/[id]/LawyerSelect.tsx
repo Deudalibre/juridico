@@ -3,11 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { assignLawyer } from "../actions";
+import { Select } from "@/components/ui/Select";
 import { toast } from "@/components/ui";
 
 type Member = { id: string; full_name: string; email: string; role: string; active: boolean };
 
-/** Abogado a cargo: solo quien tiene legal.assign puede cambiarlo; el resto ve el nombre. */
+/** Abogado a cargo: solo quien tiene legal.assign puede cambiarlo; el resto ve el nombre. Mismo selector que «Ejecutivo» en el CRM. */
 export function LawyerSelect({ clientId, lawyerId, members, canAssign, compact }: { clientId: string; lawyerId: string | null; members: Member[]; canAssign: boolean; compact?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -21,15 +22,16 @@ export function LawyerSelect({ clientId, lawyerId, members, canAssign, compact }
       <span className="tag warn">Sin abogado</span>
     );
 
+  const options = [{ key: "", label: compact ? "Asignar a…" : "Sin abogado a cargo" }, ...lawyers.map((m) => ({ key: m.id, label: m.full_name || m.email }))];
   return (
-    <select
-      className={`input ${compact ? "!min-h-[30px] !py-0 text-[12.5px]" : ""}`}
+    <Select
       value={lawyerId ?? ""}
+      options={options}
       disabled={pending}
-      aria-label="Abogado a cargo"
-      onClick={(e) => e.stopPropagation()}
-      onChange={(e) => {
-        const v = e.target.value || null;
+      ariaLabel="Abogado a cargo"
+      size={compact ? "sm" : "md"}
+      onChange={(value) => {
+        const v = value || null;
         if (v === (lawyerId ?? null)) return;
         const name = lawyers.find((m) => m.id === v)?.full_name;
         start(async () => {
@@ -41,13 +43,6 @@ export function LawyerSelect({ clientId, lawyerId, members, canAssign, compact }
           }
         });
       }}
-    >
-      <option value="">{compact ? "Asignar a…" : "Sin abogado a cargo"}</option>
-      {lawyers.map((m) => (
-        <option key={m.id} value={m.id}>
-          {m.full_name || m.email}
-        </option>
-      ))}
-    </select>
+    />
   );
 }

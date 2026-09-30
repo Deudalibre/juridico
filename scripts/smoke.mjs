@@ -43,7 +43,7 @@ try {
   const p3 = await page(jur, "/configuracion");
   ok("Jurídico · /configuracion denegado (solo legal.settings)", p3.status === 307 || /NEXT_REDIRECT|Sin acceso/.test(p3.html), String(p3.status));
   const p4 = await page(jur, "/plantillas");
-  ok("Jurídico · /plantillas indica que el mapa está pendiente", p4.status === 200 && /Pendiente: mapa de plantillas/.test(p4.text));
+  ok("Jurídico · /plantillas lista los modelos Word o invita a subir el primero", p4.status === 200 && /Plantillas/.test(p4.text) && /(Subir plantilla|modelos? Word)/.test(p4.text));
   const p5 = await fetch(`${BASE}/clientes`, { redirect: "manual" });
   ok("Sin sesión → /login", p5.status === 307 && /\/login/.test(p5.headers.get("location") ?? ""), String(p5.status));
 } catch (e) {
