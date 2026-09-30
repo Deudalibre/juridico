@@ -45,6 +45,11 @@ export type LegalClient = {
   clave_unica_secret_id: string | null;
   drive_folder_url: string | null;
   pjud_url: string | null;
+  close_reason: string | null;
+  close_detail: string | null;
+  liquidator_name: string | null;
+  liquidation_resolution_at: string | null;
+  current_step: string | null;
   status_id: string | null;
   lawyer_id: string | null;
   lead_id: string | null;
@@ -56,6 +61,22 @@ export type LegalClient = {
 };
 
 export type LegalStatus = { id: string; name: string; position: number; active: boolean; is_terminal: boolean };
+
+export type CaseStep = { id: string; client_id: string; step: string; completed_at: string; completed_by: string | null; note: string | null };
+
+export type LegalTask = {
+  id: string;
+  client_id: string;
+  assignee_id: string | null;
+  kind: string;
+  title: string;
+  description: string | null;
+  due_at: string | null;
+  status: "pendiente" | "completada" | "cancelada";
+  result: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
 
 export async function getStatuses(supabase: SupabaseClient): Promise<LegalStatus[]> {
   const { data } = await supabase.from("legal_statuses").select("*").eq("active", true).order("position");

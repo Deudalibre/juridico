@@ -76,18 +76,55 @@ try {
 
   // Pantallas
   const lista = await page(jur, "/clientes");
-  ok("Lista: cabecera, procedimiento como etiqueta, rol, tribunal, ingreso y acciones", lista.status === 200 && /JUR Ficha Prueba/.test(lista.text) && /Liquidación voluntaria/.test(lista.text) && /C-9999-2026/.test(lista.text) && /Carpeta/.test(lista.text) && /Ficha jurídica/.test(lista.text) && /12 sept?\.? 2026/i.test(lista.text), String(lista.status));
+  ok("Lista: cabecera, procedimiento como etiqueta, rol, tribunal, paso y acciones", lista.status === 200 && /JUR Ficha Prueba/.test(lista.text) && /Liquidación voluntaria/.test(lista.text) && /C-9999-2026/.test(lista.text) && /Carpeta/.test(lista.text) && /Ficha jurídica/.test(lista.text) && /Preparación de documentos/.test(lista.text), String(lista.status));
   const busca = await page(jur, "/clientes?q=C-9999");
   ok("Lista: búsqueda por rol", busca.status === 200 && /JUR Ficha Prueba/.test(busca.text) && /1 coinciden/.test(busca.text));
   const ficha = await page(jur, `/clientes/${id}`);
   ok("Ficha: cabecera con etiqueta, botones y resumen", ficha.status === 200 && /Carpeta del cliente/.test(ficha.text) && /Ficha jurídica/.test(ficha.text) && /Clave Única/.test(ficha.text) && /Abogado a cargo/.test(ficha.text) && /Ingresada el 12 sept?\.? 2026/i.test(ficha.text), String(ficha.status));
   ok("Ficha: la Clave Única aparece oculta, nunca en el HTML", ficha.status === 200 && /••••••••/.test(ficha.text) && !/clave-secreta-789/.test(ficha.html));
   const causa = await page(jur, `/clientes/${id}?tab=Causa`);
-  ok("Ficha: pestaña Causa marcada como siguiente etapa", causa.status === 200 && /siguiente etapa/.test(causa.text));
+  ok("Ficha: pestaña Causa con los 12 pasos de la liquidación y ninguno completado", causa.status === 200 && /Pasos de la causa/.test(causa.text) && /0 de 12 completados/.test(causa.text) && /Certificado de ejecutoria/.test(causa.text));
   const nuevo = await page(jur, "/clientes/nuevo");
   ok("Alta manual: formulario con procedimiento y fecha de ingreso", nuevo.status === 200 && /Nuevo cliente/.test(nuevo.text) && /Fecha de ingreso/.test(nuevo.text));
   const ejeLista = await page(eje, "/clientes");
   ok("Ejecutivo del CRM: sin acceso a la lista", ejeLista.status === 307 || /Sin acceso/.test(ejeLista.text), String(ejeLista.status));
+
+  // Pasos de la causa (liquidación voluntaria): completar, historial, hito en la cabecera
+  const s1 = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Preparación de documentos", completed_at: "2026-09-13", note: "carpeta completa" }).select().single();
+  const s2 = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Ingreso de demanda", completed_at: "2026-09-14" }).select().single();
+  ok("Jurídico marca pasos completados (RLS legal.edit)", !s1.error && !s2.error, s1.error?.message ?? s2.error?.message);
+  const hist = sql(`select summary from legal_case_history where client_id = '${id}' and kind = 'paso' order by at`);
+  ok("Cada paso queda en el historial de la causa", hist.length === 2 && /Preparación/.test(hist[0].summary) && /Ingreso de demanda/.test(hist[1].summary), JSON.stringify(hist.map((h) => h.summary)));
+  const upd2 = await jur.c.from("legal_clients").update({ current_step: "Apercibimientos", liquidation_resolution_at: null }).eq("id", id);
+  ok("current_step se puede mantener desde la app", !upd2.error, upd2.error?.message);
+  const causa2 = await page(jur, `/clientes/${id}?tab=Causa`);
+  ok("Pestaña Causa: 12 pasos, dos completados y el actual señalado", causa2.status === 200 && /2 de 12 completados/.test(causa2.text) && /Paso actual/.test(causa2.text) && /Apercibimientos y tareas/.test(causa2.text), String(causa2.status));
+  const fichaPaso = await page(jur, `/clientes/${id}`);
+  ok("Cabecera: paso actual y aviso de resolución de liquidación pendiente", /Paso: Apercibimientos/.test(fichaPaso.text) && /Sin resolución de liquidación aún/.test(fichaPaso.text));
+  const ejeStep = await eje.c.from("legal_case_steps").select("id").eq("client_id", id);
+  ok("Ejecutivo no ve los pasos de la causa (RLS)", (ejeStep.data ?? []).length === 0);
+
+  // Apercibimiento como tarea con vencimiento
+  const task = await jur.c.from("legal_tasks").insert({ client_id: id, kind: "apercibimiento", title: "Acompañar certificado de deudas", due_at: "2026-10-03T13:00:00Z" }).select().single();
+  ok("Apercibimiento creado como tarea con vencimiento (tipo nuevo admitido)", !task.error, task.error?.message);
+  const listaTarea = await page(jur, "/clientes");
+  ok("Lista: la próxima acción muestra el apercibimiento con su fecha", listaTarea.status === 200 && /Acompañar certificado de deudas/.test(listaTarea.text) && /Apercibimiento/.test(listaTarea.text) && /Paso/.test(listaTarea.text));
+
+  // Cierre con motivo y lista de cerradas
+  const close = await jur.c.from("legal_clients").update({ archived_at: new Date().toISOString(), close_reason: "Dejó de pagar", close_detail: "Última cuota en agosto" }).eq("id", id).select();
+  ok("Cerrar la causa con motivo (RLS legal.edit)", !close.error && close.data?.[0]?.close_reason === "Dejó de pagar", close.error?.message);
+  const auditClose = sql(`select action from audit_log where entity='legal_cliente' and entity_id='${id}' and action='cliente.cerrada'`);
+  const histClose = sql(`select summary from legal_case_history where client_id='${id}' and kind='cierre'`);
+  ok("El cierre queda en auditoría e historial con el motivo", auditClose.length === 1 && histClose.length === 1 && /Dejó de pagar/.test(histClose[0].summary));
+  const cerradas = await page(jur, "/clientes?estado=cerradas");
+  ok("Lista de cerradas: muestra la causa con su motivo", cerradas.status === 200 && /JUR Ficha Prueba/.test(cerradas.text) && /Dejó de pagar/.test(cerradas.text) && /Causas cerradas/.test(cerradas.text));
+  const activas = await page(jur, "/clientes");
+  ok("Lista de activas: la causa cerrada ya no aparece", activas.status === 200 && !/JUR Ficha Prueba/.test(activas.text));
+  const fichaCerrada = await page(jur, `/clientes/${id}`);
+  ok("Ficha cerrada: etiqueta «Cerrada · motivo» y botón Reabrir", /Cerrada · Dejó de pagar/.test(fichaCerrada.text) && /Reabrir causa/.test(fichaCerrada.text));
+  const reopen = await jur.c.from("legal_clients").update({ archived_at: null, close_reason: null, close_detail: null }).eq("id", id).select();
+  const histReopen = sql(`select count(*)::int as n from legal_case_history where client_id='${id}' and summary='Causa reabierta'`)[0];
+  ok("Reabrir la causa queda en el historial", !reopen.error && histReopen?.n === 1, reopen.error?.message);
 } catch (e) {
   fails++;
   console.log("ERROR " + e.message);
