@@ -97,7 +97,7 @@ export type LegalDocument = {
   uploaded_at: string;
 };
 
-export type CaseStep = { id: string; client_id: string; step: string; completed_at: string; completed_by: string | null; note: string | null };
+export type CaseStep = { id: string; client_id: string; step: string; completed_at: string; completed_by: string | null; note: string | null; document_id: string | null };
 
 export type LegalTask = {
   id: string;

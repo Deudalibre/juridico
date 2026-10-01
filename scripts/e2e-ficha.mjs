@@ -86,7 +86,7 @@ try {
   ok("Ficha: cabecera con etiqueta, botones y resumen", ficha.status === 200 && /Carpeta del cliente/.test(ficha.text) && /Ficha jurídica/.test(ficha.text) && /Clave Única/.test(ficha.text) && /Abogado a cargo/.test(ficha.text) && /Ingresada el 12 sept?\.? 2026/i.test(ficha.text), String(ficha.status));
   ok("Ficha: la Clave Única aparece oculta, nunca en el HTML", ficha.status === 200 && /••••••••/.test(ficha.text) && !/clave-secreta-789/.test(ficha.html));
   const causa = await page(jur, `/clientes/${id}?tab=Causa`);
-  ok("Ficha: pestaña Causa con los 12 pasos de la liquidación y ninguno completado", causa.status === 200 && /Pasos de la causa/.test(causa.text) && /0 de 12 completados/.test(causa.text) && /Certificado de ejecutoria/.test(causa.text));
+  ok("Ficha: pestaña Causa con los 9 pasos de la liquidación, los comprobantes exigidos y ninguno completado", causa.status === 200 && /Pasos de la causa/.test(causa.text) && /0 de 9 completados/.test(causa.text) && /Resolución de término/.test(causa.text) && /Requiere certificado de envío de causa/.test(causa.text) && /Cierra la causa/.test(causa.text) && !/Certificado de ejecutoria/.test(causa.text));
   const nuevo = await page(jur, "/clientes/nuevo");
   ok("Alta manual: formulario con procedimiento y fecha de ingreso", nuevo.status === 200 && /Nuevo cliente/.test(nuevo.text) && /Fecha de ingreso/.test(nuevo.text));
   const ejeLista = await page(eje, "/clientes");
@@ -94,14 +94,22 @@ try {
 
   // Pasos de la causa (liquidación voluntaria): completar, historial, hito en la cabecera
   const s1 = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Preparación de documentos", completed_at: "2026-09-13", note: "carpeta completa" }).select().single();
-  const s2 = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Ingreso de demanda", completed_at: "2026-09-14" }).select().single();
-  ok("Jurídico marca pasos completados (RLS legal.edit)", !s1.error && !s2.error, s1.error?.message ?? s2.error?.message);
+  const sinCert = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Ingreso de demanda", completed_at: "2026-09-14" }).select().single();
+  ok("La base no acepta «Ingreso de demanda» sin su certificado de envío (trigger)", Boolean(sinCert.error) && /comprobante/.test(sinCert.error?.message ?? ""), sinCert.error?.message);
+  const certPdf = Buffer.from("%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
+  const certPath = `${id}/${crypto.randomUUID()}.pdf`;
+  const certUp = await jur.c.storage.from("legal-documents").upload(certPath, certPdf, { contentType: "application/pdf" });
+  const cert = await jur.c.from("legal_documents").insert({ client_id: id, name: "Certificado de envío de causa", doc_type: "comprobante", status: "recibido", storage_path: certPath, file_size: certPdf.length, mime: "application/pdf", version: 1 }).select().single();
+  const s2 = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Ingreso de demanda", completed_at: "2026-09-14", document_id: cert.data?.id }).select().single();
+  ok("Jurídico marca pasos completados; el ingreso de demanda lleva su certificado de envío enlazado", !s1.error && !certUp.error && !cert.error && !s2.error && s2.data?.document_id === cert.data?.id, s1.error?.message ?? certUp.error?.message ?? cert.error?.message ?? s2.error?.message);
+  const causaCert = await page(jur, `/clientes/${id}?tab=Causa`);
+  ok("Pestaña Causa: el paso muestra «Ver certificado de envío de causa»", causaCert.status === 200 && /Ver certificado de envío de causa/.test(causaCert.text));
   const hist = sql(`select summary from legal_case_history where client_id = '${id}' and kind = 'paso' order by at`);
   ok("Cada paso queda en el historial de la causa", hist.length === 2 && /Preparación/.test(hist[0].summary) && /Ingreso de demanda/.test(hist[1].summary), JSON.stringify(hist.map((h) => h.summary)));
   const upd2 = await jur.c.from("legal_clients").update({ current_step: "Apercibimientos", liquidation_resolution_at: null }).eq("id", id);
   ok("current_step se puede mantener desde la app", !upd2.error, upd2.error?.message);
   const causa2 = await page(jur, `/clientes/${id}?tab=Causa`);
-  ok("Pestaña Causa: 12 pasos, dos completados y el actual señalado", causa2.status === 200 && /2 de 12 completados/.test(causa2.text) && /Paso actual/.test(causa2.text) && /Apercibimientos y tareas/.test(causa2.text), String(causa2.status));
+  ok("Pestaña Causa: 9 pasos, dos completados y el actual señalado", causa2.status === 200 && /2 de 9 completados/.test(causa2.text) && /Paso actual/.test(causa2.text) && /Apercibimientos y tareas/.test(causa2.text), String(causa2.status));
   const fichaPaso = await page(jur, `/clientes/${id}`);
   ok("Cabecera: paso actual y aviso de resolución de liquidación pendiente", /Paso: Apercibimientos/.test(fichaPaso.text) && /Sin resolución de liquidación aún/.test(fichaPaso.text));
   const ejeStep = await eje.c.from("legal_case_steps").select("id").eq("client_id", id);
@@ -204,6 +212,20 @@ try {
   const reopen = await jur.c.from("legal_clients").update({ archived_at: null, close_reason: null, close_detail: null }).eq("id", id).select();
   const histReopen = sql(`select count(*)::int as n from legal_case_history where client_id='${id}' and summary='Causa reabierta'`)[0];
   ok("Reabrir la causa queda en el historial", !reopen.error && histReopen?.n === 1, reopen.error?.message);
+
+  // Resolución de término: con su comprobante, la causa se cierra sola como «Causa terminada»
+  const resPath = `${id}/${crypto.randomUUID()}.pdf`;
+  await jur.c.storage.from("legal-documents").upload(resPath, certPdf, { contentType: "application/pdf" });
+  const res = await jur.c.from("legal_documents").insert({ client_id: id, name: "Resolución de término", doc_type: "comprobante", status: "recibido", storage_path: resPath, file_size: certPdf.length, mime: "application/pdf", version: 1 }).select().single();
+  const sinRes = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Resolución de término", completed_at: "2026-09-29" }).select();
+  ok("La base no acepta la resolución de término sin el documento", Boolean(sinRes.error));
+  const term = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Resolución de término", completed_at: "2026-09-29", document_id: res.data?.id }).select().single();
+  const rowTerm = sql(`select archived_at is not null as cerrada, close_reason, close_detail, current_step from legal_clients where id='${id}'`)[0];
+  ok("Al subir la resolución de término la causa queda cerrada como «Causa terminada» (trigger)", !term.error && rowTerm?.cerrada === true && rowTerm?.close_reason === "Causa terminada" && /29\/09\/2026/.test(rowTerm?.close_detail ?? "") && rowTerm?.current_step === "Completada", term.error?.message ?? JSON.stringify(rowTerm));
+  const cerradasTerm = await page(jur, "/clientes?estado=cerradas");
+  ok("Lista de cerradas: la causa terminada aparece con su etiqueta", cerradasTerm.status === 200 && /JUR Ficha Prueba/.test(cerradasTerm.text) && /Causa terminada/.test(cerradasTerm.text));
+  const fichaTerm = await page(jur, `/clientes/${id}`);
+  ok("Ficha: cabecera «Causa terminada» con el detalle de la resolución", /Causa terminada/.test(fichaTerm.text) && /Resolución de término del 29\/09\/2026/.test(fichaTerm.text));
 } catch (e) {
   fails++;
   console.log("ERROR " + e.message);

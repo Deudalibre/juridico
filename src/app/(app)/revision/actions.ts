@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import { zonedToIso } from "@/lib/format";
 import { TASK_KINDS } from "@/lib/legal";
-import { applyStep, cadenceDays, nextReviewAt } from "@/lib/case-steps";
+import { applyStep, cadenceDays, nextReviewAt, type StepDocument } from "@/lib/case-steps";
 
 type Result = { error?: string };
 const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
@@ -14,7 +14,15 @@ export type ReviewInput = {
   note: string;
   task: { title: string; kind: string; dueLocal: string; assigneeId: string } | null;
   /** Paso de la causa que quedó hecho con este movimiento (opcional). La nota de la revisión pasa a ser la nota del paso. */
-  step: { name: string; date: string; liquidator: string } | null;
+  step: {
+    name: string;
+    date: string;
+    liquidator: string;
+    /** Comprobante ya subido por el navegador (certificado o resolución), si el paso lo pide */
+    document: StepDocument | null;
+    /** Rol, tribunal y fecha de ingreso que vienen con el certificado de envío */
+    filing: { rol: string; tribunal: string; intakeDate: string } | null;
+  } | null;
   /** Tarea pendiente que quedó resuelta al revisar (opcional). */
   resolvedTaskId: string | null;
 };
@@ -34,7 +42,7 @@ export async function reviewCase(clientId: string, input: ReviewInput): Promise<
   // Avance de paso: solo tiene sentido si hubo movimiento
   if (input.step) {
     if (!input.hadMovement) return { error: "Para marcar un paso, indica que la causa tuvo movimiento." };
-    const r = await applyStep(supabase, clientId, { step: input.step.name, date: input.step.date, note, liquidator: input.step.liquidator });
+    const r = await applyStep(supabase, clientId, { step: input.step.name, date: input.step.date, note, liquidator: input.step.liquidator, document: input.step.document, filing: input.step.filing });
     if (r.error) return r;
   }
 

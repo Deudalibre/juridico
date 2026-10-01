@@ -6,20 +6,23 @@
 export const PROCEDURES = ["Liquidación voluntaria", "Renegociación"] as const;
 export type Procedure = (typeof PROCEDURES)[number];
 
-/** Pasos de la liquidación voluntaria, en orden. */
+/**
+ * Pasos de la liquidación voluntaria, en orden (ciclo definido por el estudio el 2026-09-30): preparación mientras
+ * se juntan documentos y firmas → ingreso de la demanda, acreditado con el Certificado de envío de causa → apercibimientos
+ * → nominación del liquidador, acreditada con el Certificado de nominación (la solicitud del art. 37 va directo al
+ * tribunal, sin comprobante) → Resolución de liquidación (hito) → gestiones del liquidador → Resolución de término,
+ * que al subirse cierra la causa como «Causa terminada».
+ */
 export const LIQUIDACION_STEPS = [
   "Preparación de documentos",
   "Ingreso de demanda",
   "Apercibimientos",
-  "Art. 37: nominación en la Superir",
-  "Certificado de nominación",
+  "Nominación del liquidador",
   "Resolución de liquidación",
   "Acta de incautación",
   "Venta de bienes",
   "Rendición de cuenta y cuenta final",
   "Resolución de término",
-  "Publicación en el Boletín Concursal",
-  "Certificado de ejecutoria",
 ] as const;
 
 /** Pasos de la renegociación ante la Superintendencia, en orden. */
@@ -34,14 +37,26 @@ export const RENEGOCIACION_STEPS = [
 ] as const;
 
 /** Pasos que piden un dato propio al completarse. */
-export const STEP_LIQUIDATOR = "Certificado de nominación"; // nombre del liquidador
+export const STEP_FILING = "Ingreso de demanda"; // rol, tribunal y fecha de ingreso, con el certificado de envío
+export const STEP_LIQUIDATOR = "Nominación del liquidador"; // nombre del liquidador, con el certificado de nominación
 export const STEP_RESOLUTION = "Resolución de liquidación"; // hito principal: su fecha se muestra en la cabecera
+export const STEP_TERMINATION = "Resolución de término"; // al subirla, la causa se cierra como terminada
 export const STEP_APERCIBIMIENTOS = "Apercibimientos"; // cada apercibimiento es una tarea con vencimiento
+
+/** Comprobante que pide cada paso al marcarlo (la base lo exige también: trigger legal_case_steps_guard). */
+export const STEP_DOCS: Record<string, { label: string; required: boolean; hint: string }> = {
+  [STEP_FILING]: { label: "Certificado de envío de causa", required: true, hint: "Lo entrega la Oficina Judicial Virtual al ingresar la demanda: confirma que la causa quedó en el tribunal, con su rol." },
+  [STEP_LIQUIDATOR]: { label: "Certificado de nominación", required: true, hint: "Lo emite la Superir con el liquidador titular nominado." },
+  [STEP_RESOLUTION]: { label: "Resolución de liquidación", required: false, hint: "Copia de la resolución, si la tienes a mano (recomendado)." },
+  [STEP_TERMINATION]: { label: "Resolución de término", required: true, hint: "Al subirla, la causa queda cerrada como «Causa terminada»." },
+};
 
 /** Pasos que se recuerdan en la cabecera si aún no ocurren (solo liquidación). */
 export const COMPLETED = "Completada";
 
+/** Motivos de cierre manual; «Causa terminada» lo pone el sistema con la resolución de término. */
 export const CLOSE_REASONS = ["Dejó de pagar", "Se perdió el contacto", "No entregó información", "Desistió", "Otro"] as const;
+export const CLOSE_TERMINATED = "Causa terminada";
 
 export const TASK_KINDS: Record<string, string> = {
   apercibimiento: "Apercibimiento",

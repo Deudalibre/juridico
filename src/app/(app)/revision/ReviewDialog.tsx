@@ -7,7 +7,8 @@ import { Select } from "@/components/ui/Select";
 import { Field, toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { dateTime, dayKey, dueLabel } from "@/lib/format";
-import { COMPLETED, STEP_LIQUIDATOR, TASK_KINDS, reviewCadence, stepsFor } from "@/lib/legal";
+import { COMPLETED, STEP_DOCS, STEP_FILING, STEP_LIQUIDATOR, STEP_TERMINATION, TASK_KINDS, reviewCadence, stepsFor } from "@/lib/legal";
+import { uploadCaseFile } from "@/lib/upload-client";
 import type { LegalClient, LegalReview, LegalTask } from "@/lib/data";
 import { reviewCase } from "./actions";
 
@@ -56,28 +57,38 @@ export function ReviewDialog({ client, pendingTask, lastReview, doneSteps, lawye
   const current = client.current_step && client.current_step !== COMPLETED ? client.current_step : remaining[0] ?? null;
   const [advanced, setAdvanced] = useState(false);
   const [step, setStep] = useState({ name: current ?? "", date: dayKey(new Date(), tz), liquidator: client.liquidator_name ?? "" });
+  const [stepFile, setStepFile] = useState<File | null>(null);
+  const [filing, setFiling] = useState({ rol: client.rol ?? "", tribunal: client.tribunal ?? "", intakeDate: client.intake_date ?? dayKey(new Date(), tz) });
   const askStep = movement === true && remaining.length > 0;
   const withStep = askStep && advanced;
+  const stepSpec = withStep ? STEP_DOCS[step.name] : undefined;
   const cadence = reviewCadence(client.procedure_type, withStep ? [...doneSteps, step.name] : doneSteps);
 
   const save = () => {
     if (movement === null) return toast("Indica si la causa tuvo movimiento.", true);
     if (movement && note.trim().length < 3) return toast("Anota qué pasó: es lo que queda en el historial.", true);
     if (withStep && !step.name) return toast("Elige el paso que quedó hecho.", true);
+    if (stepSpec?.required && !stepFile) return toast(`Adjunta el ${stepSpec.label}: es lo que acredita este paso.`, true);
+    if (withStep && step.name === STEP_FILING && (!filing.rol.trim() || !filing.tribunal.trim())) return toast("Con el certificado de envío van el rol y el tribunal de la causa.", true);
     if (resolved && note.trim().length < 3) return toast("Si la tarea quedó resuelta, anota el resultado en la nota.", true);
     start(async () => {
-      const r = await reviewCase(client.id, {
-        hadMovement: movement,
-        note,
-        task: withTask ? task : null,
-        step: withStep ? step : null,
-        resolvedTaskId: resolved && pendingTask ? pendingTask.id : null,
-      });
-      if (r.error) toast(r.error, true);
-      else {
-        toast(`Revisión registrada · ${client.full_name}`);
-        onClose();
-        router.refresh();
+      try {
+        const document = withStep && stepFile ? await uploadCaseFile(client.id, stepFile) : null;
+        const r = await reviewCase(client.id, {
+          hadMovement: movement,
+          note,
+          task: withTask ? task : null,
+          step: withStep ? { ...step, document, filing: step.name === STEP_FILING ? filing : null } : null,
+          resolvedTaskId: resolved && pendingTask ? pendingTask.id : null,
+        });
+        if (r.error) toast(r.error, true);
+        else {
+          toast(withStep && step.name === STEP_TERMINATION ? `Causa terminada · ${client.full_name}` : `Revisión registrada · ${client.full_name}`);
+          onClose();
+          router.refresh();
+        }
+      } catch (e) {
+        toast((e as Error).message, true);
       }
     });
   };
@@ -161,7 +172,33 @@ export function ReviewDialog({ client, pendingTask, lastReview, doneSteps, lawye
                         <input className="input" value={step.liquidator} onChange={(e) => setStep({ ...step, liquidator: e.target.value })} placeholder="Nombre según el certificado" maxLength={200} />
                       </Field>
                     )}
-                    <span className="text-[12px] text-muted sm:col-span-2">La nota de arriba queda como nota del paso. No hace falta volver a marcarlo en «Causa».</span>
+                    {stepSpec && (
+                      <Field label={`${stepSpec.label}${stepSpec.required ? "" : " (opcional)"}`} className="sm:col-span-2">
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          className="input !py-1.5 text-[12.5px] file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-2.5 file:py-1 file:text-[12px]"
+                          onChange={(e) => setStepFile(e.target.files?.[0] ?? null)}
+                        />
+                        <span className="mt-1 block text-[12px] text-muted">{stepSpec.hint}</span>
+                      </Field>
+                    )}
+                    {step.name === STEP_FILING && (
+                      <>
+                        <Field label="Rol de la causa">
+                          <input className="input tabnum" value={filing.rol} onChange={(e) => setFiling({ ...filing, rol: e.target.value })} placeholder="C-1234-2026" maxLength={40} />
+                        </Field>
+                        <Field label="Tribunal">
+                          <input className="input" value={filing.tribunal} onChange={(e) => setFiling({ ...filing, tribunal: e.target.value })} placeholder="1º Juzgado Civil de Santiago" maxLength={120} />
+                        </Field>
+                        <Field label="Fecha de ingreso">
+                          <input type="date" className="input tabnum" value={filing.intakeDate} onChange={(e) => setFiling({ ...filing, intakeDate: e.target.value })} />
+                        </Field>
+                      </>
+                    )}
+                    <span className="text-[12px] text-muted sm:col-span-2">
+                      {step.name === STEP_TERMINATION ? "Con la resolución de término la causa queda cerrada como terminada." : "La nota de arriba queda como nota del paso. No hace falta volver a marcarlo en «Causa»."}
+                    </span>
                   </div>
                 )}
               </div>

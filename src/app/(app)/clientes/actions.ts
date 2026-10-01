@@ -5,7 +5,7 @@ import { getContext } from "@/lib/data";
 import { cleanRut, isValidRut } from "@/lib/rut";
 import { zonedToIso } from "@/lib/format";
 import { CLOSE_REASONS, STEP_RESOLUTION, TASK_KINDS, currentStep, isProcedure } from "@/lib/legal";
-import { applyStep, cadenceDays, nextReviewAt, stepContext } from "@/lib/case-steps";
+import { applyStep, cadenceDays, nextReviewAt, stepContext, stepInputFromForm } from "@/lib/case-steps";
 
 type Result = { error?: string };
 
@@ -151,7 +151,7 @@ export async function completeStep(id: string, fd: FormData): Promise<Result> {
   if (!isUuid(id)) return { error: "Cliente no válido." };
   const step = text(fd, "step") ?? "";
   const note = text(fd, "note");
-  const r = await applyStep(supabase, id, { step, date: text(fd, "completed_at") ?? new Date().toISOString().slice(0, 10), note, liquidator: text(fd, "liquidator_name") });
+  const r = await applyStep(supabase, id, stepInputFromForm(fd, step, text(fd, "completed_at") ?? new Date().toISOString().slice(0, 10), note, text(fd, "liquidator_name")));
   if (r.error) return r;
   const rev = await supabase
     .from("legal_reviews")

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icons";
 import { dueLabel, initials, shortDate } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import { COMPLETED, TASK_KINDS, procedureTone, stepsFor } from "@/lib/legal";
+import { CLOSE_TERMINATED, COMPLETED, TASK_KINDS, procedureTone, stepsFor } from "@/lib/legal";
 import type { LegalClient, LegalTask } from "@/lib/data";
 import { LawyerSelect } from "./[id]/LawyerSelect";
 
@@ -73,7 +73,7 @@ export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }
             </div>
             {closed ? (
               <div role="cell" className="truncate text-[12.5px] text-soft" title={c.close_detail ?? undefined}>
-                {c.close_reason ? <span className="tag danger">{c.close_reason}</span> : <span className="text-faint">—</span>}
+                {c.close_reason ? <span className={`tag ${c.close_reason === CLOSE_TERMINATED ? "success" : "danger"}`}>{c.close_reason}</span> : <span className="text-faint">—</span>}
               </div>
             ) : (
               <div role="cell" className="truncate text-[12.5px]">

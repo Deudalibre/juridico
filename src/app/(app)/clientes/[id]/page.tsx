@@ -14,7 +14,7 @@ import {
 } from "@/lib/data";
 import { dateTime, dueLabel, initials } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import { CHECKLIST_ENABLED, COMPLETED, STEP_RESOLUTION, TASK_KINDS, currentStep, isLiquidacion, procedureTone, stepsFor } from "@/lib/legal";
+import { CHECKLIST_ENABLED, CLOSE_TERMINATED, COMPLETED, STEP_RESOLUTION, TASK_KINDS, currentStep, isLiquidacion, procedureTone, stepsFor } from "@/lib/legal";
 import { Icon } from "@/components/icons";
 import { BasicsForm } from "./BasicsForm";
 import { CausaSteps } from "./CausaSteps";
@@ -259,7 +259,9 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
                 <h1 className="page-title">{c.full_name}</h1>
                 {c.procedure_type && <span className={`tag ${procedureTone(c.procedure_type)}`}>{c.procedure_type}</span>}
                 {closed ? (
-                  <span className="tag danger">Cerrada · {c.close_reason ?? "sin motivo"}</span>
+                  <span className={`tag ${c.close_reason === CLOSE_TERMINATED ? "success" : "danger"}`}>
+                    {c.close_reason === CLOSE_TERMINATED ? "Causa terminada" : `Cerrada · ${c.close_reason ?? "sin motivo"}`}
+                  </span>
                 ) : current ? (
                   <span className={`tag ${current === COMPLETED ? "success" : "brand"}`}>{current === COMPLETED ? "Todos los pasos completados" : `Paso: ${current}`}</span>
                 ) : null}
@@ -311,6 +313,7 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
           tasks={tasks}
           names={names}
           liquidatorName={c.liquidator_name}
+          filing={{ rol: c.rol, tribunal: c.tribunal, intakeDate: c.intake_date }}
           canEdit={canEdit}
           canTasks={can("legal.tasks")}
           closed={closed}
