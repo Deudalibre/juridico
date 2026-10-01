@@ -151,6 +151,16 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
   const prep = clients.filter((c) => !c.intake_date).sort((a, b) => a.created_at.localeCompare(b.created_at));
   const filed = clients.filter((c) => Boolean(c.intake_date));
   const years = Array.from(new Set(filed.map(yearOf))).sort();
+  // Numeración como en el Excel del estudio: dentro de cada mes de ingreso, 1…N por número de causa (estable aunque
+  // la causa cambie de grupo: siempre es «la 3 de agosto»). En preparación se numera por orden de alta.
+  const seq = new Map<string, number>();
+  for (const key of new Set(filed.map((c) => `${yearOf(c)}-${monthOf(c)}`))) {
+    filed
+      .filter((c) => `${yearOf(c)}-${monthOf(c)}` === key)
+      .sort(chrono)
+      .forEach((c, i) => seq.set(c.id, i + 1));
+  }
+  prep.forEach((c, i) => seq.set(c.id, i + 1));
   const summary: YearSummary[] = years.map((y) => {
     const list = clients.filter((c) => yearOf(c) === y);
     const months = Array.from(new Set(list.map(monthOf).filter(Boolean)))
@@ -186,6 +196,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
   const row = (c: LegalClient, task: LegalTask | null) => (
     <ReviewRow
       key={c.id}
+      seq={seq.get(c.id) ?? null}
       client={c}
       task={task}
       review={lastReview.get(c.id) ?? null}
@@ -336,17 +347,19 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                 <span className="ml-auto hidden text-[12px] font-medium text-accent group-open:inline">Ocultar</span>
               </summary>
               <div className="overflow-x-auto border-t" style={{ borderColor: "var(--warning-line)" }}>
-                <div className="grid min-w-[640px] grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-x-4 th-band border-b border-line px-4 py-2" role="row">
-                  {["Cliente", "Alta en el sistema", "Abogado", ""].map((h, i) => (
+                <div className="grid min-w-[640px] grid-cols-[32px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-x-4 th-band border-b border-line px-4 py-2" role="row">
+                  {["N°", "Cliente", "Alta en el sistema", "Abogado", ""].map((h, i) => (
                     <span key={i} className="th" role="columnheader">
                       {h}
                     </span>
                   ))}
                 </div>
                 {prep.map((c) => (
-                  <div key={c.id} className="grid min-w-[640px] grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-x-4 row min-h-[44px] px-4 py-1.5" role="row">
+                  <div key={c.id} className="grid min-w-[640px] grid-cols-[32px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-x-4 row min-h-[44px] px-4 py-1.5" role="row">
+                    <span className="tabnum text-[12px] font-semibold text-muted" role="cell" title={c.internal_number ? `Causa N° ${c.internal_number}` : undefined}>
+                      {seq.get(c.id)}
+                    </span>
                     <div className="flex min-w-0 items-baseline gap-2" role="cell">
-                      {c.internal_number && <span className="tabnum text-[11px] text-faint">N°{c.internal_number}</span>}
                       <Link href={`/clientes/${c.id}`} className="truncate text-[13px] font-medium text-fg hover:text-accent">
                         {c.full_name}
                       </Link>
@@ -407,7 +420,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
               {table(withOverdue, (c) => overdueTasks.get(c.id) ?? null)}
             </Group>
           )}
-          <Group title="Por revisar" hint="En orden de número de causa" count={queue.length} tone={queue.length ? "warning" : "success"}>
+          <Group title="Por revisar" hint="Numeradas 1…N por mes de ingreso" count={queue.length} tone={queue.length ? "warning" : "success"}>
             {queue.length === 0 ? (
               <div className="px-5 py-6 text-center text-[12.5px] text-faint">Nada pendiente en esta selección.</div>
             ) : (
