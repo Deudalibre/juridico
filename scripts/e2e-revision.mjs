@@ -95,7 +95,7 @@ try {
   ok("Revisión: la causa revisada pasa a «Al día» con movimiento, fecha y revisor", rev2.status === 200 && alDia > 0 && posA2 > alDia && /con movimiento/i.test(rev2.text) && /JUR juridico/.test(rev2.text), `${alDia} ${posA2}`);
   ok("Revisión: la causa nueva sigue en «Por revisar»", rev2.text.indexOf("JUR Revisión Nueva") < alDia);
   const mios = await page(abo, "/revision?ver=mios&anio=2026&mes=9");
-  ok("Año y mes concretos (septiembre 2026) con «Mis causas»: solo la causa de ese mes", mios.status === 200 && /JUR Revisión Nueva/.test(mios.text) && !/JUR Revisión Antigua/.test(mios.text) && /Mostrar todo el año/.test(mios.text));
+  ok("Año y mes concretos (septiembre 2026) con «Mis causas»: solo la causa de ese mes", mios.status === 200 && /JUR Revisión Nueva/.test(mios.text) && !/JUR Revisión Antigua/.test(mios.text) && /Todo el año/.test(mios.text));
   const proc = await page(jur, `/revision?proc=Renegociaci%C3%B3n&ver=${abo.id}&anio=2026`);
   ok("Filtro por procedimiento", proc.status === 200 && /JUR Revisión Nueva/.test(proc.text) && !/JUR Revisión Antigua/.test(proc.text));
   const histPage = await page(jur, "/revision/historial");
