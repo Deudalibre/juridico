@@ -328,17 +328,24 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
           {history.length === 0 ? (
             <div className="px-5 py-6 text-center text-[12.5px] text-faint">Los pasos, cierres, asignaciones y cambios de estado de esta causa aparecerán aquí en orden.</div>
           ) : (
-            <ol className="flex flex-col">
-              {history.map((h) => (
-                <li key={h.id} className="flex flex-wrap items-center gap-3 border-b border-line-soft px-5 py-2.5 last:border-b-0">
-                  <span className={`tag ${h.kind === "cierre" ? "danger" : h.kind === "paso" ? "brand" : ""}`}>{KIND_LABEL[h.kind] ?? h.kind}</span>
-                  <span className="min-w-0 flex-1 text-[13px] text-fg">{h.summary ?? "—"}</span>
-                  <span className="tabnum text-[12px] text-muted">
-                    {dateTime(h.at, tz)}
-                    {h.actor_name ? ` · ${h.actor_name}` : ""}
-                  </span>
-                </li>
-              ))}
+            <ol className="flex flex-col px-5 py-3">
+              {/* Línea de tiempo: un punto por movimiento, con el color del tipo */}
+              {history.map((h, i) => {
+                const dot = h.kind === "cierre" ? "bg-danger" : h.kind === "paso" ? "bg-brand" : h.kind === "revision" ? "bg-accent" : h.kind === "tarea" ? "bg-success" : "bg-line-strong";
+                return (
+                  <li key={h.id} className="relative flex gap-3 pb-3 pl-5 last:pb-0">
+                    {i < history.length - 1 && <span className="absolute left-[5px] top-3 h-full w-px bg-line-soft" aria-hidden />}
+                    <span className={`absolute left-0 top-[7px] h-[11px] w-[11px] rounded-full border-2 border-surface ${dot}`} aria-hidden />
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="text-[13px] text-fg">{h.summary ?? "—"}</span>
+                      <span className="tabnum text-[11.5px] text-muted">
+                        {KIND_LABEL[h.kind] ?? h.kind} · {dateTime(h.at, tz)}
+                        {h.actor_name ? ` · ${h.actor_name}` : ""}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
             </ol>
           )}
         </section>
