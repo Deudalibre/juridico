@@ -61,7 +61,7 @@ export function IngresarDemanda({ client, canEdit }: Props) {
   if (!canEdit) return null;
   return (
     <>
-      <button type="button" className="btn-primary btn-sm" onClick={() => setOpen(true)}>
+      <button type="button" className="btn-outline btn-sm" onClick={() => setOpen(true)}>
         <Icon name="plus" size={13} /> Ingresar demanda
       </button>
       {open && (
