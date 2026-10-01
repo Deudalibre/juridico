@@ -13,6 +13,8 @@ import { ReviewDialog } from "./ReviewDialog";
 import { quickReview } from "./actions";
 
 type Props = {
+  /** Posición dentro del mes de ingreso (1…N), como numera el estudio en su Excel. */
+  seq: number | null;
   client: LegalClient;
   task: LegalTask | null;
   review: LegalReview | null;
@@ -26,13 +28,13 @@ type Props = {
 };
 
 // Una sola rejilla para cabecera y filas: así cada dato queda en su columna y la lista se lee como una tabla.
-const GRID = "grid grid-cols-[minmax(0,2.1fr)_minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_auto] items-center gap-x-4";
+const GRID = "grid grid-cols-[32px_minmax(0,2.1fr)_minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_auto] items-center gap-x-4";
 
 /** Cabecera de columnas de la cola (una por lista). */
 export function ReviewHeader() {
   return (
     <div className={`${GRID} th-band border-b border-line px-4 py-2`} role="row">
-      {["Causa", "Última revisión", "Próxima revisión", "Tarea pendiente", ""].map((h, i) => (
+      {["N°", "Causa", "Última revisión", "Próxima revisión", "Tarea pendiente", ""].map((h, i) => (
         <span key={i} className="th" role="columnheader">
           {h}
         </span>
@@ -45,7 +47,7 @@ export function ReviewHeader() {
  * Fila de la cola de revisión: la causa, quién la revisó por última vez y cuándo, cuándo vuelve a tocar, la tarea
  * pendiente y dos salidas: «Sin movimiento» (un clic) o «Revisar» (el diálogo completo).
  */
-export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, canTasks, lawyerName, lawyers, userId }: Props) {
+export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canReview, canTasks, lawyerName, lawyers, userId }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [open, setOpen] = useState(false);
@@ -67,10 +69,14 @@ export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, c
 
   return (
     <div className={`${GRID} row min-h-[52px] px-4 py-2`} role="row" onClick={() => router.push(href)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && router.push(href)}>
+      {/* N° dentro del mes */}
+      <span className="tabnum text-[12px] font-semibold text-muted" role="cell" title={c.internal_number ? `Causa N° ${c.internal_number}` : undefined}>
+        {seq ?? "—"}
+      </span>
+
       {/* Causa */}
       <div className="flex min-w-0 flex-col gap-0.5" role="cell">
         <span className="flex min-w-0 items-center gap-2">
-          {c.internal_number && <span className="tabnum text-[11px] text-faint">N°{c.internal_number}</span>}
           <span className="truncate text-[13px] font-semibold text-fg">{c.full_name}</span>
           {c.procedure_type === "Renegociación" && <span className="tag brand">Renegociación</span>}
         </span>
