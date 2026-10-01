@@ -7,6 +7,7 @@ import { PROCEDURES, REVIEW_CADENCE, reviewCadence } from "@/lib/legal";
 import { Icon } from "@/components/icons";
 import { HelpPop } from "@/components/HelpPop";
 import { ReviewHeader, ReviewRow } from "./ReviewRow";
+import { IngresarDemanda } from "./IngresarDemanda";
 import { Filters } from "./Filters";
 import { ReviewPicker, type YearSummary } from "./ReviewPicker";
 import { WeekCalendar, type CalTask } from "./WeekCalendar";
@@ -287,21 +288,21 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
               <span className="badge neutral tabnum">{filed.length}</span>
               <span className="ml-auto text-[12px] text-muted">Por año de ingreso. Elige un año y un mes con «Revisar», o muestra un año completo</span>
             </div>
-            <div className="grid gap-px bg-line-soft md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
               {summary.map((y) => {
                 const reviewed = y.total - y.pending;
                 const pct = y.total ? Math.round((reviewed / y.total) * 100) : 0;
                 return (
-                  <div key={y.year} className="flex flex-col gap-4 bg-surface px-5 py-5">
+                  <div key={y.year} className="flex flex-col gap-4 rounded-[var(--r-panel)] border px-5 py-5" style={{ background: "rgba(var(--brand-rgb), 0.045)", borderColor: "rgba(var(--brand-rgb), 0.18)" }}>
                     <div className="flex items-end justify-between gap-2">
-                      <span className="page-title !text-[24px] leading-none">{y.year}</span>
+                      <span className="page-title !text-[26px] leading-none text-accent">{y.year}</span>
                       <span className="tabnum text-[12px] text-muted">
                         {y.total} {y.total === 1 ? "causa" : "causas"}
                       </span>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <span className="block h-1.5 w-full overflow-hidden rounded-full bg-surface-2" aria-hidden>
-                        <span className="block h-full rounded-full bg-success transition-[width]" style={{ width: `${pct}%` }} />
+                      <span className="block h-1.5 w-full overflow-hidden rounded-full bg-surface" aria-hidden>
+                        <span className="block h-full rounded-full bg-brand transition-[width]" style={{ width: `${pct}%` }} />
                       </span>
                       <span className="text-[11.5px] text-muted">
                         {reviewed} de {y.total} al día · {pct}%
@@ -313,7 +314,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                         { label: "Vencidas", value: y.overdue, cls: y.overdue ? "text-danger" : "text-faint" },
                         { label: "Sin resolución", value: y.critical, cls: y.critical ? "text-soft" : "text-faint" },
                       ].map((s) => (
-                        <div key={s.label} className="rounded-md border border-line-soft px-2 py-1.5 text-center">
+                        <div key={s.label} className="rounded-md border border-line-soft bg-surface px-2 py-1.5 text-center">
                           <span className={`block tabnum text-[16px] font-semibold leading-tight ${s.cls}`}>{s.value}</span>
                           <span className="block text-[10px] font-semibold uppercase tracking-[0.04em] text-faint">{s.label}</span>
                         </div>
@@ -327,7 +328,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                             <Link
                               key={name}
                               href={link({ anio: y.year, mes: String(i + 1) })}
-                              className={`flex flex-col items-center rounded-md border py-1 leading-tight hover:border-brand-line hover:bg-surface-active ${m.pending ? "border-line" : "border-line-soft"}`}
+                              className={`flex flex-col items-center rounded-md border bg-surface py-1 leading-tight hover:border-brand-line hover:bg-surface-active ${m.pending ? "border-line" : "border-line-soft"}`}
                               title={`${name}: ${m.total} causas · ${m.pending} por revisar`}
                             >
                               <span className="text-[11px] font-medium text-fg">{name.slice(0, 3)}</span>
@@ -353,10 +354,10 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
 
           {/* Clientes que aún no tienen causa: están preparando documentos y firmas; la demanda no se ha ingresado */}
           {prep.length > 0 && (
-            <section className="panel overflow-hidden">
-              <div className="panel-head !py-2.5">
+            <section className="panel overflow-hidden" style={{ borderColor: "var(--warning-line)" }}>
+              <div className="panel-head !py-2.5" style={{ background: "var(--warning-bg)", borderBottom: "1px solid var(--warning-line)" }}>
                 <span className="card-title">En preparación</span>
-                <span className="badge brand tabnum">{prep.length}</span>
+                <span className="badge warning tabnum">{prep.length}</span>
                 <span className="ml-auto text-[12px] text-muted">Todavía sin rol: se están juntando los documentos y firmas. Al ingresar la demanda pasan a su año.</span>
               </div>
               <div className="overflow-x-auto">
@@ -395,9 +396,10 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                       <span className="tag">{c.current_step ?? "Preparación de documentos"}</span>
                     </div>
                     <div className="flex items-center justify-end gap-1.5 whitespace-nowrap" role="cell">
-                      <Link href={`/clientes/${c.id}?tab=Causa`} className="btn-primary btn-sm">
-                        Ingresar demanda
+                      <Link href={`/clientes/${c.id}`} className="btn-ghost btn-sm">
+                        Ver ficha
                       </Link>
+                      <IngresarDemanda client={{ id: c.id, full_name: c.full_name, rol: c.rol, tribunal: c.tribunal, intake_date: c.intake_date }} canEdit={canReview} />
                     </div>
                   </div>
                 ))}
