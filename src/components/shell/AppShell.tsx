@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { ViewTransition, useEffect, useState, type ReactNode } from "react";
 import { Icon } from "@/components/icons";
+import { LinkPending } from "@/components/LinkPending";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/Menu";
 import { initials } from "@/lib/format";
 import { ROLE_LABEL, type Permission, type Role } from "@/lib/permissions";
@@ -223,6 +224,7 @@ export function AppShell({ children, userId, name, role, permissions, alerts, cr
         </Link>
         {nav.map((n) => (
           <Link key={n.href} href={n.href} className="rail-item" aria-current={n.match(path) ? "page" : undefined}>
+            <LinkPending />
             <Icon name={n.icon} />
             <span>{n.label}</span>
             {n.href === "/revision" && alerts > 0 && (
@@ -239,6 +241,7 @@ export function AppShell({ children, userId, name, role, permissions, alerts, cr
         <div className="rail-spacer flex-1" />
         {can("legal.settings") && (
           <Link href="/configuracion" className="rail-item" aria-current={starts(path, "/configuracion") ? "page" : undefined}>
+            <LinkPending />
             <Icon name="settings" />
             <span>Configuración</span>
           </Link>
@@ -252,6 +255,7 @@ export function AppShell({ children, userId, name, role, permissions, alerts, cr
             <div key={i.href} className="contents">
               {i.group && i.group !== section.items[k - 1]?.group && <span className="submenu-group">{i.group}</span>}
               <Link href={i.href} className="submenu-item" aria-current={isActive(i) ? "page" : undefined}>
+                <LinkPending />
                 <Icon name={i.icon} size={15} />
                 {i.label}
               </Link>
@@ -299,7 +303,11 @@ export function AppShell({ children, userId, name, role, permissions, alerts, cr
             <UserMenu name={name} role={role} crmUrl={crmUrl} />
           </div>
         </header>
-        <main className="content">{children}</main>
+        <main className="content">
+          <ViewTransition key={path} enter="page-enter" exit="page-exit" default="page-update">
+            {children}
+          </ViewTransition>
+        </main>
       </div>
     </div>
   );

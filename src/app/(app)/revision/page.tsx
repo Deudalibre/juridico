@@ -298,7 +298,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                 const reviewed = y.total - y.pending;
                 const pct = y.total ? Math.round((reviewed / y.total) * 100) : 0;
                 return (
-                  <div key={y.year} className="flex flex-col gap-3 rounded-[var(--r-panel)] border border-line bg-surface px-5 py-4">
+                  <div key={y.year} className="lift flex flex-col gap-3 rounded-[var(--r-panel)] border border-line bg-surface px-5 py-4 shadow-[var(--shadow-panel)]">
                     {/* Año, total y la única cifra que importa aquí: cuántas tocan */}
                     <div className="flex items-baseline justify-between gap-3">
                       <Link href={link({ anio: y.year, mes: undefined })} className="page-title !text-[26px] leading-none text-accent hover:underline">
@@ -311,7 +311,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                       </span>
                     </div>
                     <span className="block h-1 w-full overflow-hidden rounded-full bg-surface-2" aria-hidden title={`${reviewed} de ${y.total} al día · ${pct}%`}>
-                      <span className="block h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+                      <span className="bar-grow block h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
                     </span>
                     {/* Solo los meses que tienen causas; el número es lo pendiente */}
                     <div className="flex flex-wrap gap-x-1 gap-y-1">
