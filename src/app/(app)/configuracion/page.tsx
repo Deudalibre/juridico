@@ -1,5 +1,6 @@
 import { getStatuses, requirePermission } from "@/lib/data";
 import { driveState, googleConfigured } from "@/lib/google";
+import { Icon } from "@/components/icons";
 import { DriveCard } from "./DriveCard";
 
 // Configuración del área jurídica (solo legal.settings): Google Drive del estudio, estados de la causa y proveedor de IA.
@@ -9,10 +10,15 @@ export default async function ConfiguracionPage() {
   const iaConfigured = Boolean(process.env.IA_PROVIDER && process.env.IA_API_KEY);
   return (
     <>
-      <div className="page-head !min-h-0 !py-3">
-        <div className="flex flex-col">
-          <h1 className="page-title">Configuración</h1>
-          <span className="text-[12.5px] text-muted">Google Drive, estados, catálogos y proveedor de IA del área jurídica</span>
+      <div className="page-head">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="icon-tile solid">
+            <Icon name="settings" size={18} />
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <h1 className="page-title">Configuración</h1>
+            <span className="page-subtitle">Google Drive del estudio, estados de la causa y proveedor de IA</span>
+          </div>
         </div>
       </div>
       <div className="grid items-start gap-2" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,340px),1fr))" }}>

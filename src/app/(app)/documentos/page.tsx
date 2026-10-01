@@ -6,10 +6,15 @@ export default async function DocumentosPage() {
   await requirePermission("documents.view");
   return (
     <>
-      <div className="page-head !min-h-0 !py-3">
-        <div className="flex flex-col">
-          <h1 className="page-title">Documentos generados</h1>
-          <span className="text-[12.5px] text-muted">Cada generación con su cliente, responsable, fecha, versión de plantilla y datos usados</span>
+      <div className="page-head">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="icon-tile solid">
+            <Icon name="report" size={18} />
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <h1 className="page-title">Documentos generados</h1>
+            <span className="page-subtitle">Cada generación con su cliente, responsable, fecha, versión de plantilla y datos usados</span>
+          </div>
         </div>
       </div>
       <section className="panel empty">

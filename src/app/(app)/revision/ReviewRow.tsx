@@ -78,8 +78,8 @@ export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, c
           {c.rol ? <span className="tabnum text-soft">{c.rol}</span> : <span className="text-faint">Sin rol</span>}
           {step && <span className="truncate">· {step}</span>}
           {cadence.critical && c.procedure_type && (
-            <span className="text-warning" title={`${cadence.reason}: se revisa cada ${cadence.days} días`}>
-              · {cadence.label}
+            <span className="inline-flex items-center gap-1" title={`${cadence.reason}: se revisa cada ${cadence.days} días`}>
+              · <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden /> Sin resolución
             </span>
           )}
           {lawyerName && <span className="truncate">· {lawyerName}</span>}
@@ -110,7 +110,7 @@ export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, c
         {nextDue ? (
           <span className={`tag tabnum self-start ${nextDue.overdue ? "danger" : nextDue.today ? "brand" : ""}`}>{nextDue.text}</span>
         ) : (
-          <span className="tag warn self-start">Ahora</span>
+          <span className="text-[12.5px] font-medium text-warning">Ahora</span>
         )}
         <span className="text-[11px] text-faint">Cada {cadence.days} días</span>
       </div>
