@@ -47,3 +47,6 @@ dev-server.log
 
 .vercel
 .env*
+
+# Datos de importación con información sensible: nunca al repositorio
+Importar/
