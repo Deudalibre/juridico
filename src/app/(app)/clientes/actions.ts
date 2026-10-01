@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import { cleanRut, isValidRut } from "@/lib/rut";
 import { zonedToIso } from "@/lib/format";
-import { CLOSE_REASONS, STEP_LIQUIDATOR, STEP_RESOLUTION, TASK_KINDS, currentStep, isProcedure, stepsFor } from "@/lib/legal";
+import { CLOSE_REASONS, STEP_RESOLUTION, TASK_KINDS, currentStep, isProcedure } from "@/lib/legal";
+import { applyStep, cadenceDays, nextReviewAt, stepContext } from "@/lib/case-steps";
 
 type Result = { error?: string };
 
@@ -139,39 +140,26 @@ export async function createLegalClient(fd: FormData): Promise<Result & { id?: s
 
 /* ---------------- Pasos de la causa ---------------- */
 
-async function stepContext(supabase: Awaited<ReturnType<typeof getContext>>["supabase"], id: string) {
-  const [{ data: client }, { data: steps }] = await Promise.all([
-    supabase.from("legal_clients").select("id, procedure_type, archived_at").eq("id", id).maybeSingle(),
-    supabase.from("legal_case_steps").select("step").eq("client_id", id),
-  ]);
-  return { client, done: (steps ?? []).map((s) => s.step as string) };
-}
-
-/** Marca un paso como hecho (fecha, nota y, según el paso, el liquidador). Mantiene current_step y la fecha de la resolución. */
+/**
+ * Marca un paso como hecho (fecha, nota y, según el paso, el liquidador). Como avanzar de paso es un movimiento
+ * de la causa, deja también la revisión registrada (con movimiento, próxima revisión por defecto) para que la
+ * causa no vuelva a la cola de «Por revisar» por algo que ya se vio.
+ */
 export async function completeStep(id: string, fd: FormData): Promise<Result> {
-  const { supabase, can } = await getContext();
+  const { supabase, user, can } = await getContext();
   if (!can("legal.edit")) return { error: "No tienes permiso para editar la causa." };
   if (!isUuid(id)) return { error: "Cliente no válido." };
-  const { client, done } = await stepContext(supabase, id);
-  if (!client) return { error: "Cliente no encontrado." };
-  if (client.archived_at) return { error: "La causa está cerrada; reábrela para seguir." };
-  const step = text(fd, "step");
-  const steps = stepsFor(client.procedure_type);
-  if (!step || !steps.includes(step)) return { error: "Ese paso no pertenece al procedimiento de esta causa." };
-  const date = text(fd, "completed_at") ?? new Date().toISOString().slice(0, 10);
-  if (!isDate(date)) return { error: "La fecha no es válida." };
-  const liquidator = text(fd, "liquidator_name");
-  if (step === STEP_LIQUIDATOR && !liquidator) return { error: "Indica el nombre del liquidador que figura en el certificado." };
-
-  const ins = await supabase.from("legal_case_steps").upsert({ client_id: id, step, completed_at: date, note: text(fd, "note") }, { onConflict: "client_id,step" });
-  if (ins.error) return { error: ins.error.message };
-  const patch: Record<string, unknown> = { current_step: currentStep(client.procedure_type, [...done, step]) };
-  if (step === STEP_LIQUIDATOR) patch.liquidator_name = liquidator;
-  if (step === STEP_RESOLUTION) patch.liquidation_resolution_at = date;
-  const upd = await supabase.from("legal_clients").update(patch).eq("id", id);
-  if (upd.error) return { error: upd.error.message };
+  const step = text(fd, "step") ?? "";
+  const note = text(fd, "note");
+  const r = await applyStep(supabase, id, { step, date: text(fd, "completed_at") ?? new Date().toISOString().slice(0, 10), note, liquidator: text(fd, "liquidator_name") });
+  if (r.error) return r;
+  const rev = await supabase
+    .from("legal_reviews")
+    .insert({ client_id: id, reviewed_by: user.id, had_movement: true, note: note ? `${step}: ${note}` : `Paso completado: ${step}`, next_review_at: nextReviewAt(await cadenceDays(supabase, id)) });
+  if (rev.error) return { error: rev.error.message };
   revalidatePath(`/clientes/${id}`);
   revalidatePath("/clientes");
+  revalidatePath("/revision");
   return {};
 }
 
@@ -215,20 +203,28 @@ export async function addTask(id: string, fd: FormData): Promise<Result> {
   return {};
 }
 
-/** Marca una tarea como completada (con resultado opcional) o la cancela. */
+/**
+ * Completa o cancela una tarea. Pide siempre un resultado corto (o el motivo) y guarda quién la cerró: el trigger
+ * deja la entrada en el historial de la causa para supervisión. Solo se cierran tareas pendientes.
+ */
 export async function finishTask(taskId: string, clientId: string, status: "completada" | "cancelada", result?: string): Promise<Result> {
-  const { supabase, can } = await getContext();
+  const { supabase, user, can } = await getContext();
   if (!can("legal.tasks")) return { error: "No tienes permiso para gestionar tareas." };
   if (!isUuid(taskId) || !isUuid(clientId)) return { error: "Datos no válidos." };
+  const text = (result ?? "").trim().slice(0, 300);
+  if (text.length < 3) return { error: status === "completada" ? "Anota el resultado de la tarea en pocas palabras." : "Indica por qué se cancela la tarea." };
   const now = new Date().toISOString();
   const { error } = await supabase
     .from("legal_tasks")
-    .update({ status, result: result?.trim() || null, completed_at: status === "completada" ? now : null, canceled_at: status === "cancelada" ? now : null })
+    .update({ status, result: text, closed_by: user.id, completed_at: status === "completada" ? now : null, canceled_at: status === "cancelada" ? now : null })
     .eq("id", taskId)
-    .eq("client_id", clientId);
+    .eq("client_id", clientId)
+    .eq("status", "pendiente");
   if (error) return { error: error.message };
   revalidatePath(`/clientes/${clientId}`);
   revalidatePath("/clientes");
+  revalidatePath("/revision");
+  revalidatePath("/revision/tareas");
   return {};
 }
 

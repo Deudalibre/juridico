@@ -55,6 +55,22 @@ export const TASK_KINDS: Record<string, string> = {
   otra: "Otra",
 };
 
+/** Respuestas frecuentes al completar una tarea, por tipo: un clic y queda el resultado anotado. */
+export const TASK_QUICK_RESULTS: Record<string, string[]> = {
+  apercibimiento: ["Cumplido en plazo", "Escrito presentado", "No se pudo cumplir"],
+  audiencia: ["Realizada", "Suspendida", "Reprogramada"],
+  revisar_causa: ["Sin novedades", "Con movimiento, anotado"],
+  revisar_resolucion: ["Revisada, sin acción", "Requiere escrito"],
+  preparar_escrito: ["Escrito listo", "Falta información del cliente"],
+  solicitar_documento: ["Documento recibido", "Recibido parcial", "Cliente no responde"],
+  contactar_cliente: ["Contactado", "No contesta", "Dejé mensaje"],
+  presentar_escrito: ["Presentado", "Rechazado, hay que corregir"],
+  otra: ["Hecho"],
+};
+
+/** Motivos frecuentes para cancelar una tarea. */
+export const CANCEL_REASONS = ["Ya no corresponde", "Duplicada", "La hizo otra persona"];
+
 /** Archivos admitidos en el almacén de documentos (mismos tipos que permite el bucket). */
 export const DOC_MIMES: Record<string, string> = {
   "application/pdf": "pdf",
@@ -98,10 +114,18 @@ export const CHECKLIST_ENABLED = false;
 
 /** Revisión de causas: cada cuánto vuelve a tocar revisar una causa (días); el revisor puede elegir otro plazo. */
 export const REVIEW_EVERY_DAYS = 7;
-export const REVIEW_INTERVALS: { days: number; label: string }[] = [
-  { days: 1, label: "Mañana" },
-  { days: 3, label: "En 3 días" },
-  { days: 7, label: "En una semana" },
-  { days: 14, label: "En dos semanas" },
-  { days: 30, label: "En un mes" },
-];
+
+/**
+ * Cadencia de revisión según el estado de la causa (misma regla que legal_review_cadence_days en la base):
+ * mientras no tenga su hito (resolución de liquidación; «Ejecución» en renegociación) se revisa cada 3 días,
+ * porque es cuando el tribunal puede pedir algo con plazo; después, cada 7. Quien revisa no elige la fecha.
+ */
+export const REVIEW_CADENCE = { critical: 3, settled: 7 } as const;
+export const STEP_RENEGOCIACION_HITO = "Ejecución";
+export const hitoFor = (p: string | null | undefined) => (p === "Renegociación" ? STEP_RENEGOCIACION_HITO : STEP_RESOLUTION);
+
+export function reviewCadence(p: string | null | undefined, done: readonly string[]): { days: number; critical: boolean; label: string; reason: string } {
+  const hito = hitoFor(p);
+  if (done.includes(hito)) return { days: REVIEW_CADENCE.settled, critical: false, label: "Con " + hito.toLowerCase(), reason: `ya tiene ${hito.toLowerCase()}` };
+  return { days: REVIEW_CADENCE.critical, critical: true, label: "Sin " + hito.toLowerCase(), reason: `aún sin ${hito.toLowerCase()}` };
+}

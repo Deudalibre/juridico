@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { getMembers, requirePermission, type LegalClient, type LegalReview, type LegalTask } from "@/lib/data";
 import { addDaysKey, dayKey, hourIn, longToday, mondayOf, zonedToIso } from "@/lib/format";
-import { PROCEDURES, REVIEW_EVERY_DAYS } from "@/lib/legal";
+import { PROCEDURES, REVIEW_CADENCE, reviewCadence } from "@/lib/legal";
 import { Icon } from "@/components/icons";
 import { HelpPop } from "@/components/HelpPop";
 import { ReviewRow } from "./ReviewRow";
@@ -103,14 +103,17 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
   const ids = clients.map((c) => c.id);
 
   let tasks: LegalTask[] = [];
-  let lastReview = new Map<string, LegalReview>();
+  const lastReview = new Map<string, LegalReview>();
+  const doneSteps = new Map<string, string[]>(); // pasos hechos por causa: el diálogo ofrece solo los que faltan
   if (ids.length > 0) {
-    const [t, r] = await Promise.all([
+    const [t, r, st] = await Promise.all([
       supabase.from("legal_tasks").select("*").in("client_id", ids).eq("status", "pendiente").order("due_at", { ascending: true, nullsFirst: false }),
       supabase.from("legal_reviews").select("*").in("client_id", ids).order("reviewed_at", { ascending: false }).limit(3000),
+      supabase.from("legal_case_steps").select("client_id, step").in("client_id", ids),
     ]);
     tasks = (t.data ?? []) as LegalTask[];
     for (const rv of (r.data ?? []) as LegalReview[]) if (!lastReview.has(rv.client_id)) lastReview.set(rv.client_id, rv);
+    for (const d of (st.data ?? []) as { client_id: string; step: string }[]) doneSteps.set(d.client_id, [...(doneSteps.get(d.client_id) ?? []), d.step]);
   }
   const nextTask = new Map<string, LegalTask>();
   const overdueTasks = new Map<string, LegalTask>();
@@ -120,10 +123,13 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
     if (t.due_at && Date.parse(t.due_at) < now && !overdueTasks.has(t.client_id)) overdueTasks.set(t.client_id, t);
   }
 
-  // Cola: nunca revisadas (más antiguas primero) → fecha de revisión cumplida (la más atrasada primero)
+  // Cola: primero las causas sin su hito (cadencia de 3 días), y dentro de cada grupo las más atrasadas;
+  // las que nunca se revisaron van antes que todas.
+  const isCritical = (c: LegalClient) => reviewCadence(c.procedure_type, doneSteps.get(c.id) ?? []).critical;
   const never = clients.filter((c) => !c.last_review_at).sort((a, b) => (a.intake_date ?? a.created_at).localeCompare(b.intake_date ?? b.created_at));
   const due = clients.filter((c) => c.last_review_at && (!c.next_review_at || Date.parse(c.next_review_at) <= now)).sort((a, b) => (a.next_review_at ?? "").localeCompare(b.next_review_at ?? ""));
-  const queue = [...never, ...due];
+  const queue = [...never, ...due].sort((a, b) => Number(isCritical(b)) - Number(isCritical(a)));
+  const criticalCount = queue.filter(isCritical).length;
   const upToDate = clients.filter((c) => c.last_review_at && c.next_review_at && Date.parse(c.next_review_at) > now).sort((a, b) => a.next_review_at!.localeCompare(b.next_review_at!));
   const withOverdue = clients.filter((c) => overdueTasks.has(c.id));
 
@@ -142,6 +148,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
         client={c}
         task={nextTask.get(c.id) ?? null}
         review={lastReview.get(c.id) ?? null}
+        doneSteps={doneSteps.get(c.id) ?? []}
         tz={tz}
         canReview={canReview}
         canTasks={canTasks}
@@ -166,6 +173,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
             </h1>
             <span className="page-subtitle">
               {longToday(tz)} · {queue.length === 0 ? "ninguna causa por revisar" : `${queue.length} ${queue.length === 1 ? "causa por revisar" : "causas por revisar"}`}
+              {criticalCount > 0 ? ` (${criticalCount} sin resolución)` : ""}
               {withOverdue.length > 0 ? ` · ${withOverdue.length} con tareas vencidas` : ""}
               {upToDate.length > 0 ? ` · ${upToDate.length} al día` : ""}
             </span>
@@ -173,9 +181,12 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <HelpPop label="Cómo funciona" title="Revisión de causas">
-            <span>Cada causa activa vuelve a la cola cuando se cumple su fecha de próxima revisión (por defecto, {REVIEW_EVERY_DAYS} días después de la última).</span>
-            <span>Primero van las que nunca se han revisado, de la más antigua a la más nueva por fecha de ingreso; después las más atrasadas.</span>
-            <span>Al revisar, anota si hubo movimiento, qué pidió el tribunal y deja la tarea pendiente con responsable y fecha. Todo queda con tu nombre, día y hora.</span>
+            <span>
+              La cadencia sale del estado de la causa: sin resolución de liquidación (o sin «Ejecución» en renegociación) se revisa cada {REVIEW_CADENCE.critical} días; con ella, cada {REVIEW_CADENCE.settled}. Nadie elige la fecha.
+            </span>
+            <span>La cola pone primero las causas sin resolución y, dentro de cada grupo, las más atrasadas. Las que nunca se han revisado van antes que todas.</span>
+            <span>Si no pasó nada, «Sin movimiento» lo registra con un clic. Si hubo novedades, «Revisar» pide qué pasó, si avanzó de paso y qué tarea quedó resuelta o pendiente. Todo queda con tu nombre, día y hora.</span>
+            <span>Marcar un paso desde la pestaña «Causa» también cuenta como revisión con movimiento. Cada mañana hábil la campana avisa cuántas causas tocan y, al administrador, cuáles llevan el doble del plazo sin revisión.</span>
           </HelpPop>
           <div className="seg" role="group" aria-label="Vista de Revisión">
             <Link href={link({ modo: undefined, semana: undefined })} aria-current={modo === "lista" ? "true" : undefined}>
@@ -188,6 +199,9 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
           <Filters view={view} proc={proc} lawyers={lawyers.map((m) => ({ id: m.id, name: m.full_name || m.email }))} />
           <Link href="/revision/historial" className="btn-secondary">
             <Icon name="history" size={14} /> Historial
+          </Link>
+          <Link href="/revision/tareas" className="btn-secondary">
+            <Icon name="check" size={14} /> Tareas cerradas
           </Link>
         </div>
       </div>
@@ -211,6 +225,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                   client={c}
                   task={overdueTasks.get(c.id) ?? null}
                   review={lastReview.get(c.id) ?? null}
+                  doneSteps={doneSteps.get(c.id) ?? []}
                   tz={tz}
                   canReview={canReview}
                   canTasks={canTasks}
@@ -222,7 +237,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
               {more(withOverdue.length)}
             </Group>
           )}
-          <Group title="Por revisar" hint="Primero las que nunca se han revisado, luego las más atrasadas" count={queue.length} tone={queue.length ? "warning" : "success"}>
+          <Group title="Por revisar" hint="Sin resolución primero; luego las más atrasadas" count={queue.length} tone={queue.length ? "warning" : "success"}>
             {queue.length === 0 ? <div className="px-5 py-6 text-center text-[12.5px] text-faint">Todas las causas están revisadas y al día.</div> : rows(queue)}
             {more(queue.length)}
           </Group>
