@@ -46,7 +46,10 @@ try {
   ok("Marco: submenú de la sección (Historial de revisiones) y campana de notificaciones", /Historial de revisiones/.test(rev.text) && /aria-label="Notificaciones/.test(rev.html));
   const posA = rev.text.indexOf("JUR Revisión Antigua");
   const posB = rev.text.indexOf("JUR Revisión Nueva");
-  ok("Cola: las nunca revisadas van primero y la más antigua (por fecha de ingreso) antes", posA > 0 && posB > 0 && posA < posB, `${posA} ${posB}`);
+  ok("Cola: agrupada por año y mes de ingreso; marzo antes que septiembre", posA > 0 && posB > 0 && posA < posB && /2026/.test(rev.text) && rev.text.indexOf("Marzo") < posA && rev.text.indexOf("Septiembre") > posA && rev.text.indexOf("Septiembre") < posB, `${posA} ${posB}`);
+  const anio26 = await page(jur, `/revision?anio=2026&ver=${abo.id}`);
+  const anio24 = await page(jur, `/revision?anio=2024&ver=${abo.id}`);
+  ok("Filtro de año: 2026 muestra ambas causas y 2024 ninguna", anio26.status === 200 && /JUR Revisión Antigua/.test(anio26.text) && /JUR Revisión Nueva/.test(anio26.text) && anio24.status === 200 && !/JUR Revisión/.test(anio24.text));
   ok("Cola: cada fila dice «Nunca revisada» y muestra al abogado a cargo", (rev.text.match(/Nunca revisada/g) ?? []).length >= 2 && /JUR abogado/.test(rev.text));
   const badge = rev.html.match(/class="rail-badge"[^>]*>(\d+)/)?.[1];
   ok("Insignia en «Revisión» con las causas por revisar", Number(badge) >= 2, String(badge));
