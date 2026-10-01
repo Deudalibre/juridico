@@ -287,7 +287,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                 const reviewed = y.total - y.pending;
                 const pct = y.total ? Math.round((reviewed / y.total) * 100) : 0;
                 return (
-                  <div key={y.year} className="flex flex-col gap-3 rounded-[var(--r-panel)] border px-5 py-4" style={{ background: "rgba(var(--brand-rgb), 0.045)", borderColor: "rgba(var(--brand-rgb), 0.16)" }}>
+                  <div key={y.year} className="flex flex-col gap-3 rounded-[var(--r-panel)] border border-line bg-surface px-5 py-4">
                     {/* Año, total y la única cifra que importa aquí: cuántas tocan */}
                     <div className="flex items-baseline justify-between gap-3">
                       <Link href={link({ anio: y.year, mes: undefined })} className="page-title !text-[26px] leading-none text-accent hover:underline">
@@ -299,30 +299,22 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                         {y.overdue > 0 && <span className="text-danger"> · {y.overdue} vencidas</span>}
                       </span>
                     </div>
-                    <span className="block h-1 w-full overflow-hidden rounded-full bg-surface" aria-hidden title={`${reviewed} de ${y.total} al día · ${pct}%`}>
+                    <span className="block h-1 w-full overflow-hidden rounded-full bg-surface-2" aria-hidden title={`${reviewed} de ${y.total} al día · ${pct}%`}>
                       <span className="block h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
                     </span>
-                    {/* Meses como texto: el número es lo pendiente; sin recuadros */}
-                    <div className="grid grid-cols-6 gap-x-1 gap-y-0.5">
-                      {MONTH_NAMES.slice(1).map((name, i) => {
-                        const m = y.months.find((x) => x.month === i + 1);
-                        return m ? (
-                          <Link
-                            key={name}
-                            href={link({ anio: y.year, mes: String(i + 1) })}
-                            className="flex items-baseline justify-between gap-1 rounded px-1.5 py-0.5 text-[11.5px] hover:bg-surface"
-                            title={`${name}: ${m.total} causas · ${m.pending} por revisar`}
-                          >
-                            <span className="text-soft">{name.slice(0, 3)}</span>
-                            <span className={`tabnum ${m.pending ? "font-medium text-fg" : "text-success"}`}>{m.pending || "✓"}</span>
-                          </Link>
-                        ) : (
-                          <span key={name} className="flex items-baseline justify-between gap-1 px-1.5 py-0.5 text-[11.5px] text-faint">
-                            <span>{name.slice(0, 3)}</span>
-                            <span>·</span>
-                          </span>
-                        );
-                      })}
+                    {/* Solo los meses que tienen causas; el número es lo pendiente */}
+                    <div className="flex flex-wrap gap-x-1 gap-y-1">
+                      {y.months.map((m) => (
+                        <Link
+                          key={m.month}
+                          href={link({ anio: y.year, mes: String(m.month) })}
+                          className="inline-flex items-baseline gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] hover:bg-surface-active"
+                          title={`${MONTH_NAMES[m.month]}: ${m.total} causas · ${m.pending} por revisar`}
+                        >
+                          <span className="text-soft">{MONTH_NAMES[m.month].slice(0, 3)}</span>
+                          <span className={`tabnum ${m.pending ? "font-medium text-fg" : "text-success"}`}>{m.pending || "✓"}</span>
+                        </Link>
+                      ))}
                     </div>
                     <Link href={link({ anio: y.year, mes: undefined })} className="self-end text-[12px] font-medium text-accent hover:underline">
                       Mostrar todo el año →
@@ -335,13 +327,15 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
 
           {/* Clientes que aún no tienen causa: están preparando documentos y firmas; la demanda no se ha ingresado */}
           {prep.length > 0 && (
-            <section className="panel overflow-hidden" style={{ borderColor: "var(--warning-line)" }}>
-              <div className="panel-head !py-2.5" style={{ background: "var(--warning-bg)", borderBottom: "1px solid var(--warning-line)" }}>
+            <details className="panel group overflow-hidden" style={{ borderColor: "var(--warning-line)" }}>
+              <summary className="panel-head !py-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden" style={{ background: "var(--warning-bg)" }}>
                 <span className="card-title">En preparación</span>
                 <span className="badge warning tabnum">{prep.length}</span>
-                <span className="ml-auto text-[12px] text-muted">Todavía sin rol: se están juntando los documentos y firmas. Al ingresar la demanda pasan a su año.</span>
-              </div>
-              <div className="overflow-x-auto">
+                <span className="text-[12px] text-muted">{prep.length === 1 ? "cliente sin rol todavía" : "clientes sin rol todavía"}: se están juntando los documentos y firmas</span>
+                <span className="ml-auto text-[12px] font-medium text-accent group-open:hidden">Ver</span>
+                <span className="ml-auto hidden text-[12px] font-medium text-accent group-open:inline">Ocultar</span>
+              </summary>
+              <div className="overflow-x-auto border-t" style={{ borderColor: "var(--warning-line)" }}>
                 <div className="grid min-w-[640px] grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-x-4 th-band border-b border-line px-4 py-2" role="row">
                   {["Cliente", "Alta en el sistema", "Abogado", ""].map((h, i) => (
                     <span key={i} className="th" role="columnheader">
@@ -370,7 +364,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                   </div>
                 ))}
               </div>
-            </section>
+            </details>
           )}
         </>
       ) : (
