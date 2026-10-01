@@ -1,5 +1,5 @@
 // Vocabulario del área jurídica (Ley 20.720). Los pasos de cada procedimiento los definió el estudio;
-// aquí se declaran una sola vez para que ficha, lista, tareas y (más adelante) el tablero usen los mismos nombres.
+// aquí se declaran una sola vez para que ficha, lista, revisión y tareas usen los mismos nombres.
 
 // Solo dos procedimientos (confirmado por el estudio el 2026-09-30): la liquidación «simplificada» no se
 // distingue de la voluntaria en el sistema.

@@ -98,28 +98,12 @@ const SECTIONS: {
         need: "legal.create",
       },
       {
-        href: "/tablero",
-        label: "Tablero por paso",
-        icon: "grid",
-        group: "Seguimiento",
-      },
-      {
         href: "/revision",
         label: "Por revisar",
         icon: "today",
         group: "Seguimiento",
         exact: true,
       },
-    ],
-  },
-  {
-    match: (p) => starts(p, "/tablero"),
-    title: "Tablero",
-    items: [
-      { href: "/tablero", label: "Liquidación voluntaria", icon: "grid", group: "Procedimiento", exact: true },
-      { href: "/tablero?proc=Renegociaci%C3%B3n", label: "Renegociación", icon: "grid", group: "Procedimiento", query: "proc=Renegociaci" },
-      { href: "/clientes", label: "Todas las causas", icon: "user", group: "Causas" },
-      { href: "/revision", label: "Por revisar", icon: "today", group: "Causas", exact: true },
     ],
   },
 ];
@@ -130,7 +114,6 @@ const CRUMBS: [RegExp, string[]][] = [
   [/^\/clientes\/nuevo/, ["Clientes", "Nuevo cliente"]],
   [/^\/clientes\/.+/, ["Clientes", "Ficha del cliente"]],
   [/^\/clientes/, ["Clientes"]],
-  [/^\/tablero/, ["Tablero"]],
   [/^\/plantillas\/.+/, ["Plantillas", "Editor de plantilla"]],
   [/^\/plantillas/, ["Plantillas"]],
   [/^\/documentos/, ["Documentos"]],
@@ -140,7 +123,6 @@ const CRUMBS: [RegExp, string[]][] = [
 const CRUMB_ICON: Record<string, string> = {
   Revisión: "today",
   Clientes: "user",
-  Tablero: "grid",
   Plantillas: "folder",
   Documentos: "report",
   Configuración: "settings",
@@ -196,12 +178,6 @@ export function AppShell({ children, userId, name, role, permissions, alerts, cr
       label: "Clientes",
       icon: "user",
       match: (p) => starts(p, "/clientes"),
-    },
-    {
-      href: "/tablero",
-      label: "Tablero",
-      icon: "grid",
-      match: (p) => starts(p, "/tablero"),
     },
   ];
   if (can("documents.view")) {

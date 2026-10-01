@@ -118,19 +118,15 @@ try {
   const rev3 = await page(jur, "/revision");
   ok("Revisión: botones «Sin movimiento» (rápido) y «Revisar», y acceso a Tareas cerradas", rev3.status === 200 && /Sin movimiento/.test(rev3.text) && /Tareas cerradas/.test(rev3.text));
 
-  // 5. Paridad con el CRM: calendario, tablero por paso, filtros y exportación
+  // 5. Paridad con el CRM: calendario, filtros y exportación
   const cal = await page(jur, "/revision?modo=calendario");
   ok("Revisión › Calendario: semana con la tarea pendiente en su día", cal.status === 200 && /Semana del/.test(cal.text) && /Pedir liquidaciones de sueldo/.test(cal.text) && /JUR Revisión Antigua/.test(cal.text), String(cal.status));
-  const board = await page(jur, "/tablero");
-  ok("Tablero por paso: columnas de la liquidación y la causa en su paso", board.status === 200 && /Preparación de documentos/.test(board.text) && /Certificado de ejecutoria/.test(board.text) && /Completada/.test(board.text) && /JUR Revisión Antigua/.test(board.text) && !/JUR Revisión Nueva/.test(board.text), String(board.status));
-  const boardRen = await page(jur, "/tablero?proc=Renegociaci%C3%B3n");
-  ok("Tablero: cambiar de procedimiento cambia las columnas y las causas", boardRen.status === 200 && /Audiencia de renegociación/.test(boardRen.text) && /JUR Revisión Nueva/.test(boardRen.text) && !/JUR Revisión Antigua/.test(boardRen.text));
   const filtered = await page(jur, `/clientes?abogado=${abo.id}&proc=Renegociaci%C3%B3n`);
   ok("Lista de causas: filtros por abogado y procedimiento, botón Filtros con contador y Exportar", filtered.status === 200 && /JUR Revisión Nueva/.test(filtered.text) && !/JUR Revisión Antigua/.test(filtered.text) && /Filtros\s*2/.test(filtered.text) && /Exportar/.test(filtered.text));
   const filteredStep = await page(jur, `/clientes?paso=Preparaci%C3%B3n%20de%20documentos`);
   ok("Lista de causas: filtro por paso actual", filteredStep.status === 200 && /JUR Revisión Antigua/.test(filteredStep.text) && /JUR Revisión Nueva/.test(filteredStep.text));
   ok("Historial de revisiones: botón Exportar", /Exportar/.test(histPage.text));
-  ok("Marco: Tablero en la barra lateral y menú de usuario (Radix, se abre al pulsar)", /Tablero/.test(rev.text) && /aria-label="Menú de usuario"/.test(rev.html));
+  ok("Marco: sin Tablero (quitado a petición del estudio) y menú de usuario (Radix, se abre al pulsar)", !/Tablero/.test(rev.text) && /aria-label="Menú de usuario"/.test(rev.html));
   const ejePage = await page(eje, "/revision");
   ok("Un ejecutivo no entra a Revisión", ejePage.status === 307 || /Sin acceso/.test(ejePage.text), String(ejePage.status));
 } catch (e) {
