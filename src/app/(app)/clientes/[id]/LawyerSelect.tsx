@@ -30,6 +30,7 @@ export function LawyerSelect({ clientId, lawyerId, members, canAssign, compact }
       disabled={pending}
       ariaLabel="Abogado a cargo"
       size={compact ? "sm" : "md"}
+      className={compact ? "max-w-full" : ""}
       onChange={(value) => {
         const v = value || null;
         if (v === (lawyerId ?? null)) return;
