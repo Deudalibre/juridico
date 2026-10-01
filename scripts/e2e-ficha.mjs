@@ -122,7 +122,9 @@ try {
   ok("Lista: la próxima acción muestra el apercibimiento con su fecha", listaTarea.status === 200 && /Acompañar certificado de deudas/.test(listaTarea.text) && /Apercibimiento/.test(listaTarea.text) && /Paso/.test(listaTarea.text));
 
   // Revisión (antes «Mi día») e Historial
-  const rev = await page(jur, "/revision");
+  // Con cientos de causas reales en la cola, se mira solo lo del abogado de prueba
+  sql(`update legal_clients set lawyer_id = '${jur.id}' where id = '${id}'`);
+  const rev = await page(jur, "/revision?ver=mios");
   ok("Revisión: la causa nunca revisada está en la cola con su tarea pendiente", rev.status === 200 && /JUR Ficha Prueba/.test(rev.text) && /Acompañar certificado de deudas/.test(rev.text) && /Nunca revisada/.test(rev.text) && /Por revisar/.test(rev.text), String(rev.status));
   const raiz = await fetch(`${BASE}/`, { headers: { cookie: jur.cookie }, redirect: "manual" });
   const hoyOld = await fetch(`${BASE}/hoy`, { headers: { cookie: jur.cookie }, redirect: "manual" });

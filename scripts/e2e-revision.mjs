@@ -41,7 +41,7 @@ try {
   const idB = b.data.id;
 
   // 1. Marco de la app y cola
-  const rev = await page(jur, "/revision");
+  const rev = await page(jur, `/revision?ver=${abo.id}`);
   ok("Marco: barra lateral con Revisión, Clientes, Plantillas, Documentos y CRM; migas «Revisión › Por revisar»", rev.status === 200 && /Revisión/.test(rev.text) && /Plantillas/.test(rev.text) && /CRM/.test(rev.text) && /Por revisar/.test(rev.text), String(rev.status));
   ok("Marco: submenú de la sección (Historial de revisiones) y campana de notificaciones", /Historial de revisiones/.test(rev.text) && /aria-label="Notificaciones/.test(rev.html));
   const posA = rev.text.indexOf("JUR Revisión Antigua");
@@ -84,14 +84,14 @@ try {
   ok("Un ejecutivo no ve las revisiones", !ejeSee.error && (ejeSee.data ?? []).length === 0);
 
   // 4. Pantallas después de la revisión
-  const rev2 = await page(jur, "/revision");
+  const rev2 = await page(jur, `/revision?ver=${abo.id}`);
   const alDia = rev2.text.indexOf("Al día");
   const posA2 = rev2.text.indexOf("JUR Revisión Antigua");
   ok("Revisión: la causa revisada pasa a «Al día» con movimiento, fecha y revisor", rev2.status === 200 && alDia > 0 && posA2 > alDia && /Con movimiento/.test(rev2.text) && /JUR juridico/.test(rev2.text), `${alDia} ${posA2}`);
   ok("Revisión: la causa nueva sigue en «Por revisar»", rev2.text.indexOf("JUR Revisión Nueva") < alDia);
   const mios = await page(abo, "/revision?ver=mios");
   ok("Filtro «Mis causas» del abogado a cargo", mios.status === 200 && /JUR Revisión Nueva/.test(mios.text));
-  const proc = await page(jur, "/revision?proc=Renegociaci%C3%B3n");
+  const proc = await page(jur, `/revision?proc=Renegociaci%C3%B3n&ver=${abo.id}`);
   ok("Filtro por procedimiento", proc.status === 200 && /JUR Revisión Nueva/.test(proc.text) && !/JUR Revisión Antigua/.test(proc.text));
   const histPage = await page(jur, "/revision/historial");
   ok("Historial de revisiones: fila con causa, movimiento, nota, tarea y revisor", histPage.status === 200 && /JUR Revisión Antigua/.test(histPage.text) && /Con movimiento/.test(histPage.text) && /liquidaciones actualizadas/.test(histPage.text) && /Tarea: Pedir/.test(histPage.text) && /JUR juridico/.test(histPage.text), String(histPage.status));
@@ -115,11 +115,11 @@ try {
   const stepRes = await jur.c.from("legal_case_steps").insert({ client_id: idA, step: "Resolución de liquidación", completed_at: "2026-09-20" }).select();
   const cad7 = await jur.c.rpc("legal_review_cadence_days", { p_client: idA });
   ok("Cadencia: con resolución de liquidación pasa a 7 días", !stepRes.error && cad7.data === 7, stepRes.error?.message ?? String(cad7.data));
-  const rev3 = await page(jur, "/revision");
+  const rev3 = await page(jur, `/revision?ver=${abo.id}`);
   ok("Revisión: botones «Sin movimiento» (rápido) y «Revisar», y acceso a Tareas cerradas", rev3.status === 200 && /Sin movimiento/.test(rev3.text) && /Tareas cerradas/.test(rev3.text));
 
   // 5. Paridad con el CRM: calendario, filtros y exportación
-  const cal = await page(jur, "/revision?modo=calendario");
+  const cal = await page(jur, `/revision?modo=calendario&ver=${abo.id}`);
   ok("Revisión › Calendario: semana con la tarea pendiente en su día", cal.status === 200 && /Semana del/.test(cal.text) && /Pedir liquidaciones de sueldo/.test(cal.text) && /JUR Revisión Antigua/.test(cal.text), String(cal.status));
   const filtered = await page(jur, `/clientes?abogado=${abo.id}&proc=Renegociaci%C3%B3n`);
   ok("Lista de causas: filtros por abogado y procedimiento, botón Filtros con contador y Exportar", filtered.status === 200 && /JUR Revisión Nueva/.test(filtered.text) && !/JUR Revisión Antigua/.test(filtered.text) && /Filtros\s*2/.test(filtered.text) && /Exportar/.test(filtered.text));
