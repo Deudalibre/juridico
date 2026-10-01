@@ -42,7 +42,7 @@ try {
 
   // 1. Marco de la app y cola
   const portada = await page(jur, `/revision?ver=${abo.id}`);
-  ok("Portada de Revisión: todos los clientes por año, meses, «Mostrar todo el año» y botón Revisar", portada.status === 200 && /Todos los clientes/.test(portada.text) && /2026/.test(portada.text) && /Mostrar todo el año/.test(portada.text) && /Revisar/.test(portada.text) && !/JUR Revisión Antigua/.test(portada.text), String(portada.status));
+  ok("Portada de Revisión: todos los clientes por año, meses, «Mostrar todo el año» y botón Revisar", portada.status === 200 && /Causas en tramitación/.test(portada.text) && /2026/.test(portada.text) && /Mostrar todo el año/.test(portada.text) && /Revisar/.test(portada.text) && !/JUR Revisión Antigua/.test(portada.text), String(portada.status));
   const rev = await page(jur, `/revision?ver=${abo.id}&anio=2026`);
   ok("Marco: barra lateral con Revisión, Clientes, Plantillas, Documentos y CRM; migas «Revisión › Por revisar»", rev.status === 200 && /Revisión/.test(rev.text) && /Plantillas/.test(rev.text) && /CRM/.test(rev.text) && /Por revisar/.test(rev.text), String(rev.status));
   ok("Marco: submenú de la sección (Historial de revisiones) y campana de notificaciones", /Historial de revisiones/.test(rev.text) && /aria-label="Notificaciones/.test(rev.html));
