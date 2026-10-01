@@ -202,7 +202,6 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
     return out;
   };
 
-  const selectionLabel = anio === SIN_FECHA ? "Sin fecha de ingreso" : mes ? `${MONTH_NAMES[mes]} ${anio}` : anio ? `Todo ${anio}` : "";
 
   return (
     <>
@@ -267,52 +266,101 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
             <span className="ml-auto text-[12px] text-muted">Elige un año y un mes con «Revisar», o muestra un año completo</span>
           </div>
           <div className="grid gap-px bg-line-soft md:grid-cols-2 xl:grid-cols-4">
-            {summary.map((y) => (
-              <div key={y.year} className="flex flex-col gap-3 bg-surface px-5 py-4">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-[17px] font-semibold text-fg">{y.year === SIN_FECHA ? "Sin fecha" : y.year}</span>
-                  <span className="text-[12px] text-muted">
-                    {y.total} {y.total === 1 ? "causa" : "causas"}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <span className={`tag ${y.pending ? "warn" : "success"}`}>{y.pending ? `${y.pending} por revisar` : "Al día"}</span>
-                  {y.overdue > 0 && <span className="tag danger">{y.overdue} con tarea vencida</span>}
-                </div>
-                {y.year === SIN_FECHA ? (
-                  <span className="text-[12px] text-muted">En preparación: la fecha de ingreso llega con el certificado de envío.</span>
-                ) : (
-                  <div className="flex flex-wrap gap-1">
-                    {y.months.map((m) => (
-                      <Link key={m.month} href={link({ anio: y.year, mes: String(m.month) })} className={`row-chip ${m.pending ? "" : "opacity-60"}`} title={`${m.total} causas · ${m.pending} por revisar`}>
-                        {MONTH_NAMES[m.month].slice(0, 3)} <span className="tabnum text-faint">{m.pending}</span>
-                      </Link>
+            {summary.map((y) => {
+              const isSin = y.year === SIN_FECHA;
+              const reviewed = y.total - y.pending;
+              const pct = y.total ? Math.round((reviewed / y.total) * 100) : 0;
+              return (
+                <div key={y.year} className="flex flex-col gap-4 bg-surface px-5 py-5">
+                  <div className="flex items-end justify-between gap-2">
+                    <span className="page-title !text-[24px] leading-none">{isSin ? "Sin fecha" : y.year}</span>
+                    <span className="tabnum text-[12px] text-muted">
+                      {y.total} {y.total === 1 ? "causa" : "causas"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="block h-1.5 w-full overflow-hidden rounded-full bg-surface-2" aria-hidden>
+                      <span className="block h-full rounded-full bg-success transition-[width]" style={{ width: `${pct}%` }} />
+                    </span>
+                    <span className="text-[11.5px] text-muted">
+                      {reviewed} de {y.total} al día · {pct}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "Por revisar", value: y.pending, cls: y.pending ? "text-warning" : "text-success" },
+                      { label: "Vencidas", value: y.overdue, cls: y.overdue ? "text-danger" : "text-faint" },
+                      { label: "Sin resolución", value: y.critical, cls: y.critical ? "text-soft" : "text-faint" },
+                    ].map((s) => (
+                      <div key={s.label} className="rounded-md border border-line-soft px-2 py-1.5 text-center">
+                        <span className={`block tabnum text-[16px] font-semibold leading-tight ${s.cls}`}>{s.value}</span>
+                        <span className="block text-[10px] font-semibold uppercase tracking-[0.04em] text-faint">{s.label}</span>
+                      </div>
                     ))}
                   </div>
-                )}
-                <Link href={link({ anio: y.year, mes: undefined })} className="btn-outline btn-sm self-start">
-                  Mostrar todo {y.year === SIN_FECHA ? "el grupo" : "el año"}
-                </Link>
-              </div>
-            ))}
+                  {isSin ? (
+                    <span className="text-[12px] leading-relaxed text-muted">Causas en preparación: la fecha de ingreso llega con el certificado de envío al marcar «Ingreso de demanda».</span>
+                  ) : (
+                    <div className="grid grid-cols-6 gap-1">
+                      {MONTH_NAMES.slice(1).map((name, i) => {
+                        const m = y.months.find((x) => x.month === i + 1);
+                        return m ? (
+                          <Link
+                            key={name}
+                            href={link({ anio: y.year, mes: String(i + 1) })}
+                            className={`flex flex-col items-center rounded-md border py-1 leading-tight hover:border-brand-line hover:bg-surface-active ${m.pending ? "border-line" : "border-line-soft"}`}
+                            title={`${name}: ${m.total} causas · ${m.pending} por revisar`}
+                          >
+                            <span className="text-[11px] font-medium text-fg">{name.slice(0, 3)}</span>
+                            <span className={`tabnum text-[11px] ${m.pending ? "text-warning" : "text-success"}`}>{m.pending || "✓"}</span>
+                          </Link>
+                        ) : (
+                          <span key={name} className="flex flex-col items-center rounded-md border border-transparent py-1 leading-tight text-faint">
+                            <span className="text-[11px]">{name.slice(0, 3)}</span>
+                            <span className="text-[11px]">–</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <Link href={link({ anio: y.year, mes: undefined })} className="btn-secondary btn-sm justify-center">
+                    Mostrar todo {isSin ? "el grupo" : "el año"}
+                  </Link>
+                </div>
+              );
+            })}
           </div>
         </section>
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-2 px-1">
-            <span className="text-[13.5px] font-semibold text-fg">{selectionLabel}</span>
-            <span className="text-[12.5px] text-muted">
-              · {visible.length} {visible.length === 1 ? "causa" : "causas"} · {queue.length} por revisar
-            </span>
-            {mes > 0 && (
-              <Link href={link({ mes: undefined })} className="btn-ghost btn-sm">
-                Mostrar todo el año
+          {/* Barra de la selección: el año, sus meses para saltar entre ellos y la vuelta a todos los clientes */}
+          <section className="panel">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+              <div className="flex min-w-0 flex-col">
+                <span className="page-title !text-[20px] leading-none">{anio === SIN_FECHA ? "Sin fecha de ingreso" : mes ? `${MONTH_NAMES[mes]} ${anio}` : anio}</span>
+                <span className="mt-1 text-[12px] text-muted">
+                  {visible.length} {visible.length === 1 ? "causa" : "causas"} · {queue.length} por revisar
+                  {withOverdue.length > 0 ? ` · ${withOverdue.length} con tareas vencidas` : ""}
+                </span>
+              </div>
+              {anio !== SIN_FECHA && (
+                <nav className="seg flex-wrap" aria-label="Mes de ingreso">
+                  <Link href={link({ mes: undefined })} aria-current={!mes ? "true" : undefined}>
+                    Todo el año
+                  </Link>
+                  {(summary.find((y) => y.year === anio)?.months ?? []).map((m) => (
+                    <Link key={m.month} href={link({ mes: String(m.month) })} aria-current={mes === m.month ? "true" : undefined} title={`${m.total} causas · ${m.pending} por revisar`}>
+                      {MONTH_NAMES[m.month].slice(0, 3)}
+                      <span className={`ml-1 tabnum text-[11px] ${m.pending ? "text-warning" : "text-success"}`}>{m.pending || "✓"}</span>
+                    </Link>
+                  ))}
+                </nav>
+              )}
+              <Link href={link({ anio: undefined, mes: undefined })} className="btn-ghost btn-sm ml-auto">
+                ← Todos los clientes
               </Link>
-            )}
-            <Link href={link({ anio: undefined, mes: undefined })} className="btn-ghost btn-sm">
-              Todos los clientes
-            </Link>
-          </div>
+            </div>
+          </section>
           {withOverdue.length > 0 && (
             <Group title="Con tareas vencidas" hint="Atiende la tarea o déjala resuelta al revisar" count={withOverdue.length} tone="danger">
               {table(withOverdue, (c) => overdueTasks.get(c.id) ?? null)}
