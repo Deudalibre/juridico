@@ -3155,3 +3155,409 @@ textarea::placeholder {
   color: var(--success);
   font-weight: 600;
 }
+
+
+/* ============================================================
+   Vida: profundidad y movimiento. Fuera de @layer a propósito: son los ajustes
+   finales sobre todo lo anterior y en los dos frentes (CRM y Jurídico).
+   - Superficies con una sombra tenue por capas (las despega del fondo sin enmarcarlas).
+   - Botones y tarjetas que responden al mouse y se hunden al pulsar.
+   - Listas y tarjetas que entran escalonadas; menús y diálogos que se despliegan.
+   - Transiciones entre pantallas con la View Transitions API (React <ViewTransition>
+     en el marco de la app) y punto de carga en los enlaces (useLinkStatus).
+   Todo se apaga con prefers-reduced-motion.
+   ============================================================ */
+:root {
+  --shadow-panel: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px -6px rgba(15, 23, 42, 0.08);
+  --shadow-lift: 0 2px 4px rgba(15, 23, 42, 0.06), 0 12px 28px -8px rgba(15, 23, 42, 0.16);
+  --shadow-primary: 0 1px 2px rgba(8, 127, 156, 0.3);
+  --shadow-primary-hover: 0 4px 12px -2px rgba(8, 127, 156, 0.45);
+  --dur-enter: 260ms;
+}
+
+/* ---- Profundidad ---- */
+.rail,
+.submenu,
+.topbar,
+.panel,
+.page-head,
+.card,
+.frame,
+.kpi,
+.fold {
+  box-shadow: var(--shadow-panel);
+}
+.content {
+  scroll-behavior: smooth;
+}
+/* Tarjetas que llevan a algún sitio: se elevan al pasar el mouse */
+.lift,
+.settings-card,
+.kpi {
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out), border-color var(--dur-fast) var(--ease-standard);
+}
+.lift:hover,
+.settings-card:hover,
+.kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+}
+/* Marca, mosaicos y avatares llenos: degradado turquesa con un brillo arriba */
+.icon-tile.solid,
+.avatar.solid,
+.rail-brand {
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-dark) 100%);
+  box-shadow: 0 1px 2px rgba(8, 127, 156, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.rail-brand {
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+}
+.rail-brand:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 4px 10px -2px rgba(8, 127, 156, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* ---- Botones ---- */
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-danger,
+.btn-outline,
+.icon-btn,
+.topbar-btn,
+.row-view {
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+.btn-primary {
+  box-shadow: var(--shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-primary-hover), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.btn-secondary:hover:not(:disabled),
+.btn-outline:hover:not(:disabled),
+.btn-ghost:hover:not(:disabled),
+.btn-danger:hover:not(:disabled),
+.icon-btn:not(.plain):hover:not(:disabled),
+.topbar-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px -2px rgba(15, 23, 42, 0.14);
+}
+.btn:active:not(:disabled),
+.btn-primary:active:not(:disabled),
+.btn-secondary:active:not(:disabled),
+.btn-ghost:active:not(:disabled),
+.btn-danger:active:not(:disabled),
+.btn-outline:active:not(:disabled),
+.icon-btn:active:not(:disabled),
+.topbar-btn:active,
+.row-view:active {
+  transform: translateY(0) scale(0.975);
+  box-shadow: var(--shadow-sm);
+  transition-duration: 60ms;
+}
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-ghost:disabled,
+.btn-danger:disabled {
+  cursor: not-allowed;
+}
+
+/* ---- Barra lateral y submenú ---- */
+.rail-item {
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-base) var(--ease-out);
+}
+.rail-item::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand-dark);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: height var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-standard);
+}
+.rail-item[aria-current="page"]::before {
+  height: 22px;
+  opacity: 1;
+}
+.rail-item svg {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.rail-item:hover svg {
+  transform: translateY(-1px) scale(1.08);
+}
+.rail-item:active {
+  transform: scale(0.96);
+}
+.rail-badge {
+  animation: badge-pop 420ms var(--ease-out) both;
+}
+.submenu-item {
+  position: relative;
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-base) var(--ease-out);
+}
+.submenu-item:hover {
+  transform: translateX(2px);
+}
+/* Punto que late mientras el enlace carga la siguiente pantalla (useLinkStatus) */
+.link-pending {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  animation: ping 900ms var(--ease-standard) infinite;
+}
+.submenu-item .link-pending {
+  top: 50%;
+  right: 8px;
+  margin-top: -3px;
+}
+@media (max-width: 720px) {
+  .rail-item::before {
+    display: none;
+  }
+}
+
+/* ---- Listas y tarjetas: entrada escalonada ---- */
+.row,
+.deal-card,
+.list-row {
+  animation: row-in var(--dur-enter) var(--ease-out) both;
+}
+.row:nth-child(2) {
+  animation-delay: 22ms;
+}
+.row:nth-child(3) {
+  animation-delay: 44ms;
+}
+.row:nth-child(4) {
+  animation-delay: 66ms;
+}
+.row:nth-child(5) {
+  animation-delay: 88ms;
+}
+.row:nth-child(6) {
+  animation-delay: 110ms;
+}
+.row:nth-child(7) {
+  animation-delay: 132ms;
+}
+.row:nth-child(8) {
+  animation-delay: 154ms;
+}
+.row:nth-child(9) {
+  animation-delay: 176ms;
+}
+.row:nth-child(10) {
+  animation-delay: 198ms;
+}
+.row:nth-child(11) {
+  animation-delay: 220ms;
+}
+.row:nth-child(12) {
+  animation-delay: 242ms;
+}
+.row:nth-child(13) {
+  animation-delay: 264ms;
+}
+.deal-card:nth-child(2) {
+  animation-delay: 40ms;
+}
+.deal-card:nth-child(3) {
+  animation-delay: 80ms;
+}
+.deal-card:nth-child(4) {
+  animation-delay: 120ms;
+}
+.deal-card:nth-child(5) {
+  animation-delay: 160ms;
+}
+.deal-card:nth-child(6) {
+  animation-delay: 200ms;
+}
+.deal-card:nth-child(7) {
+  animation-delay: 240ms;
+}
+.deal-card:nth-child(8) {
+  animation-delay: 280ms;
+}
+.deal-card:nth-child(9) {
+  animation-delay: 320ms;
+}
+.list-row:nth-child(2) {
+  animation-delay: 30ms;
+}
+.list-row:nth-child(3) {
+  animation-delay: 60ms;
+}
+.list-row:nth-child(4) {
+  animation-delay: 90ms;
+}
+.list-row:nth-child(5) {
+  animation-delay: 120ms;
+}
+.list-row:nth-child(6) {
+  animation-delay: 150ms;
+}
+.list-row:nth-child(7) {
+  animation-delay: 180ms;
+}
+.list-row:nth-child(8) {
+  animation-delay: 210ms;
+}
+.list-row:nth-child(9) {
+  animation-delay: 240ms;
+}
+/* Barras de progreso: crecen desde la izquierda al aparecer */
+.bar-track > span,
+.bar-grow {
+  transform-origin: left;
+  animation: bar-grow 700ms var(--ease-out) both;
+}
+
+/* ---- Capas flotantes ---- */
+.sel-content,
+.menu-content,
+.popover {
+  transform-origin: var(--radix-select-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top));
+  animation: pop-in var(--dur-base) var(--ease-out) both;
+}
+.menu-content[data-state="closed"],
+.sel-content[data-state="closed"] {
+  animation: pop-out 110ms var(--ease-standard) forwards;
+}
+.modal.animate-in {
+  animation: modal-in var(--dur-slow) var(--ease-out) both;
+}
+.modal-backdrop,
+.drawer-backdrop {
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+/* ---- Transiciones entre pantallas (View Transitions API) ---- */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(.page-exit) {
+  animation: 110ms var(--ease-standard) both vt-fade reverse, 110ms var(--ease-standard) both vt-rise reverse;
+}
+::view-transition-new(.page-enter) {
+  animation: 220ms var(--ease-out) 50ms both vt-fade, 320ms var(--ease-out) both vt-rise;
+}
+::view-transition-old(.page-update) {
+  animation: 140ms var(--ease-standard) both vt-fade reverse;
+}
+::view-transition-new(.page-update) {
+  animation: 200ms var(--ease-standard) both vt-fade;
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.97);
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+@keyframes badge-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes ping {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--brand-rgb), 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 7px rgba(var(--brand-rgb), 0);
+  }
+}
+@keyframes vt-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes vt-rise {
+  from {
+    transform: translateY(8px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* ---- Sin movimiento para quien lo pide en el sistema ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+  }
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
