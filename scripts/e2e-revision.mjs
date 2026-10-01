@@ -101,6 +101,23 @@ try {
   ok("Ficha: tile «Última revisión» con movimiento, fecha, revisor y próxima", ficha.status === 200 && /Última revisión/.test(ficha.text) && /Con movimiento/.test(ficha.text) && /Próxima:/.test(ficha.text));
   const fichaHist = await page(jur, `/clientes/${idA}?tab=Historial`);
   ok("Ficha › Historial: la revisión aparece como «Revisión»", /Revisión: con movimiento/.test(fichaHist.text));
+  // 4b. Cierre de tareas con resultado y cadencia automática (PR #19)
+  const cad3 = await jur.c.rpc("legal_review_cadence_days", { p_client: idA });
+  ok("Cadencia: sin resolución de liquidación la causa se revisa cada 3 días", !cad3.error && cad3.data === 3, cad3.error?.message ?? String(cad3.data));
+  const closeTask = await jur.c.from("legal_tasks").update({ status: "completada", result: "Documento recibido", closed_by: jur.id, completed_at: new Date().toISOString() }).eq("id", task.data.id).select().single();
+  ok("Cerrar una tarea guarda resultado y quién la cerró (closed_by)", !closeTask.error && closeTask.data?.closed_by === jur.id && closeTask.data?.result === "Documento recibido", closeTask.error?.message);
+  const histTask = sql(`select summary, actor_name from legal_case_history where client_id = '${idA}' and kind = 'tarea' order by at`);
+  ok("Historial de la causa: tarea creada y tarea completada con su resultado (trigger 0018)", histTask.some((h) => /^Tarea creada: Pedir/.test(h.summary)) && histTask.some((h) => /^Tarea completada: Pedir.*Documento recibido/.test(h.summary) && h.actor_name === "JUR juridico"), JSON.stringify(histTask));
+  const auditTask = sql(`select action from audit_log where entity='legal_cliente' and entity_id='${idA}' and action='causa.tarea.completada'`);
+  ok("Auditoría: causa.tarea.completada", auditTask.length === 1);
+  const tareas = await page(jur, "/revision/tareas");
+  ok("Revisión › Tareas cerradas: fila con causa, resultado y quién cerró, filtros y exportación", tareas.status === 200 && /JUR Revisión Antigua/.test(tareas.text) && /Documento recibido/.test(tareas.text) && /JUR juridico/.test(tareas.text) && /Exportar/.test(tareas.text), String(tareas.status));
+  const stepRes = await jur.c.from("legal_case_steps").insert({ client_id: idA, step: "Resolución de liquidación", completed_at: "2026-09-20" }).select();
+  const cad7 = await jur.c.rpc("legal_review_cadence_days", { p_client: idA });
+  ok("Cadencia: con resolución de liquidación pasa a 7 días", !stepRes.error && cad7.data === 7, stepRes.error?.message ?? String(cad7.data));
+  const rev3 = await page(jur, "/revision");
+  ok("Revisión: botones «Sin movimiento» (rápido) y «Revisar», y acceso a Tareas cerradas", rev3.status === 200 && /Sin movimiento/.test(rev3.text) && /Tareas cerradas/.test(rev3.text));
+
   // 5. Paridad con el CRM: calendario, tablero por paso, filtros y exportación
   const cal = await page(jur, "/revision?modo=calendario");
   ok("Revisión › Calendario: semana con la tarea pendiente en su día", cal.status === 200 && /Semana del/.test(cal.text) && /Pedir liquidaciones de sueldo/.test(cal.text) && /JUR Revisión Antigua/.test(cal.text), String(cal.status));
