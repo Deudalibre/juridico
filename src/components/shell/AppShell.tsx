@@ -65,6 +65,12 @@ const SECTIONS: {
         group: "Seguimiento",
       },
       {
+        href: "/revision/tareas",
+        label: "Tareas cerradas",
+        icon: "check",
+        group: "Seguimiento",
+      },
+      {
         href: "/clientes",
         label: "Todas las causas",
         icon: "user",
@@ -110,6 +116,7 @@ const SECTIONS: {
 
 const CRUMBS: [RegExp, string[]][] = [
   [/^\/revision\/historial/, ["Revisión", "Historial"]],
+  [/^\/revision\/tareas/, ["Revisión", "Tareas cerradas"]],
   [/^\/revision/, ["Revisión", "Por revisar"]],
   [/^\/clientes\/nuevo/, ["Clientes", "Nuevo cliente"]],
   [/^\/clientes\/.+/, ["Clientes", "Ficha del cliente"]],

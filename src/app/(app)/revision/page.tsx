@@ -260,12 +260,6 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
             </Link>
           </div>
           <Filters view={view} proc={proc} anio={anio} mes={mes} lawyers={lawyerOpts} />
-          <Link href="/revision/historial" className="btn-secondary">
-            <Icon name="history" size={14} /> Historial
-          </Link>
-          <Link href="/revision/tareas" className="btn-secondary">
-            <Icon name="check" size={14} /> Tareas cerradas
-          </Link>
           {modo === "lista" && <ReviewPicker summary={summary} anio={anio} mes={mes} base={{ ver: view !== "equipo" ? view : "", proc }} />}
         </div>
       </div>
@@ -293,58 +287,45 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                 const reviewed = y.total - y.pending;
                 const pct = y.total ? Math.round((reviewed / y.total) * 100) : 0;
                 return (
-                  <div key={y.year} className="flex flex-col gap-4 rounded-[var(--r-panel)] border px-5 py-5" style={{ background: "rgba(var(--brand-rgb), 0.045)", borderColor: "rgba(var(--brand-rgb), 0.18)" }}>
-                    <div className="flex items-end justify-between gap-2">
-                      <span className="page-title !text-[26px] leading-none text-accent">{y.year}</span>
-                      <span className="tabnum text-[12px] text-muted">
-                        {y.total} {y.total === 1 ? "causa" : "causas"}
+                  <div key={y.year} className="flex flex-col gap-3 rounded-[var(--r-panel)] border px-5 py-4" style={{ background: "rgba(var(--brand-rgb), 0.045)", borderColor: "rgba(var(--brand-rgb), 0.16)" }}>
+                    {/* Año, total y la única cifra que importa aquí: cuántas tocan */}
+                    <div className="flex items-baseline justify-between gap-3">
+                      <Link href={link({ anio: y.year, mes: undefined })} className="page-title !text-[26px] leading-none text-accent hover:underline">
+                        {y.year}
+                      </Link>
+                      <span className="tabnum text-[12.5px] text-soft">
+                        <span className={`font-semibold ${y.pending ? "text-warning" : "text-success"}`}>{y.pending}</span> por revisar
+                        <span className="text-faint"> · {y.total} en total</span>
+                        {y.overdue > 0 && <span className="text-danger"> · {y.overdue} vencidas</span>}
                       </span>
                     </div>
-                    <div className="flex flex-col gap-1.5">
-                      <span className="block h-1.5 w-full overflow-hidden rounded-full bg-surface" aria-hidden>
-                        <span className="block h-full rounded-full bg-brand transition-[width]" style={{ width: `${pct}%` }} />
-                      </span>
-                      <span className="text-[11.5px] text-muted">
-                        {reviewed} de {y.total} al día · {pct}%
-                      </span>
+                    <span className="block h-1 w-full overflow-hidden rounded-full bg-surface" aria-hidden title={`${reviewed} de ${y.total} al día · ${pct}%`}>
+                      <span className="block h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+                    </span>
+                    {/* Meses como texto: el número es lo pendiente; sin recuadros */}
+                    <div className="grid grid-cols-6 gap-x-1 gap-y-0.5">
+                      {MONTH_NAMES.slice(1).map((name, i) => {
+                        const m = y.months.find((x) => x.month === i + 1);
+                        return m ? (
+                          <Link
+                            key={name}
+                            href={link({ anio: y.year, mes: String(i + 1) })}
+                            className="flex items-baseline justify-between gap-1 rounded px-1.5 py-0.5 text-[11.5px] hover:bg-surface"
+                            title={`${name}: ${m.total} causas · ${m.pending} por revisar`}
+                          >
+                            <span className="text-soft">{name.slice(0, 3)}</span>
+                            <span className={`tabnum ${m.pending ? "font-medium text-fg" : "text-success"}`}>{m.pending || "✓"}</span>
+                          </Link>
+                        ) : (
+                          <span key={name} className="flex items-baseline justify-between gap-1 px-1.5 py-0.5 text-[11.5px] text-faint">
+                            <span>{name.slice(0, 3)}</span>
+                            <span>·</span>
+                          </span>
+                        );
+                      })}
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { label: "Por revisar", value: y.pending, cls: y.pending ? "text-warning" : "text-success" },
-                        { label: "Vencidas", value: y.overdue, cls: y.overdue ? "text-danger" : "text-faint" },
-                        { label: "Sin resolución", value: y.critical, cls: y.critical ? "text-soft" : "text-faint" },
-                      ].map((s) => (
-                        <div key={s.label} className="rounded-md border border-line-soft bg-surface px-2 py-1.5 text-center">
-                          <span className={`block tabnum text-[16px] font-semibold leading-tight ${s.cls}`}>{s.value}</span>
-                          <span className="block text-[10px] font-semibold uppercase tracking-[0.04em] text-faint">{s.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {
-                      <div className="grid grid-cols-6 gap-1">
-                        {MONTH_NAMES.slice(1).map((name, i) => {
-                          const m = y.months.find((x) => x.month === i + 1);
-                          return m ? (
-                            <Link
-                              key={name}
-                              href={link({ anio: y.year, mes: String(i + 1) })}
-                              className={`flex flex-col items-center rounded-md border bg-surface py-1 leading-tight hover:border-brand-line hover:bg-surface-active ${m.pending ? "border-line" : "border-line-soft"}`}
-                              title={`${name}: ${m.total} causas · ${m.pending} por revisar`}
-                            >
-                              <span className="text-[11px] font-medium text-fg">{name.slice(0, 3)}</span>
-                              <span className={`tabnum text-[11px] ${m.pending ? "text-warning" : "text-success"}`}>{m.pending || "✓"}</span>
-                            </Link>
-                          ) : (
-                            <span key={name} className="flex flex-col items-center rounded-md border border-transparent py-1 leading-tight text-faint">
-                              <span className="text-[11px]">{name.slice(0, 3)}</span>
-                              <span className="text-[11px]">–</span>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    }
-                    <Link href={link({ anio: y.year, mes: undefined })} className="btn-secondary btn-sm justify-center">
-                      Mostrar todo el año
+                    <Link href={link({ anio: y.year, mes: undefined })} className="self-end text-[12px] font-medium text-accent hover:underline">
+                      Mostrar todo el año →
                     </Link>
                   </div>
                 );
@@ -361,44 +342,29 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                 <span className="ml-auto text-[12px] text-muted">Todavía sin rol: se están juntando los documentos y firmas. Al ingresar la demanda pasan a su año.</span>
               </div>
               <div className="overflow-x-auto">
-                <div
-                  className="grid min-w-[760px] grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_auto] items-center gap-x-4 th-band border-b border-line px-4 py-2"
-                  role="row"
-                >
-                  {["Cliente", "Alta en el sistema", "Abogado", "Paso actual", ""].map((h, i) => (
+                <div className="grid min-w-[640px] grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-x-4 th-band border-b border-line px-4 py-2" role="row">
+                  {["Cliente", "Alta en el sistema", "Abogado", ""].map((h, i) => (
                     <span key={i} className="th" role="columnheader">
                       {h}
                     </span>
                   ))}
                 </div>
                 {prep.map((c) => (
-                  <div
-                    key={c.id}
-                    className="grid min-w-[760px] grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_auto] items-center gap-x-4 row min-h-[48px] px-4 py-2"
-                    role="row"
-                  >
-                    <div className="flex min-w-0 flex-col" role="cell">
-                      <span className="flex min-w-0 items-center gap-2">
-                        {c.internal_number && <span className="tabnum text-[11px] text-faint">N°{c.internal_number}</span>}
-                        <Link href={`/clientes/${c.id}`} className="truncate text-[13px] font-semibold text-fg hover:text-accent">
-                          {c.full_name}
-                        </Link>
-                      </span>
+                  <div key={c.id} className="grid min-w-[640px] grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-x-4 row min-h-[44px] px-4 py-1.5" role="row">
+                    <div className="flex min-w-0 items-baseline gap-2" role="cell">
+                      {c.internal_number && <span className="tabnum text-[11px] text-faint">N°{c.internal_number}</span>}
+                      <Link href={`/clientes/${c.id}`} className="truncate text-[13px] font-medium text-fg hover:text-accent">
+                        {c.full_name}
+                      </Link>
                       <span className="tabnum text-[11.5px] text-muted">{c.rut ? formatRut(c.rut) : "RUT pendiente"}</span>
                     </div>
-                    <div className="text-[12.5px] text-soft" role="cell">
+                    <div className="text-[12px] text-soft" role="cell">
                       {relativeDays(c.created_at, tz)}
                     </div>
-                    <div className="truncate text-[12.5px] text-soft" role="cell">
+                    <div className="truncate text-[12px] text-soft" role="cell">
                       {nameOf(c.lawyer_id) ?? <span className="text-faint">Sin abogado</span>}
                     </div>
-                    <div role="cell">
-                      <span className="tag">{c.current_step ?? "Preparación de documentos"}</span>
-                    </div>
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap" role="cell">
-                      <Link href={`/clientes/${c.id}`} className="btn-ghost btn-sm">
-                        Ver ficha
-                      </Link>
+                    <div className="flex items-center justify-end whitespace-nowrap" role="cell">
                       <IngresarDemanda client={{ id: c.id, full_name: c.full_name, rol: c.rol, tribunal: c.tribunal, intake_date: c.intake_date }} canEdit={canReview} />
                     </div>
                   </div>
