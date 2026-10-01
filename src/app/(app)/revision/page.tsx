@@ -5,22 +5,24 @@ import { addDaysKey, dayKey, hourIn, longToday, mondayOf, zonedToIso } from "@/l
 import { PROCEDURES, REVIEW_CADENCE, reviewCadence } from "@/lib/legal";
 import { Icon } from "@/components/icons";
 import { HelpPop } from "@/components/HelpPop";
-import { ReviewRow } from "./ReviewRow";
+import { ReviewHeader, ReviewRow } from "./ReviewRow";
 import { Filters } from "./Filters";
+import { ReviewPicker, type YearSummary } from "./ReviewPicker";
 import { WeekCalendar, type CalTask } from "./WeekCalendar";
 
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const fmtKey = (k: string) => `${Number(k.slice(8, 10))} ${MONTHS[Number(k.slice(5, 7)) - 1]}`;
-
-// Revisión de causas: todas las causas activas pasan por aquí una por una. La cola ordena primero las que
-// nunca se han revisado (más antiguas primero) y luego las que ya cumplieron su fecha de próxima revisión.
-// Cada revisión deja registrado si hubo movimiento, la nota, la tarea pendiente, quién revisó y cuándo.
 const MONTH_NAMES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+const SIN_FECHA = "sin";
+
+// Revisión de causas, organizada como el Excel del estudio: por año de ingreso y, dentro, por mes.
+// Al entrar se ve el resumen de todos los clientes por año; «Revisar» pide año y mes y muestra solo eso.
+// Cada revisión deja registrado si hubo movimiento, la nota, la tarea pendiente, quién revisó y cuándo.
 
 function Group({ title, hint, count, tone, children }: { title: string; hint?: string; count: number; tone?: "danger" | "warning" | "brand" | "success"; children: ReactNode }) {
   return (
     <section className="panel overflow-hidden">
-      <div className="panel-head !py-3">
+      <div className="panel-head !py-2.5">
         <span className="card-title">{title}</span>
         <span className={`badge ${tone ?? "neutral"} tabnum`}>{count}</span>
         {hint && <span className="ml-auto text-[12px] text-muted">{hint}</span>}
@@ -30,7 +32,7 @@ function Group({ title, hint, count, tone, children }: { title: string; hint?: s
   );
 }
 
-export default async function RevisionPage(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string }> }) {
+export default async function RevisionPage(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string }> }) {
   const sp = await props.searchParams;
   const { supabase, user, profile, tz, can } = await requirePermission("legal.view");
   const members = await getMembers(supabase);
@@ -39,9 +41,13 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
   const view = wanted === "equipo" || wanted === "mios" || lawyers.some((m) => m.id === wanted) ? wanted : "equipo";
   const proc = (PROCEDURES as readonly string[]).includes(sp.proc ?? "") ? sp.proc! : "";
   const modo = sp.modo === "calendario" ? "calendario" : "lista";
+  const anio = /^\d{4}$/.test(sp.anio ?? "") || sp.anio === SIN_FECHA ? sp.anio! : "";
+  const mes = anio && anio !== SIN_FECHA && /^([1-9]|1[0-2])$/.test(sp.mes ?? "") ? Number(sp.mes) : 0;
   const link = (patch: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    Object.entries({ ver: view !== "equipo" ? view : undefined, proc: proc || undefined, anio: sp.anio || undefined, modo: modo === "calendario" ? modo : undefined, semana: sp.semana, ...patch }).forEach(([k, v]) => v && p.set(k, v));
+    Object.entries({ ver: view !== "equipo" ? view : undefined, proc: proc || undefined, anio: anio || undefined, mes: mes ? String(mes) : undefined, modo: modo === "calendario" ? modo : undefined, semana: sp.semana, ...patch }).forEach(
+      ([k, v]) => v && p.set(k, v)
+    );
     const s = p.toString();
     return s ? `/revision?${s}` : "/revision";
   };
@@ -93,7 +99,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
     );
   }
 
-  let q = supabase.from("legal_clients").select("*").is("archived_at", null).limit(1000);
+  let q = supabase.from("legal_clients").select("*").is("archived_at", null).limit(2000);
   if (view === "mios") q = q.eq("lawyer_id", user.id);
   else if (view !== "equipo") q = q.eq("lawyer_id", view);
   if (proc) q = q.eq("procedure_type", proc);
@@ -123,21 +129,31 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
     if (t.due_at && Date.parse(t.due_at) < now && !overdueTasks.has(t.client_id)) overdueTasks.set(t.client_id, t);
   }
 
-  // Orden del estudio (como en su Excel): por año de ingreso y, dentro, por mes y número de causa.
-  // Las causas sin fecha de ingreso (en preparación) van al final, en su propio grupo.
+  // Orden del estudio (como en su Excel): año de ingreso → mes → número de causa. Sin fecha (en preparación) al final.
   const yearOf = (c: LegalClient) => (c.intake_date ? c.intake_date.slice(0, 4) : "");
   const monthOf = (c: LegalClient) => (c.intake_date ? Number(c.intake_date.slice(5, 7)) : 0);
   const numberOf = (c: LegalClient) => Number(c.internal_number) || Number.MAX_SAFE_INTEGER;
   const chrono = (a: LegalClient, b: LegalClient) =>
     (yearOf(a) || "9999").localeCompare(yearOf(b) || "9999") || monthOf(a) - monthOf(b) || numberOf(a) - numberOf(b) || a.full_name.localeCompare(b.full_name);
-  const years = Array.from(new Set(clients.map(yearOf).filter(Boolean))).sort();
-  const anio = /^\d{4}$/.test(sp.anio ?? "") || sp.anio === "sin" ? sp.anio! : "";
-  const visible = clients.filter((c) => !anio || (anio === "sin" ? !c.intake_date : yearOf(c) === anio));
-
+  const isPending = (c: LegalClient) => !c.last_review_at || !c.next_review_at || Date.parse(c.next_review_at) <= now;
   const isCritical = (c: LegalClient) => reviewCadence(c.procedure_type, doneSteps.get(c.id) ?? []).critical;
-  const queue = visible.filter((c) => !c.last_review_at || !c.next_review_at || Date.parse(c.next_review_at) <= now).sort(chrono);
-  const criticalCount = queue.filter(isCritical).length;
-  const upToDate = visible.filter((c) => c.last_review_at && c.next_review_at && Date.parse(c.next_review_at) > now).sort(chrono);
+
+  // Resumen por año (lo primero que se ve): cuántas causas, cuántas por revisar, con tareas vencidas y por mes
+  const years = Array.from(new Set(clients.map(yearOf))).sort((a, b) => (a || "9999").localeCompare(b || "9999"));
+  const summary: YearSummary[] = years.map((y) => {
+    const list = clients.filter((c) => yearOf(c) === y);
+    const months = Array.from(new Set(list.map(monthOf).filter(Boolean)))
+      .sort((a, b) => a - b)
+      .map((m) => ({ month: m, total: list.filter((c) => monthOf(c) === m).length, pending: list.filter((c) => monthOf(c) === m && isPending(c)).length }));
+    return { year: y || SIN_FECHA, total: list.length, pending: list.filter(isPending).length, overdue: list.filter((c) => overdueTasks.has(c.id)).length, critical: list.filter(isCritical).length, months };
+  });
+  const totalPending = clients.filter(isPending).length;
+  const totalOverdue = clients.filter((c) => overdueTasks.has(c.id)).length;
+
+  // Selección: un año (y opcionalmente un mes)
+  const visible = anio ? clients.filter((c) => (anio === SIN_FECHA ? !c.intake_date : yearOf(c) === anio && (!mes || monthOf(c) === mes))) : [];
+  const queue = visible.filter(isPending).sort(chrono);
+  const upToDate = visible.filter((c) => !isPending(c)).sort(chrono);
   const withOverdue = visible.filter((c) => overdueTasks.has(c.id)).sort(chrono);
 
   const nameOf = (id: string | null) => (id ? members.find((m) => m.id === id)?.full_name ?? null : null);
@@ -147,6 +163,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
   const firstName = profile.full_name.split(" ")[0];
   const canReview = can("legal.edit");
   const canTasks = can("legal.tasks");
+  const lawyerOpts = lawyers.map((m) => ({ id: m.id, name: m.full_name || m.email }));
 
   const row = (c: LegalClient, task: LegalTask | null) => (
     <ReviewRow
@@ -159,35 +176,21 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
       canReview={canReview}
       canTasks={canTasks}
       lawyerName={showLawyer ? nameOf(c.lawyer_id) ?? "Sin abogado" : null}
-      lawyers={lawyers.map((m) => ({ id: m.id, name: m.full_name || m.email }))}
+      lawyers={lawyerOpts}
       userId={user.id}
     />
   );
 
-  /** Filas agrupadas por año y mes de ingreso, con cabeceras como las hojas y los meses del Excel. */
-  const grouped = (list: LegalClient[], taskOf: (c: LegalClient) => LegalTask | null) => {
-    const out: ReactNode[] = [];
-    let lastYear: string | null = null;
+  /** Filas con cabecera de columnas y, cuando se ve el año completo, una línea por mes. */
+  const table = (list: LegalClient[], taskOf: (c: LegalClient) => LegalTask | null) => {
+    const out: ReactNode[] = [<ReviewHeader key="head" />];
     let lastMonth: number | null = null;
     for (const c of list) {
-      const y = yearOf(c);
       const m = monthOf(c);
-      if (y !== lastYear) {
-        const n = list.filter((x) => yearOf(x) === y).length;
+      if (!mes && anio !== SIN_FECHA && m !== lastMonth) {
+        const n = list.filter((x) => monthOf(x) === m).length;
         out.push(
-          <div key={`y-${y || "sin"}`} className="th-band flex items-center gap-2 border-y border-line px-5 py-2">
-            <span className="text-[13px] font-semibold text-fg">{y || "Sin fecha de ingreso"}</span>
-            <span className="badge neutral tabnum">{n}</span>
-            {!y && <span className="text-[12px] text-muted">En preparación: la fecha llega con el certificado de envío</span>}
-          </div>
-        );
-        lastYear = y;
-        lastMonth = null;
-      }
-      if (y && m !== lastMonth) {
-        const n = list.filter((x) => yearOf(x) === y && monthOf(x) === m).length;
-        out.push(
-          <div key={`m-${y}-${m}`} className="flex items-center gap-2 border-b border-line-soft bg-surface-2 px-5 py-1.5">
+          <div key={`m-${m}`} className="flex items-center gap-2 border-b border-line-soft bg-surface-2 px-4 py-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">{MONTH_NAMES[m] ?? "Mes"}</span>
             <span className="text-[11px] tabnum text-faint">{n}</span>
           </div>
@@ -198,6 +201,8 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
     }
     return out;
   };
+
+  const selectionLabel = anio === SIN_FECHA ? "Sin fecha de ingreso" : mes ? `${MONTH_NAMES[mes]} ${anio}` : anio ? `Todo ${anio}` : "";
 
   return (
     <>
@@ -212,21 +217,18 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
               {firstName ? `, ${firstName}` : ""}
             </h1>
             <span className="page-subtitle">
-              {longToday(tz)} · {queue.length === 0 ? "ninguna causa por revisar" : `${queue.length} ${queue.length === 1 ? "causa por revisar" : "causas por revisar"}`}
-              {criticalCount > 0 ? ` (${criticalCount} sin resolución)` : ""}
-              {withOverdue.length > 0 ? ` · ${withOverdue.length} con tareas vencidas` : ""}
-              {upToDate.length > 0 ? ` · ${upToDate.length} al día` : ""}
+              {longToday(tz)} · {clients.length} {clients.length === 1 ? "cliente" : "clientes"} · {totalPending === 0 ? "ninguna causa por revisar" : `${totalPending} por revisar`}
+              {totalOverdue > 0 ? ` · ${totalOverdue} con tareas vencidas` : ""}
             </span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <HelpPop label="Cómo funciona" title="Revisión de causas">
+            <span>Las causas van por año de ingreso y mes, como las hojas del Excel. Pulsa «Revisar», elige el año y el mes (o todo el año) y aparecen solo esas causas.</span>
             <span>
               La cadencia sale del estado de la causa: sin resolución de liquidación (o sin «Ejecución» en renegociación) se revisa cada {REVIEW_CADENCE.critical} días; con ella, cada {REVIEW_CADENCE.settled}. Nadie elige la fecha.
             </span>
-            <span>La cola va por año de ingreso y, dentro, por mes y número de causa, como las hojas del Excel del estudio. Con el filtro de año se trabaja una hoja a la vez. Las causas sin fecha de ingreso (en preparación) van al final.</span>
             <span>Si no pasó nada, «Sin movimiento» lo registra con un clic. Si hubo novedades, «Revisar» pide qué pasó, si avanzó de paso y qué tarea quedó resuelta o pendiente. Todo queda con tu nombre, día y hora.</span>
-            <span>Marcar un paso desde la pestaña «Causa» también cuenta como revisión con movimiento. Cada mañana hábil la campana avisa cuántas causas tocan y, al administrador, cuáles llevan el doble del plazo sin revisión.</span>
           </HelpPop>
           <div className="seg" role="group" aria-label="Vista de Revisión">
             <Link href={link({ modo: undefined, semana: undefined })} aria-current={modo === "lista" ? "true" : undefined}>
@@ -236,13 +238,14 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
               Calendario
             </Link>
           </div>
-          <Filters view={view} proc={proc} anio={anio} years={years} lawyers={lawyers.map((m) => ({ id: m.id, name: m.full_name || m.email }))} />
+          <Filters view={view} proc={proc} anio={anio} mes={mes} lawyers={lawyerOpts} />
           <Link href="/revision/historial" className="btn-secondary">
             <Icon name="history" size={14} /> Historial
           </Link>
           <Link href="/revision/tareas" className="btn-secondary">
             <Icon name="check" size={14} /> Tareas cerradas
           </Link>
+          {modo === "lista" && <ReviewPicker summary={summary} anio={anio} mes={mes} base={{ ver: view !== "equipo" ? view : "", proc }} />}
         </div>
       </div>
 
@@ -255,19 +258,72 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
           <span className="empty-title">{view === "mios" ? "No tienes causas asignadas" : "No hay causas activas"}</span>
           <span className="empty-text">Cuando haya causas en tramitación aparecerán aquí para revisarlas una por una.</span>
         </section>
+      ) : !anio ? (
+        // Portada: todos los clientes, por año, con sus meses
+        <section className="panel overflow-hidden">
+          <div className="panel-head !py-2.5">
+            <span className="card-title">Todos los clientes</span>
+            <span className="badge neutral tabnum">{clients.length}</span>
+            <span className="ml-auto text-[12px] text-muted">Elige un año y un mes con «Revisar», o muestra un año completo</span>
+          </div>
+          <div className="grid gap-px bg-line-soft md:grid-cols-2 xl:grid-cols-4">
+            {summary.map((y) => (
+              <div key={y.year} className="flex flex-col gap-3 bg-surface px-5 py-4">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[17px] font-semibold text-fg">{y.year === SIN_FECHA ? "Sin fecha" : y.year}</span>
+                  <span className="text-[12px] text-muted">
+                    {y.total} {y.total === 1 ? "causa" : "causas"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className={`tag ${y.pending ? "warn" : "success"}`}>{y.pending ? `${y.pending} por revisar` : "Al día"}</span>
+                  {y.overdue > 0 && <span className="tag danger">{y.overdue} con tarea vencida</span>}
+                </div>
+                {y.year === SIN_FECHA ? (
+                  <span className="text-[12px] text-muted">En preparación: la fecha de ingreso llega con el certificado de envío.</span>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {y.months.map((m) => (
+                      <Link key={m.month} href={link({ anio: y.year, mes: String(m.month) })} className={`row-chip ${m.pending ? "" : "opacity-60"}`} title={`${m.total} causas · ${m.pending} por revisar`}>
+                        {MONTH_NAMES[m.month].slice(0, 3)} <span className="tabnum text-faint">{m.pending}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                <Link href={link({ anio: y.year, mes: undefined })} className="btn-outline btn-sm self-start">
+                  Mostrar todo {y.year === SIN_FECHA ? "el grupo" : "el año"}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </section>
       ) : (
         <>
+          <div className="flex flex-wrap items-center gap-2 px-1">
+            <span className="text-[13.5px] font-semibold text-fg">{selectionLabel}</span>
+            <span className="text-[12.5px] text-muted">
+              · {visible.length} {visible.length === 1 ? "causa" : "causas"} · {queue.length} por revisar
+            </span>
+            {mes > 0 && (
+              <Link href={link({ mes: undefined })} className="btn-ghost btn-sm">
+                Mostrar todo el año
+              </Link>
+            )}
+            <Link href={link({ anio: undefined, mes: undefined })} className="btn-ghost btn-sm">
+              Todos los clientes
+            </Link>
+          </div>
           {withOverdue.length > 0 && (
             <Group title="Con tareas vencidas" hint="Atiende la tarea o déjala resuelta al revisar" count={withOverdue.length} tone="danger">
-              {grouped(withOverdue, (c) => overdueTasks.get(c.id) ?? null)}
+              {table(withOverdue, (c) => overdueTasks.get(c.id) ?? null)}
             </Group>
           )}
-          <Group title="Por revisar" hint="Por año y mes de ingreso, como en el Excel del estudio" count={queue.length} tone={queue.length ? "warning" : "success"}>
-            {queue.length === 0 ? <div className="px-5 py-6 text-center text-[12.5px] text-faint">Todas las causas están revisadas y al día.</div> : grouped(queue, (c) => nextTask.get(c.id) ?? null)}
+          <Group title="Por revisar" hint="En orden de número de causa" count={queue.length} tone={queue.length ? "warning" : "success"}>
+            {queue.length === 0 ? <div className="px-5 py-6 text-center text-[12.5px] text-faint">Nada pendiente en esta selección.</div> : table(queue, (c) => nextTask.get(c.id) ?? null)}
           </Group>
           {upToDate.length > 0 && (
-            <Group title="Al día" hint="Por año y mes de ingreso" count={upToDate.length} tone="success">
-              {grouped(upToDate, (c) => nextTask.get(c.id) ?? null)}
+            <Group title="Al día" count={upToDate.length} tone="success">
+              {table(upToDate, (c) => nextTask.get(c.id) ?? null)}
             </Group>
           )}
         </>

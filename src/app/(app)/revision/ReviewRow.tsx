@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { TaskClose } from "@/components/TaskClose";
 import { dateTime, dueLabel, initials, relativeDays } from "@/lib/format";
-import { TASK_KINDS, procedureTone, reviewCadence, stepsFor } from "@/lib/legal";
+import { TASK_KINDS, reviewCadence, stepsFor } from "@/lib/legal";
 import type { LegalClient, LegalReview, LegalTask } from "@/lib/data";
 import { ReviewDialog } from "./ReviewDialog";
 import { quickReview } from "./actions";
@@ -25,19 +25,25 @@ type Props = {
   userId: string;
 };
 
-/** Bloque con su rótulo: así se distingue de un vistazo qué es la última revisión, cuándo toca la próxima y qué tarea hay. */
-function Block({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
+// Una sola rejilla para cabecera y filas: así cada dato queda en su columna y la lista se lee como una tabla.
+const GRID = "grid grid-cols-[minmax(0,2.1fr)_minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_auto] items-center gap-x-4";
+
+/** Cabecera de columnas de la cola (una por lista). */
+export function ReviewHeader() {
   return (
-    <div className={`flex flex-col gap-1 border-line-soft lg:border-l lg:pl-4 ${className}`}>
-      <span className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-faint">{label}</span>
-      {children}
+    <div className={`${GRID} th-band border-b border-line px-4 py-2`} role="row">
+      {["Causa", "Última revisión", "Próxima revisión", "Tarea pendiente", ""].map((h, i) => (
+        <span key={i} className="th" role="columnheader">
+          {h}
+        </span>
+      ))}
     </div>
   );
 }
 
 /**
- * Fila de la cola de revisión, en bloques rotulados: la causa · última revisión (quién y cuándo) · próxima
- * revisión · tarea pendiente · acciones («Sin movimiento» en un clic o «Revisar» con el diálogo completo).
+ * Fila de la cola de revisión: la causa, quién la revisó por última vez y cuándo, cuándo vuelve a tocar, la tarea
+ * pendiente y dos salidas: «Sin movimiento» (un clic) o «Revisar» (el diálogo completo).
  */
 export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, canTasks, lawyerName, lawyers, userId }: Props) {
   const router = useRouter();
@@ -60,86 +66,78 @@ export function ReviewRow({ client: c, task, review, doneSteps, tz, canReview, c
     });
 
   return (
-    <div className="row flex flex-wrap items-center gap-x-4 gap-y-3 py-3" onClick={() => router.push(href)} role="link" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && router.push(href)}>
-      {/* La causa */}
-      <div className="flex min-w-[230px] flex-1 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[13.5px] font-semibold">{c.full_name}</span>
-          {c.procedure_type && <span className={`tag ${procedureTone(c.procedure_type)}`}>{c.procedure_type}</span>}
+    <div className={`${GRID} row min-h-[52px] px-4 py-2`} role="row" onClick={() => router.push(href)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && router.push(href)}>
+      {/* Causa */}
+      <div className="flex min-w-0 flex-col gap-0.5" role="cell">
+        <span className="flex min-w-0 items-center gap-2">
+          {c.internal_number && <span className="tabnum text-[11px] text-faint">N°{c.internal_number}</span>}
+          <span className="truncate text-[13px] font-semibold text-fg">{c.full_name}</span>
+          {c.procedure_type === "Renegociación" && <span className="tag brand">Renegociación</span>}
+        </span>
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-[11.5px] text-muted">
+          {c.rol ? <span className="tabnum text-soft">{c.rol}</span> : <span className="text-faint">Sin rol</span>}
+          {step && <span className="truncate">· {step}</span>}
           {cadence.critical && c.procedure_type && (
-            <span className="tag warn" title={`${cadence.reason}: se revisa cada ${cadence.days} días`}>
-              {cadence.label}
+            <span className="text-warning" title={`${cadence.reason}: se revisa cada ${cadence.days} días`}>
+              · {cadence.label}
             </span>
           )}
-        </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12.5px]">
-          {c.rol ? <span className="tabnum font-medium text-fg">{c.rol}</span> : <span className="text-faint">Sin rol aún</span>}
-          {step && <span className="text-muted">Paso: {step}</span>}
-          {lawyerName && <span className="text-muted">· {lawyerName}</span>}
-        </div>
+          {lawyerName && <span className="truncate">· {lawyerName}</span>}
+        </span>
       </div>
 
-      {/* Última revisión: quién y cuándo */}
-      <Block label="Última revisión" className="min-w-[210px]">
+      {/* Última revisión */}
+      <div className="flex min-w-0 items-center gap-2" role="cell">
         {review ? (
-          <span className="flex items-center gap-2">
-            <span className="avatar solid h-7 w-7 shrink-0 text-[10.5px]" aria-hidden>
+          <>
+            <span className="avatar solid h-6 w-6 shrink-0 text-[9.5px]" aria-hidden>
               {initials(review.reviewer_name ?? "") || "?"}
             </span>
             <span className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate text-[13px] font-semibold text-fg">{review.reviewer_name ?? "Sin nombre"}</span>
-              <span className="text-[12px] text-muted">
-                {relativeDays(review.reviewed_at, tz)} · {dateTime(review.reviewed_at, tz)}
+              <span className="truncate text-[12.5px] font-medium text-fg">{review.reviewer_name ?? "Sin nombre"}</span>
+              <span className="truncate text-[11.5px] text-muted">
+                {relativeDays(review.reviewed_at, tz)} · {dateTime(review.reviewed_at, tz)} · {review.had_movement ? "con movimiento" : "sin movimiento"}
               </span>
-              <span className={`mt-0.5 self-start tag ${review.had_movement ? "brand" : ""}`}>{review.had_movement ? "Con movimiento" : "Sin movimiento"}</span>
             </span>
-          </span>
+          </>
         ) : (
-          <span className="tag warn self-start">Nunca revisada</span>
+          <span className="text-[12.5px] text-faint">Nunca revisada</span>
         )}
-      </Block>
+      </div>
 
-      {/* Próxima revisión: cuándo vuelve a tocar y por qué */}
-      <Block label="Próxima revisión" className="min-w-[150px]">
+      {/* Próxima revisión */}
+      <div className="flex min-w-0 flex-col gap-0.5" role="cell">
         {nextDue ? (
-          <>
-            <span className={`tag tabnum self-start ${nextDue.overdue ? "danger" : nextDue.today ? "brand" : ""}`}>{nextDue.overdue ? `Atrasada · ${nextDue.text}` : nextDue.text}</span>
-            <span className="text-[11.5px] text-muted">
-              Cada {cadence.days} días · {cadence.reason}
-            </span>
-          </>
+          <span className={`tag tabnum self-start ${nextDue.overdue ? "danger" : nextDue.today ? "brand" : ""}`}>{nextDue.text}</span>
         ) : (
-          <>
-            <span className="tag warn self-start">Ahora</span>
-            <span className="text-[11.5px] text-muted">Aún no tiene fecha</span>
-          </>
+          <span className="tag warn self-start">Ahora</span>
         )}
-      </Block>
+        <span className="text-[11px] text-faint">Cada {cadence.days} días</span>
+      </div>
 
-      {/* Tarea pendiente: qué hay que hacer y cuándo vence */}
-      <Block label="Tarea pendiente" className="min-w-[210px] max-w-[320px]">
+      {/* Tarea pendiente */}
+      <div className="flex min-w-0 flex-col gap-0.5" role="cell">
         {task ? (
           <>
-            <span className="truncate text-[12.5px] font-medium text-fg" title={task.title}>
+            <span className="truncate text-[12.5px] text-fg" title={task.title}>
               {task.title}
             </span>
-            <span className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted">
+            <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
               <span>{TASK_KINDS[task.kind] ?? task.kind}</span>
-              {due ? <span className={`tag tabnum ${due.overdue ? "danger" : due.today ? "brand" : ""}`}>{due.overdue ? `Vencida · ${due.text}` : `Vence ${due.text}`}</span> : <span className="tag warn">Sin fecha</span>}
+              {due ? <span className={`tag tabnum ${due.overdue ? "danger" : due.today ? "brand" : ""}`}>{due.text}</span> : <span className="tag warn">Sin fecha</span>}
             </span>
           </>
         ) : (
-          <span className="text-[12.5px] text-faint">Ninguna</span>
+          <span className="text-[12px] text-faint">Ninguna</span>
         )}
-      </Block>
+      </div>
 
-      {/* Cerrar la tarea: los botones quedan aquí y el recuadro de resultado ocupa toda la fila */}
-      {task && canTasks && <TaskClose task={task} clientId={c.id} layout="row" allowCancel={false} />}
-
-      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+      {/* Acciones */}
+      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap" role="cell" onClick={(e) => e.stopPropagation()}>
+        {task && canTasks && <TaskClose task={task} clientId={c.id} layout="row" allowCancel={false} />}
         {canReview ? (
           <>
-            <button className="btn-secondary btn-sm" disabled={pending} onClick={noMovement} title={`Registrar que no hubo movimiento; vuelve a la cola en ${cadence.days} días`}>
+            <button className="btn-ghost btn-sm" disabled={pending} onClick={noMovement} title={`Registrar que no hubo movimiento; vuelve a la cola en ${cadence.days} días`}>
               <Icon name="check" size={13} /> Sin movimiento
             </button>
             <button className="btn-primary btn-sm" disabled={pending} onClick={() => setOpen(true)}>
