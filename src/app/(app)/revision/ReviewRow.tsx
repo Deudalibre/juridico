@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import { toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { TaskClose } from "@/components/TaskClose";
-import { dateTime, dueLabel, initials, relativeDays } from "@/lib/format";
+import { dateTime, dueLabel, initials, relativeDays, shortDate } from "@/lib/format";
 import { TASK_KINDS, reviewCadence, stepsFor } from "@/lib/legal";
 import type { LegalClient, LegalReview, LegalTask } from "@/lib/data";
 import { ReviewDialog } from "./ReviewDialog";
@@ -28,13 +28,13 @@ type Props = {
 };
 
 // Una sola rejilla para cabecera y filas: así cada dato queda en su columna y la lista se lee como una tabla.
-const GRID = "grid grid-cols-[32px_minmax(0,2.1fr)_minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_auto] items-center gap-x-4";
+const GRID = "grid grid-cols-[32px_minmax(0,2.4fr)_minmax(0,1.5fr)_minmax(0,1.6fr)_auto] items-center gap-x-4";
 
 /** Cabecera de columnas de la cola (una por lista). */
 export function ReviewHeader() {
   return (
     <div className={`${GRID} th-band border-b border-line px-4 py-2`} role="row">
-      {["N°", "Causa", "Última revisión", "Próxima revisión", "Tarea pendiente", ""].map((h, i) => (
+      {["N°", "Causa", "Última revisión", "Tarea pendiente", ""].map((h, i) => (
         <span key={i} className="th" role="columnheader">
           {h}
         </span>
@@ -56,6 +56,16 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
   const step = c.current_step ?? stepsFor(c.procedure_type)[0] ?? null;
   const nextDue = c.next_review_at ? dueLabel(c.next_review_at, tz) : null;
   const cadence = reviewCadence(c.procedure_type, doneSteps);
+  // La fecha de la próxima revisión no se muestra en la fila (se confundía con la última y con la tarea): queda en el
+  // título de la fila, y solo cuando toca aparece una alerta junto al nombre.
+  const alert = !review
+    ? { text: "Primera revisión", tone: "warn" }
+    : nextDue?.overdue
+      ? { text: `Toca revisar · desde el ${shortDate(c.next_review_at!, tz)}`, tone: "danger" }
+      : nextDue?.today
+        ? { text: "Toca revisar · hoy", tone: "warn" }
+        : null;
+  const rowTitle = `Próxima revisión: ${c.next_review_at ? dateTime(c.next_review_at, tz) : "pendiente"} · cada ${cadence.days} días`;
 
   const noMovement = () =>
     start(async () => {
@@ -68,7 +78,7 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
     });
 
   return (
-    <div className={`${GRID} row min-h-[52px] px-4 py-2`} role="row" onClick={() => router.push(href)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && router.push(href)}>
+    <div className={`${GRID} row min-h-[52px] px-4 py-2`} role="row" title={rowTitle} onClick={() => router.push(href)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && router.push(href)}>
       {/* N° dentro del mes */}
       <span className="tabnum text-[12px] font-semibold text-muted" role="cell" title={c.internal_number ? `Causa N° ${c.internal_number}` : undefined}>
         {seq ?? "—"}
@@ -79,6 +89,7 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[13px] font-semibold text-fg">{c.full_name}</span>
           {c.procedure_type === "Renegociación" && <span className="tag brand">Renegociación</span>}
+          {alert && <span className={`tag ${alert.tone} shrink-0`}>{alert.text}</span>}
         </span>
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-[11.5px] text-muted">
           {c.rol ? <span className="tabnum text-soft">{c.rol}</span> : <span className="text-faint">Sin rol</span>}
@@ -109,16 +120,6 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
         ) : (
           <span className="text-[12.5px] text-faint">Nunca revisada</span>
         )}
-      </div>
-
-      {/* Próxima revisión */}
-      <div className="flex min-w-0 flex-col gap-0.5" role="cell">
-        {nextDue ? (
-          <span className={`tag tabnum self-start ${nextDue.overdue ? "danger" : nextDue.today ? "brand" : ""}`}>{nextDue.text}</span>
-        ) : (
-          <span className="text-[12.5px] font-medium text-warning">Ahora</span>
-        )}
-        <span className="text-[11px] text-faint">Cada {cadence.days} días</span>
       </div>
 
       {/* Tarea pendiente */}
