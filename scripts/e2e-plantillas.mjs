@@ -114,8 +114,10 @@ try {
   const list = await page(jur, "/plantillas");
   ok("Lista de plantillas: muestra la plantilla con su procedimiento", list.status === 200 && /JUR Plantilla prueba/.test(list.text) && /Liquidación voluntaria/.test(list.text), String(list.status));
   const editor = await page(jur, `/plantillas/${id}`);
-  ok("Editor: cabecera, párrafos del Word y panel de variables", editor.status === 200 && /Editor de plantilla/.test(editor.text) && /DECLARACIÓN JURADA/.test(editor.text) && /9 párrafos/.test(editor.text) && /Variables/.test(editor.text), String(editor.status));
-  ok("Editor: la variable {rut} escrita en Word aparece como marcador", /\{rut\}/.test(editor.text));
+  // El documento lo dibuja el navegador (docx-preview) a partir del .docx: el HTML del servidor trae la cabecera,
+  // el conteo de párrafos y el panel de variables; el texto del Word ya no viene en el HTML
+  ok("Editor: cabecera, párrafos del Word y panel de variables", editor.status === 200 && /Editor de plantilla/.test(editor.text) && /9 párrafos/.test(editor.text) && /Variables/.test(editor.text), String(editor.status));
+  ok("Editor: la variable {rut} escrita en Word aparece en el panel de variables", /\{rut\}/.test(editor.html));
   // 4. Catálogo de variables del estudio (migración 0022)
   const cat = await jur.c.from("legal_variables").insert({ name: "jur_domicilio", label: "JUR Domicilio", type: "texto", source: null, hint: "Calle y número" }).select().single();
   ok("Catálogo: jurídico crea una variable del estudio", !cat.error && cat.data?.name === "jur_domicilio", cat.error?.message);

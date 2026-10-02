@@ -8,7 +8,8 @@ import { FICHA_FIELDS, VAR_RE, VAR_TYPES, fieldLabel, slugName, type CatalogVari
 import { Field, toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { DownloadButton } from "../DownloadButton";
-import { deleteTemplate, markVariable, previewValues, removeVariable, saveVariable, updateTemplate } from "../actions";
+import { deleteTemplate, markVariable, previewValues, removeVariable, saveVariable, templateUrl, updateTemplate } from "../actions";
+import { DocxView, type Hit } from "./DocxView";
 
 type Props = {
   template: LegalTemplate;
@@ -56,6 +57,8 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
   const [values, setValues] = useState<Record<string, string>>({});
   const [meta, setMeta] = useState({ name: template.name, description: template.description ?? "", procedure: template.procedure_type ?? "" });
   const [armedDelete, setArmedDelete] = useState(false);
+  // Vista del Word tal cual (docx-preview); si el archivo no se puede dibujar, se vuelve al dibujo propio
+  const [wordView, setWordView] = useState(true);
   const docRef = useRef<HTMLDivElement | null>(null);
   const uses = useMemo(() => countUses(doc), [doc]);
   const byName = useMemo(() => new Map(variables.map((v) => [v.name, v])), [variables]);
@@ -113,11 +116,25 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
     const box = docRef.current?.getBoundingClientRect();
     const x = e.clientX - (box?.left ?? 0);
     const y = e.clientY - (box?.top ?? 0) + (docRef.current?.scrollTop ?? 0);
-    const name = slugName(text);
+    pickSelection({ p: a.p, start, end, text, x, y });
+  };
+
+  /** Abre el popover «Convertir en variable» para un tramo ya ubicado en el modelo (viene del Word o del dibujo propio). */
+  const pickSelection = (hit: Hit) => {
+    const name = slugName(hit.text);
     const field = FICHA_FIELDS.find((f) => f.key === name);
-    setForm({ name, label: text.slice(0, 120), type: field?.type ?? "texto", source: field?.key ?? "" });
+    setForm({ name, label: hit.text.slice(0, 120), type: field?.type ?? "texto", source: field?.key ?? "" });
     setPick(byName.has(name) ? name : "__new");
-    setSel({ p: a.p, start, end, text, x, y });
+    setSel(hit);
+  };
+
+  /** Ficha de un marcador en la vista del Word: etiqueta y valor (modo «datos») según la variable */
+  const chipFor = (name: string) => {
+    const v = byName.get(name);
+    const src = v?.source ?? null;
+    const value = mode === "datos" && clientId ? (src ? values[src] || "" : "") : "";
+    const title = v ? `${v.label} · ${VAR_TYPES[v.type]} · ${src ? `de la ficha: ${fieldLabel(src)}` : "se pide al generar"}` : `{${name}}: sin definir`;
+    return { text: value || `[${v?.label ?? name}]`, tone: (!v ? "undefined" : mode === "datos" && clientId && !value ? "missing" : "ok") as "ok" | "missing" | "undefined", title };
   };
 
   const mark = () => {
@@ -341,10 +358,30 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
           {docError ? (
             <div className="px-4 py-6 text-center text-[13px] text-danger">No se pudo leer el Word: {docError}</div>
           ) : (
-            <div ref={docRef} className="relative max-h-[calc(100vh-260px)] overflow-auto bg-[color:var(--band)] p-4 sm:p-6" onMouseUp={onMouseUp}>
-              <div className="mx-auto max-w-[820px] rounded-md border border-line bg-surface px-8 py-10 font-serif text-[14px] leading-[1.7] text-fg shadow-sm sm:px-14 sm:py-12">
-                {doc.blocks.length ? renderBlocks(doc.blocks) : <p className="text-center text-muted">El documento está vacío.</p>}
-              </div>
+            <div ref={docRef} className={`relative max-h-[calc(100vh-260px)] overflow-auto bg-[color:var(--band)] ${wordView ? "" : "p-4 sm:p-6"}`} onMouseUp={wordView ? undefined : onMouseUp}>
+              {wordView ? (
+                <DocxView
+                  version={version}
+                  doc={doc}
+                  mode={mode}
+                  chip={chipFor}
+                  chipKey={`${clientId}|${variables.map((v) => `${v.name}:${v.label}:${v.source ?? ""}`).join(",")}|${Object.keys(values).length}`}
+                  canSelect={canEdit}
+                  getUrl={() => templateUrl(template.id)}
+                  frameRef={docRef}
+                  onPick={pickSelection}
+                  onClear={() => setSel(null)}
+                  onNotice={(m, err) => toast(m, err)}
+                  onFallback={(reason) => {
+                    toast(`No se pudo dibujar el Word tal cual (${reason}); se muestra el texto.`, true);
+                    setWordView(false);
+                  }}
+                />
+              ) : (
+                <div className="mx-auto max-w-[820px] rounded-md border border-line bg-surface px-8 py-10 font-serif text-[14px] leading-[1.7] text-fg shadow-sm sm:px-14 sm:py-12">
+                  {doc.blocks.length ? renderBlocks(doc.blocks) : <p className="text-center text-muted">El documento está vacío.</p>}
+                </div>
+              )}
               {sel && (
                 <div
                   className="panel absolute z-30 w-[320px] p-3 shadow-lg"
