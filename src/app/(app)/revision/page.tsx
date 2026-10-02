@@ -117,10 +117,15 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
   let tasks: LegalTask[] = [];
   const lastReview = new Map<string, LegalReview>();
   const doneSteps = new Map<string, string[]>(); // pasos hechos por causa: el diálogo ofrece solo los que faltan
+  // Las revisiones solo hacen falta para las filas que se van a mostrar (año/mes elegido): la portada no las necesita
+  // y así no se traen hasta 3000 filas de toda la cartera en cada carga.
+  const shownIds = anio ? clients.filter((c) => c.intake_date?.slice(0, 4) === anio && (!mes || Number(c.intake_date.slice(5, 7)) === mes)).map((c) => c.id) : [];
   if (ids.length > 0) {
     const [t, r, st] = await Promise.all([
       supabase.from("legal_tasks").select("*").in("client_id", ids).eq("status", "pendiente").order("due_at", { ascending: true, nullsFirst: false }),
-      supabase.from("legal_reviews").select("*").in("client_id", ids).order("reviewed_at", { ascending: false }).limit(3000),
+      shownIds.length > 0
+        ? supabase.from("legal_reviews").select("*").in("client_id", shownIds).order("reviewed_at", { ascending: false }).limit(3000)
+        : Promise.resolve({ data: [] as LegalReview[] }),
       supabase.from("legal_case_steps").select("client_id, step").in("client_id", ids),
     ]);
     tasks = (t.data ?? []) as LegalTask[];

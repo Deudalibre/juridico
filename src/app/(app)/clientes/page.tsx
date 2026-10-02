@@ -10,7 +10,9 @@ import { FilterMenu } from "./ListControls";
 
 // Clientes en tramitación (tabla legal_clients; el vínculo con el lead comercial es lead_id).
 // Misma estructura que «Todos los leads» en el CRM: cabecera con icono, buscador y alta; tabla con acciones al final.
-type SP = { q?: string; estado?: string; proc?: string; abogado?: string; paso?: string; desde?: string; hasta?: string };
+type SP = { q?: string; estado?: string; proc?: string; abogado?: string; paso?: string; desde?: string; hasta?: string; pagina?: string };
+// Filas por página: con toda la cartera de una vez la respuesta pesaba 1,3 MB (244 filas con su selector de abogado)
+const PAGE = 50;
 const isDate = (s?: string) => /^\d{4}-\d{2}-\d{2}$/.test(s ?? "");
 
 export default async function ClientesPage(props: { searchParams: Promise<SP> }) {
@@ -73,6 +75,18 @@ export default async function ClientesPage(props: { searchParams: Promise<SP> })
     for (const t of (pendingTasks.data ?? []) as LegalTask[]) if (shown.has(t.client_id) && !nextTasks[t.client_id]) nextTasks[t.client_id] = t;
   }
   const keep = sp.q ? `&q=${encodeURIComponent(sp.q)}` : "";
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE));
+  const page = Math.min(pages, Math.max(1, Number(sp.pagina) || 1));
+  const shown = rows.slice((page - 1) * PAGE, page * PAGE);
+  const pageHref = (n: number) => {
+    const u = new URLSearchParams();
+    if (closed) u.set("estado", "cerradas");
+    if (sp.q) u.set("q", sp.q);
+    for (const [k, v] of Object.entries(filters)) if (v) u.set(k, v);
+    if (n > 1) u.set("pagina", String(n));
+    const qs = u.toString();
+    return qs ? `/clientes?${qs}` : "/clientes";
+  };
 
   return (
     <>
@@ -132,7 +146,26 @@ export default async function ClientesPage(props: { searchParams: Promise<SP> })
           </div>
         ) : (
           <div className="scroll-x">
-            <ClientsTable rows={rows} members={members} nextTasks={nextTasks} canAssign={can("legal.assign")} closed={closed} tz={tz} />
+            <ClientsTable rows={shown} members={members} nextTasks={nextTasks} canAssign={can("legal.assign")} closed={closed} tz={tz} />
+          </div>
+        )}
+        {pages > 1 && (
+          <div className="flex items-center justify-between border-t border-line px-4 py-2 text-[12.5px] text-muted">
+            <span>
+              Página {page} de {pages} · {rows.length} causas · {(page - 1) * PAGE + 1}–{Math.min(page * PAGE, rows.length)}
+            </span>
+            <div className="flex gap-2">
+              {page > 1 && (
+                <Link href={pageHref(page - 1)} className="btn-outline">
+                  ← Anterior
+                </Link>
+              )}
+              {page < pages && (
+                <Link href={pageHref(page + 1)} className="btn-outline">
+                  Siguiente →
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </section>
