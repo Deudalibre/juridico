@@ -18,11 +18,9 @@ const nextConfig = {
   // Cache Components (Next 16): cáscara estática prerenderizada + streaming de lo dinámico, «use cache» y
   // conservación del estado de las pantallas al navegar (Activity). Los layouts/páginas ya no llevan force-dynamic.
   cacheComponents: true,
-  // React Compiler: memoriza los componentes del cliente solo (tablas largas, editor de plantillas)
-  reactCompiler: true,
+  // Sin React Compiler: probado el 2026-10-02 (versión Rust de Turbopack y plugin Babel): memorizaba de más y un
+  // formulario con campos controlados (catálogo de variables) dejaba de actualizar su estado. La ganancia era marginal.
   experimental: {
-    // Versión nativa (Rust) del compilador dentro de Turbopack: sin babel-plugin
-    turbopackRustReactCompiler: true,
     // Navegación instantánea entre pantallas ya visitadas y precarga al pasar el mouse (igual que el CRM)
     staleTimes: { dynamic: 30 },
     dynamicOnHover: true,

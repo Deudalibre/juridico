@@ -4,13 +4,22 @@ import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } f
 import { useRouter } from "next/navigation";
 import type { Block, DocModel, Para } from "@/lib/docx";
 import { PROCEDURES, procedureTone } from "@/lib/legal";
-import { FICHA_FIELDS, VAR_RE, VAR_TYPES, fieldLabel, slugName, type LegalTemplate, type TemplateVariable, type VarType } from "@/lib/templates";
+import { FICHA_FIELDS, VAR_RE, VAR_TYPES, fieldLabel, slugName, type CatalogVariable, type LegalTemplate, type TemplateVariable, type VarType } from "@/lib/templates";
 import { Field, toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { DownloadButton } from "../DownloadButton";
 import { deleteTemplate, markVariable, previewValues, removeVariable, saveVariable, updateTemplate } from "../actions";
 
-type Props = { template: LegalTemplate; doc: DocModel; docError: string | null; clients: { id: string; full_name: string }[]; canEdit: boolean; canManage: boolean };
+type Props = {
+  template: LegalTemplate;
+  doc: DocModel;
+  docError: string | null;
+  clients: { id: string; full_name: string }[];
+  /** Catálogo de variables del estudio: se ofrecen al marcar sin volver a definirlas */
+  catalog: CatalogVariable[];
+  canEdit: boolean;
+  canManage: boolean;
+};
 type Selection = { p: number; start: number; end: number; text: string; x: number; y: number };
 type VarForm = { name: string; label: string; type: VarType; source: string };
 
@@ -30,7 +39,7 @@ function countUses(doc: DocModel) {
   return counts;
 }
 
-export function TemplateEditor({ template, doc: initialDoc, docError, clients, canEdit, canManage }: Props) {
+export function TemplateEditor({ template, doc: initialDoc, docError, clients, catalog, canEdit, canManage }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [doc, setDoc] = useState(initialDoc);
@@ -113,9 +122,21 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
 
   const mark = () => {
     if (!sel) return;
-    const name = pick === "__new" ? form.name.trim() : pick;
+    const fromCatalog = pick.startsWith("cat:") ? catalog.find((c) => c.name === pick.slice(4)) : undefined;
+    const name = pick === "__new" ? form.name.trim() : fromCatalog ? fromCatalog.name : pick;
     start(async () => {
-      const r = await markVariable(template.id, { p: sel.p, start: sel.start, end: sel.end, name, create: pick === "__new" ? { label: form.label, type: form.type, source: form.source || null } : undefined });
+      const r = await markVariable(template.id, {
+        p: sel.p,
+        start: sel.start,
+        end: sel.end,
+        name,
+        create:
+          pick === "__new"
+            ? { label: form.label, type: form.type, source: form.source || null }
+            : fromCatalog
+              ? { label: fromCatalog.label, type: fromCatalog.type, source: fromCatalog.source }
+              : undefined,
+      });
       if (apply(r, `Marcado como {${name}}`)) {
         setSel(null);
         window.getSelection()?.removeAllRanges();
@@ -338,11 +359,26 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
                   <div className="flex flex-col gap-2">
                     <select className="input" value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Variable">
                       <option value="__new">Nueva variable…</option>
-                      {variables.map((v) => (
-                        <option key={v.name} value={v.name}>
-                          {`{${v.name}}`} · {v.label}
-                        </option>
-                      ))}
+                      {variables.length > 0 && (
+                        <optgroup label="En esta plantilla">
+                          {variables.map((v) => (
+                            <option key={v.name} value={v.name}>
+                              {`{${v.name}}`} · {v.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {catalog.some((c) => !variables.some((v) => v.name === c.name)) && (
+                        <optgroup label="Catálogo del estudio">
+                          {catalog
+                            .filter((c) => !variables.some((v) => v.name === c.name))
+                            .map((c) => (
+                              <option key={c.name} value={`cat:${c.name}`}>
+                                {`{${c.name}}`} · {c.label}
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
                     </select>
                     {pick === "__new" && (
                       <>

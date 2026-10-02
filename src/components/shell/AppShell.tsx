@@ -80,6 +80,14 @@ const SECTIONS: {
     ],
   },
   {
+    match: (p) => starts(p, "/plantillas"),
+    title: "Plantillas",
+    items: [
+      { href: "/plantillas", label: "Modelos Word", icon: "folder", group: "Plantillas", exact: true },
+      { href: "/plantillas/variables", label: "Variables del estudio", icon: "tag", group: "Plantillas" },
+    ],
+  },
+  {
     match: (p) => starts(p, "/clientes"),
     title: "Clientes",
     items: [
@@ -122,6 +130,7 @@ const CRUMBS: [RegExp, string[]][] = [
   [/^\/clientes\/nuevo/, ["Clientes", "Nuevo cliente"]],
   [/^\/clientes\/.+/, ["Clientes", "Ficha del cliente"]],
   [/^\/clientes/, ["Clientes"]],
+  [/^\/plantillas\/variables/, ["Plantillas", "Variables del estudio"]],
   [/^\/plantillas\/.+/, ["Plantillas", "Editor de plantilla"]],
   [/^\/plantillas/, ["Plantillas"]],
   [/^\/documentos/, ["Documentos"]],
