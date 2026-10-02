@@ -15,6 +15,14 @@ el archivo: al subirlo se detectan y aparecen en el panel de variables.
 - Si escribes el marcador a mano en Word, hazlo de corrido, sin cambiar de formato a mitad de la llave.
 - El formato del texto (negrita, tamaño, alineación, tablas) se conserva: solo cambia el texto marcado.
 
+## Catálogo de variables del estudio
+
+En Jurídico → Plantillas → **Variables del estudio** se define una vez cada dato que cambia por cliente y no está
+en la ficha (domicilio, comuna, estado civil, ingresos…): nombre del marcador, etiqueta, tipo y de dónde sale.
+Sirve para todos los Word: al subir una plantilla, los marcadores que coinciden con el catálogo se reconocen con su
+definición, y en el editor aparecen listos para marcar sin volver a definirlos. Las plantillas conservan su propia
+copia de cada variable, así que quitar una del catálogo no rompe nada.
+
 ## De dónde sale el valor
 
 Cada variable tiene una **fuente**: un dato de la ficha del cliente (nombre completo, RUT, teléfono, email,

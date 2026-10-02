@@ -116,6 +116,19 @@ try {
   const editor = await page(jur, `/plantillas/${id}`);
   ok("Editor: cabecera, párrafos del Word y panel de variables", editor.status === 200 && /Editor de plantilla/.test(editor.text) && /DECLARACIÓN JURADA/.test(editor.text) && /9 párrafos/.test(editor.text) && /Variables/.test(editor.text), String(editor.status));
   ok("Editor: la variable {rut} escrita en Word aparece como marcador", /\{rut\}/.test(editor.text));
+  // 4. Catálogo de variables del estudio (migración 0022)
+  const cat = await jur.c.from("legal_variables").insert({ name: "jur_domicilio", label: "JUR Domicilio", type: "texto", source: null, hint: "Calle y número" }).select().single();
+  ok("Catálogo: jurídico crea una variable del estudio", !cat.error && cat.data?.name === "jur_domicilio", cat.error?.message);
+  const catEje = await eje.c.from("legal_variables").select("name").eq("name", "jur_domicilio");
+  ok("Un ejecutivo no ve el catálogo", !catEje.error && (catEje.data ?? []).length === 0);
+  const catPage = await page(jur, "/plantillas/variables");
+  ok("Pantalla «Variables del estudio»: la variable, su pista y las automáticas de la ficha", catPage.status === 200 && /jur_domicilio/.test(catPage.text) && /Calle y número/.test(catPage.text) && /nombre_completo/.test(catPage.text), String(catPage.status));
+  const editor2 = await page(jur, `/plantillas/${id}`);
+  ok("Editor: recibe el catálogo para ofrecerlo al marcar", editor2.status === 200 && /jur_domicilio/.test(editor2.html));
+  const auditCat = sql(`select action from audit_log where entity = 'variable' and entity_id = 'jur_domicilio'`);
+  ok("Auditoría: variable.creada", auditCat.some((x) => x.action === "variable.creada"), JSON.stringify(auditCat));
+  const delCat = await jur.c.from("legal_variables").delete().eq("name", "jur_domicilio").select();
+  ok("Jurídico no quita variables del catálogo (solo documents.manage)", !delCat.error && (delCat.data ?? []).length === 0);
   const ejeList = await page(eje, "/plantillas");
   ok("Un ejecutivo no entra a Plantillas", ejeList.status === 307 || /Sin acceso/.test(ejeList.text), String(ejeList.status));
   const bad = await page(jur, `/plantillas/${crypto.randomUUID()}`);
@@ -127,6 +140,7 @@ try {
   try {
     // Cada versión del Word es un archivo (v1.docx, v2.docx…): se vacía la carpeta de las plantillas de prueba
     // y las carpetas huérfanas (subidas sin fila, como la del ejecutivo rechazado o la del .pdf)
+    sql("delete from legal_variables where name like 'jur_%'");
     const keep = new Set(sql(`select id::text as id from legal_templates where name not like 'JUR %'`).map((r) => r.id));
     if (adm) {
       const { data } = await adm.c.storage.from("legal-templates").list("", { limit: 200 });

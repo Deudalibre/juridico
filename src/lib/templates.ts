@@ -115,3 +115,6 @@ export function normalizeVariable(input: Partial<TemplateVariable>): { ok: true;
   const source = input.source && FICHA_FIELDS.some((f) => f.key === input.source) ? input.source : null;
   return { ok: true, v: { name, label, type, source } };
 }
+
+/** Variable del catálogo del estudio (tabla legal_variables): se define una vez y se reutiliza en todas las plantillas. */
+export type CatalogVariable = TemplateVariable & { hint: string | null; position: number };

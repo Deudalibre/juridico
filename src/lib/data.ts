@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { cacheLife } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, readSessionUser, type SessionUser } from "./supabase/server";
 import type { Permission } from "./permissions";
 import type { Profile } from "./types";

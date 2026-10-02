@@ -17,14 +17,26 @@ async function download(supabase: Awaited<ReturnType<typeof getContext>>["supaba
   return Buffer.from(await data.arrayBuffer());
 }
 
-/** Variables detectadas en el documento que aún no están en la lista (p. ej. escritas a mano en Word). */
-function withDetected(existing: TemplateVariable[], doc: DocModel): TemplateVariable[] {
+/** Catálogo de variables del estudio (definidas una vez, reutilizadas en todas las plantillas). */
+async function loadCatalog(supabase: Awaited<ReturnType<typeof getContext>>["supabase"]): Promise<TemplateVariable[]> {
+  const { data } = await supabase.from("legal_variables").select("name, label, type, source");
+  return (data ?? []) as TemplateVariable[];
+}
+
+/**
+ * Variables detectadas en el documento que aún no están en la lista (p. ej. escritas a mano en Word).
+ * Si el nombre es un campo de la ficha o está en el catálogo del estudio, toma de ahí etiqueta, tipo y fuente.
+ */
+function withDetected(existing: TemplateVariable[], doc: DocModel, catalog: TemplateVariable[]): TemplateVariable[] {
   const names = variableNames(docText(doc));
   const out = [...existing];
   for (const name of names) {
     if (out.some((v) => v.name === name)) continue;
     const field = FICHA_FIELDS.find((f) => f.key === name);
-    out.push({ name, label: field?.label ?? humanize(name), type: field?.type ?? "texto", source: field ? field.key : null });
+    const cat = catalog.find((c) => c.name === name);
+    if (field) out.push({ name, label: field.label, type: field.type, source: field.key });
+    else if (cat) out.push({ name, label: cat.label, type: cat.type, source: cat.source });
+    else out.push({ name, label: humanize(name), type: "texto", source: null });
   }
   return out;
 }
@@ -48,7 +60,7 @@ export async function registerTemplate(id: string, input: { name: string; proced
   }
   const compile = templateError(buf);
   if (compile) return { error: `El Word tiene llaves { } sueltas o mal cerradas: ${compile}` };
-  const variables = withDetected([], doc);
+  const variables = withDetected([], doc, await loadCatalog(supabase));
   const { error } = await supabase
     .from("legal_templates")
     .insert({ id, name, procedure_type: procedure, storage_path: input.path, file_name: input.fileName.slice(0, 200), file_size: input.size, variables, created_by: user.id });
@@ -85,7 +97,7 @@ async function withDocx(id: string, change: (buf: Buffer, tpl: LegalTemplate) =>
     const compile = templateError(r.buf);
     if (compile) return { error: `El resultado no es una plantilla válida: ${compile}` };
     const doc = readDocx(r.buf);
-    const variables = withDetected(r.variables, doc);
+    const variables = withDetected(r.variables, doc, await loadCatalog(supabase));
     // Cada versión es un archivo nuevo: el CDN del almacén cachea por ruta y una sobrescritura podría leerse vieja.
     // Además queda el historial de versiones en la carpeta de la plantilla.
     const version = tpl.version + 1;
@@ -106,10 +118,13 @@ export async function markVariable(id: string, input: { p: number; start: number
   const name = input.name.trim();
   if (!isVarName(name)) return { error: "El nombre debe ir en minúsculas, sin espacios ni tildes (p. ej. nombre_completo)." };
   if (![input.p, input.start, input.end].every((n) => Number.isInteger(n) && n >= 0)) return { error: "Selección no válida." };
+  // Si no viene definición y el nombre está en el catálogo del estudio, se toma de ahí
+  const { supabase } = await getContext();
+  const fromCatalog = input.create ? null : ((await loadCatalog(supabase)).find((c) => c.name === name) ?? null);
   return withDocx(id, (buf, tpl) => {
     const variables = [...tpl.variables];
     if (!variables.some((v) => v.name === name)) {
-      const n = normalizeVariable({ ...input.create, name });
+      const n = normalizeVariable({ ...(input.create ?? fromCatalog ?? {}), name });
       if (!n.ok) return { error: n.error };
       variables.push(n.v);
     }
