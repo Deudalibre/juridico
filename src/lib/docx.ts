@@ -222,6 +222,64 @@ export function markVariable(buf: Uint8Array, index: number, start: number, end:
   return save(zip, replaceInXml(xml, index, start, end, `{${name}}`));
 }
 
+/**
+ * Inserta `text` en la posición `pos` (en caracteres) del párrafo `index`, como run nuevo que hereda el formato
+ * del tramo donde cae (o el de la marca de párrafo si el párrafo está vacío). Sirve para poner una variable
+ * en un punto sin texto: una celda vacía, el final de una línea, entre dos palabras.
+ */
+function insertInXml(xml: string, index: number, pos: number, text: string): string {
+  let target: RawPara | null = null;
+  let n = 0;
+  walk(xml, (raw) => {
+    if (n++ === index) target = raw;
+  });
+  if (!target) throw new Error("Párrafo no encontrado.");
+  const t = target as RawPara;
+  if (t.selfClosing) {
+    // <w:p/> → <w:p>…run…</w:p>
+    const openTag = xml.slice(t.open, t.contentStart).replace(/\/>$/, ">");
+    return xml.slice(0, t.open) + openTag + runXml("", text) + "</w:p>" + xml.slice(t.contentStart);
+  }
+  const content = xml.slice(t.contentStart, t.contentEnd);
+  const runs = runsOf(content);
+  const textRuns = runs.filter((r) => r.e > r.s);
+  const total = runs.length ? runs[runs.length - 1].e : 0;
+  if (!(pos >= 0 && pos <= total)) throw new Error("La posición no coincide con el texto del párrafo.");
+  let fresh: string;
+  let cut: [number, number];
+  if (textRuns.length === 0) {
+    // Párrafo sin texto: el formato lo dicta la marca de párrafo (<w:pPr><w:rPr/>), y el run va después del pPr
+    const pPr = content.match(/^\s*<w:pPr>[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
+    const rPr = pPr.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)?.[0] ?? "";
+    fresh = runXml(rPr, text);
+    cut = [pPr.length, pPr.length];
+  } else {
+    // Run donde cae la posición: el que la contiene estrictamente; en un borde, el run anterior (o el primero)
+    const inside = textRuns.find((r) => r.s < pos && pos < r.e);
+    if (inside) {
+      if (inside.opaque) throw new Error("Ahí hay un campo, nota o imagen de Word: elige otro punto.");
+      const prefix = inside.text.slice(0, pos - inside.s);
+      const suffix = inside.text.slice(pos - inside.s);
+      fresh = runXml(inside.rPr, prefix) + runXml(inside.rPr, text) + runXml(inside.rPr, suffix);
+      cut = [inside.xs, inside.xe];
+    } else {
+      const before = [...textRuns].reverse().find((r) => r.e <= pos);
+      const after = textRuns.find((r) => r.s >= pos);
+      const ref = before ?? after!;
+      fresh = runXml(ref.rPr, text);
+      cut = before ? [before.xe, before.xe] : [after!.xs, after!.xs];
+    }
+  }
+  const newContent = content.slice(0, cut[0]) + fresh + content.slice(cut[1]);
+  return xml.slice(0, t.contentStart) + newContent + xml.slice(t.contentEnd);
+}
+
+/** Inserta la variable {name} en la posición `pos` del párrafo `index` (sin reemplazar texto). */
+export function insertVariable(buf: Uint8Array, index: number, pos: number, name: string): Buffer {
+  const { zip, xml } = open(buf);
+  return save(zip, insertInXml(xml, index, pos, `{${name}}`));
+}
+
 /** Sustituye todas las apariciones de {name} por `replacement` (texto llano o {otro_nombre}). Devuelve cuántas cambió. */
 export function replaceVariable(buf: Uint8Array, name: string, replacement: string): { buf: Buffer; count: number } {
   const { zip } = open(buf);
