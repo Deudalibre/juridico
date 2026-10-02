@@ -211,75 +211,96 @@ export function DocxView({ version, doc, mode, chip, chipKey, canSelect, getUrl,
     return candidates[Math.max(0, Math.min(nth, candidates.length - 1))];
   };
 
+  const toP = (n: Node | null | undefined) => (n ? (n.nodeType === Node.TEXT_NODE ? n.parentElement : (n as HTMLElement))?.closest<HTMLElement>("p") ?? null : null);
+
   const onMouseUp = (e: React.MouseEvent) => {
     if (!canSelect || mode !== "marcas" || status !== "ready") return;
+    const body = bodyRef.current;
+    if (!body) return;
     const target = e.target as HTMLElement;
     if (target.closest?.(".docx-var")) return onClear();
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return onClear();
-    const range = selection.getRangeAt(0);
-    const toP = (n: Node) => (n.nodeType === Node.TEXT_NODE ? n.parentElement : (n as HTMLElement))?.closest<HTMLElement>("p") ?? null;
-    let pEl = toP(range.startContainer);
-    let atCellEnd = false;
-    if (!pEl && selection.isCollapsed) {
-      // Clic en una celda de tabla (fuera del texto): el punto es el final del primer párrafo de la celda
-      const cellP = target.closest?.("td")?.querySelector<HTMLElement>("p") ?? null;
-      if (cellP) {
-        pEl = cellP;
-        atCellEnd = true;
-      }
-    }
-    if (!pEl || !bodyRef.current?.contains(pEl)) return onClear();
-    if (pEl.closest("header, footer")) {
-      onNotice("Los encabezados y pies de página no se marcan desde aquí.", true);
-      return onClear();
-    }
+    const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
     const box = frameRef.current?.getBoundingClientRect();
     const x = e.clientX - (box?.left ?? 0);
     const y = e.clientY - (box?.top ?? 0) + (frameRef.current?.scrollTop ?? 0);
+    const outOfModel = (el: HTMLElement) => {
+      if (el.closest("header, footer")) {
+        onNotice("Los encabezados y pies de página no se marcan desde aquí.", true);
+        return true;
+      }
+      return false;
+    };
+
+    /* ---- Selección de texto: el tramo pasa a ser variable ---- */
+    if (range && selection && !selection.isCollapsed) {
+      const pEl = toP(range.startContainer);
+      if (!pEl || !body.contains(pEl)) return onClear();
+      if (outOfModel(pEl)) return onClear();
+      if (toP(range.endContainer) !== pEl) {
+        onNotice("Selecciona texto dentro de un mismo párrafo.", true);
+        return onClear();
+      }
+      const para = resolvePara(pEl);
+      if (!para) {
+        onNotice("No se pudo ubicar ese párrafo en el Word (puede estar dentro de un cuadro de texto o un campo). Prueba con otro tramo.", true);
+        return onClear();
+      }
+      let start = offsetIn(pEl, range.startContainer, range.startOffset);
+      let end = offsetIn(pEl, range.endContainer, range.endOffset);
+      if (start > end) [start, end] = [end, start];
+      const selected = range.toString().replace(/\u2003/g, "\t");
+      if (para.text.slice(start, end) !== selected) {
+        // Las posiciones no coinciden (espacios distintos, símbolos): se busca el texto seleccionado en el párrafo
+        const idx = para.text.indexOf(selected);
+        if (idx < 0 || para.text.indexOf(selected, idx + 1) >= 0) {
+          onNotice("No se pudo ubicar con precisión el texto seleccionado. Selecciona un tramo más largo o distinto.", true);
+          return onClear();
+        }
+        start = idx;
+        end = idx + selected.length;
+      }
+      while (start < end && /\s/.test(para.text[start])) start++;
+      while (end > start && /\s/.test(para.text[end - 1])) end--;
+      if (end <= start) return onClear();
+      const picked = para.text.slice(start, end);
+      if (/[{}]/.test(picked)) {
+        onNotice("La selección ya incluye una variable.", true);
+        return onClear();
+      }
+      return onPick({ p: para.i, start, end, text: picked, x, y });
+    }
+
+    /* ---- Clic sin selección: insertar una variable en ese punto ----
+       Se resuelve por las coordenadas del clic, no por la selección del navegador: así también funcionan
+       las celdas vacías de una tabla y el blanco que queda al final de una línea. */
+    const at = (document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null }).caretRangeFromPoint?.(e.clientX, e.clientY) ?? null;
+    const under = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    let pEl = toP(at?.startContainer);
+    let atEnd = false;
+    if (!pEl || !body.contains(pEl) || (under && !pEl.contains(under) && !under.contains(pEl))) {
+      // El cursor cayó en otro sitio (texto vecino): se toma el párrafo del elemento bajo el clic o de su celda
+      const direct = under?.closest<HTMLElement>("p") ?? null;
+      const cell = under?.closest<HTMLElement>("td") ?? null;
+      const cellParas = cell ? Array.from(cell.querySelectorAll<HTMLElement>("p")) : [];
+      pEl = direct ?? cellParas[cellParas.length - 1] ?? null;
+      atEnd = true;
+    }
+    if (!pEl || !body.contains(pEl)) return onClear();
+    if (outOfModel(pEl)) return onClear();
     const para = resolvePara(pEl);
     if (!para) {
       onNotice("No se pudo ubicar ese párrafo en el Word (puede estar dentro de un cuadro de texto o un campo). Prueba con otro punto.", true);
       return onClear();
     }
-    if (selection.isCollapsed) {
-      // Clic sin selección: insertar una variable en ese punto
-      const pos = atCellEnd ? para.text.length : Math.max(0, Math.min(offsetIn(pEl, range.startContainer, range.startOffset), para.text.length));
-      return onCaret({ p: para.i, pos, x, y });
-    }
-    if (toP(range.endContainer) !== pEl) {
-      onNotice("Selecciona texto dentro de un mismo párrafo.", true);
-      return onClear();
-    }
-    let start = offsetIn(pEl, range.startContainer, range.startOffset);
-    let end = offsetIn(pEl, range.endContainer, range.endOffset);
-    if (start > end) [start, end] = [end, start];
-    const selected = range.toString().replace(/\u2003/g, "\t");
-    if (para.text.slice(start, end) !== selected) {
-      // Las posiciones no coinciden (espacios distintos, símbolos): se busca el texto seleccionado en el párrafo
-      const idx = para.text.indexOf(selected);
-      if (idx < 0 || para.text.indexOf(selected, idx + 1) >= 0) {
-        onNotice("No se pudo ubicar con precisión el texto seleccionado. Selecciona un tramo más largo o distinto.", true);
-        return onClear();
-      }
-      start = idx;
-      end = idx + selected.length;
-    }
-    while (start < end && /\s/.test(para.text[start])) start++;
-    while (end > start && /\s/.test(para.text[end - 1])) end--;
-    if (end <= start) return onClear();
-    const picked = para.text.slice(start, end);
-    if (/[{}]/.test(picked)) {
-      onNotice("La selección ya incluye una variable.", true);
-      return onClear();
-    }
-    onPick({ p: para.i, start, end, text: picked, x, y });
+    const pos = atEnd || !at ? para.text.length : Math.max(0, Math.min(offsetIn(pEl, at.startContainer, at.startOffset), para.text.length));
+    onCaret({ p: para.i, pos, x, y });
   };
 
   return (
     <div className="relative" onMouseUp={onMouseUp}>
       {/* docx-preview pinta un lienzo gris oscuro: se deja con el fondo de la app y las páginas con nuestra sombra */}
-      <style>{`.docx-view .docx-wrapper{background:var(--band)!important;padding:24px 16px!important}.docx-view .docx-wrapper>section.docx{box-shadow:var(--shadow-panel)!important;margin-bottom:24px!important}.docx-view ::selection{background:rgba(var(--brand-rgb),0.28)}`}</style>
+      <style>{`.docx-view .docx-wrapper{background:var(--band)!important;padding:24px 16px!important}.docx-view .docx-wrapper>section.docx{box-shadow:var(--shadow-panel)!important;margin-bottom:24px!important}.docx-view ::selection{background:rgba(var(--brand-rgb),0.28)}.docx-view section.docx article p:empty{min-height:1em}.docx-view section.docx article td{cursor:text}`}</style>
       <div ref={styleRef} />
       {status === "loading" && (
         <div className="absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 pt-10">
