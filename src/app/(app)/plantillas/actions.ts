@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import type { LegalClient } from "@/lib/data";
-import { docText, markVariable as markInDocx, readDocx, replaceVariable, templateError, type DocModel } from "@/lib/docx";
+import { docText, insertVariable as insertInDocx, markVariable as markInDocx, readDocx, replaceVariable, templateError, type DocModel } from "@/lib/docx";
 import { PROCEDURES } from "@/lib/legal";
 import { DOCX_MIME, FICHA_FIELDS, TEMPLATE_BUCKET, TEMPLATE_MAX_BYTES, clientValues, humanize, isVarName, normalizeVariable, variableNames, type LegalTemplate, type TemplateVariable } from "@/lib/templates";
 
@@ -130,6 +130,28 @@ export async function markVariable(id: string, input: { p: number; start: number
     }
     try {
       return { buf: markInDocx(buf, input.p, input.start, input.end, name), variables };
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  });
+}
+
+/** Inserta la variable {name} en un punto del párrafo (clic sin seleccionar texto: celda vacía, final de línea…). */
+export async function insertVariable(id: string, input: { p: number; pos: number; name: string; create?: Partial<TemplateVariable> }): Promise<DocResult> {
+  const name = input.name.trim();
+  if (!isVarName(name)) return { error: "El nombre debe ir en minúsculas, sin espacios ni tildes (p. ej. nombre_completo)." };
+  if (![input.p, input.pos].every((n) => Number.isInteger(n) && n >= 0)) return { error: "Posición no válida." };
+  const { supabase } = await getContext();
+  const fromCatalog = input.create ? null : ((await loadCatalog(supabase)).find((c) => c.name === name) ?? null);
+  return withDocx(id, (buf, tpl) => {
+    const variables = [...tpl.variables];
+    if (!variables.some((v) => v.name === name)) {
+      const n = normalizeVariable({ ...(input.create ?? fromCatalog ?? {}), name });
+      if (!n.ok) return { error: n.error };
+      variables.push(n.v);
+    }
+    try {
+      return { buf: insertInDocx(buf, input.p, input.pos, name), variables };
     } catch (e) {
       return { error: (e as Error).message };
     }

@@ -7,6 +7,8 @@ import { VAR_RE } from "@/lib/templates";
 /** Qué mostrar en lugar de cada marcador {nombre} del Word. */
 export type ChipRender = (name: string) => { text: string; tone: "ok" | "missing" | "undefined"; title: string };
 export type Hit = { p: number; start: number; end: number; text: string; x: number; y: number };
+/** Clic sin seleccionar: punto del párrafo donde insertar una variable */
+export type Caret = { p: number; pos: number; x: number; y: number };
 
 type Props = {
   /** Cambia al guardar: vuelve a traer el .docx y lo dibuja de nuevo */
@@ -21,6 +23,7 @@ type Props = {
   /** Marco que posiciona el popover: las coordenadas del clic se devuelven relativas a él */
   frameRef: RefObject<HTMLDivElement | null>;
   onPick: (hit: Hit) => void;
+  onCaret: (hit: Caret) => void;
   onClear: () => void;
   onNotice: (msg: string, error?: boolean) => void;
   /** docx-preview no pudo con el archivo: el editor vuelve a su dibujo propio */
@@ -83,7 +86,7 @@ function offsetIn(p: HTMLElement, node: Node, offset: number): number {
  * se selecciona texto para convertirlo en variable. Los marcadores {nombre} se pintan como fichas; en modo «datos»
  * muestran el valor del cliente. La selección se traduce a párrafo + posiciones del modelo comparando el texto.
  */
-export function DocxView({ version, doc, mode, chip, chipKey, canSelect, getUrl, frameRef, onPick, onClear, onNotice, onFallback }: Props) {
+export function DocxView({ version, doc, mode, chip, chipKey, canSelect, getUrl, frameRef, onPick, onCaret, onClear, onNotice, onFallback }: Props) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const styleRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -181,48 +184,78 @@ export function DocxView({ version, doc, mode, chip, chipKey, canSelect, getUrl,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, chipKey, status]);
 
-  const onMouseUp = (e: React.MouseEvent) => {
-    if (!canSelect || mode !== "marcas" || status !== "ready") return;
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return onClear();
-    const range = selection.getRangeAt(0);
-    const pEl = (range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : (range.startContainer as HTMLElement))?.closest<HTMLElement>("p");
-    const pEnd = (range.endContainer.nodeType === Node.TEXT_NODE ? range.endContainer.parentElement : (range.endContainer as HTMLElement))?.closest<HTMLElement>("p");
-    if (!pEl || !bodyRef.current?.contains(pEl)) return onClear();
-    if (pEl !== pEnd) {
-      onNotice("Selecciona texto dentro de un mismo párrafo.", true);
-      return onClear();
-    }
-    // Encabezados y pies: no forman parte del modelo editable
-    if (pEl.closest("header, footer, .docx-header, .docx-footer")) {
-      onNotice("Los encabezados y pies de página no se marcan desde aquí.", true);
-      return onClear();
-    }
-    // ¿Qué párrafo del modelo es? Mismo texto; si hay varios iguales, el enésimo en orden del documento
-    const text = domText(pEl);
-    const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+  /**
+   * Párrafo del modelo que corresponde a un <p> dibujado. Por posición cuando el cuerpo tiene tantos <p> como
+   * el modelo y el texto coincide; si no, por texto igual (y el enésimo si hay repetidos). Encabezados y pies
+   * de página quedan fuera: no están en el modelo.
+   */
+  const resolvePara = (pEl: HTMLElement): Para | null => {
+    const body = bodyRef.current;
+    if (!body) return null;
     const model = flatten(doc.blocks);
+    const bodyParas = Array.from(body.querySelectorAll<HTMLElement>("section.docx article p"));
+    const text = domText(pEl);
+    const idx = bodyParas.indexOf(pEl);
+    if (idx >= 0 && bodyParas.length === model.length && model[idx] && model[idx].text === text) return model[idx];
+    const norm = (t: string) => t.replace(/\s+/g, " ").trim();
     let candidates = model.filter((m) => m.text === text);
     let exact = true;
     if (candidates.length === 0) {
       candidates = model.filter((m) => norm(m.text) === norm(text));
       exact = false;
     }
-    if (candidates.length === 0) {
-      onNotice("No se pudo ubicar ese párrafo en el Word (puede estar dentro de un cuadro de texto o un campo). Prueba con otro tramo.", true);
+    if (candidates.length === 0) return null;
+    if (candidates.length === 1) return candidates[0];
+    const all = bodyParas.filter((el) => (exact ? domText(el) === text : norm(domText(el)) === norm(text)));
+    const nth = all.indexOf(pEl);
+    return candidates[Math.max(0, Math.min(nth, candidates.length - 1))];
+  };
+
+  const onMouseUp = (e: React.MouseEvent) => {
+    if (!canSelect || mode !== "marcas" || status !== "ready") return;
+    const target = e.target as HTMLElement;
+    if (target.closest?.(".docx-var")) return onClear();
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return onClear();
+    const range = selection.getRangeAt(0);
+    const toP = (n: Node) => (n.nodeType === Node.TEXT_NODE ? n.parentElement : (n as HTMLElement))?.closest<HTMLElement>("p") ?? null;
+    let pEl = toP(range.startContainer);
+    let atCellEnd = false;
+    if (!pEl && selection.isCollapsed) {
+      // Clic en una celda de tabla (fuera del texto): el punto es el final del primer párrafo de la celda
+      const cellP = target.closest?.("td")?.querySelector<HTMLElement>("p") ?? null;
+      if (cellP) {
+        pEl = cellP;
+        atCellEnd = true;
+      }
+    }
+    if (!pEl || !bodyRef.current?.contains(pEl)) return onClear();
+    if (pEl.closest("header, footer")) {
+      onNotice("Los encabezados y pies de página no se marcan desde aquí.", true);
       return onClear();
     }
-    let para = candidates[0];
-    if (candidates.length > 1) {
-      const all = Array.from(bodyRef.current.querySelectorAll<HTMLElement>("p")).filter((el) => (exact ? domText(el) === text : norm(domText(el)) === norm(text)));
-      const nth = all.indexOf(pEl);
-      para = candidates[Math.max(0, Math.min(nth, candidates.length - 1))];
+    const box = frameRef.current?.getBoundingClientRect();
+    const x = e.clientX - (box?.left ?? 0);
+    const y = e.clientY - (box?.top ?? 0) + (frameRef.current?.scrollTop ?? 0);
+    const para = resolvePara(pEl);
+    if (!para) {
+      onNotice("No se pudo ubicar ese párrafo en el Word (puede estar dentro de un cuadro de texto o un campo). Prueba con otro punto.", true);
+      return onClear();
+    }
+    if (selection.isCollapsed) {
+      // Clic sin selección: insertar una variable en ese punto
+      const pos = atCellEnd ? para.text.length : Math.max(0, Math.min(offsetIn(pEl, range.startContainer, range.startOffset), para.text.length));
+      return onCaret({ p: para.i, pos, x, y });
+    }
+    if (toP(range.endContainer) !== pEl) {
+      onNotice("Selecciona texto dentro de un mismo párrafo.", true);
+      return onClear();
     }
     let start = offsetIn(pEl, range.startContainer, range.startOffset);
     let end = offsetIn(pEl, range.endContainer, range.endOffset);
     if (start > end) [start, end] = [end, start];
-    const selected = range.toString().replace(/ /g, "\t");
-    if (!exact || para.text.slice(start, end) !== selected) {
+    const selected = range.toString().replace(/\u2003/g, "\t");
+    if (para.text.slice(start, end) !== selected) {
       // Las posiciones no coinciden (espacios distintos, símbolos): se busca el texto seleccionado en el párrafo
       const idx = para.text.indexOf(selected);
       if (idx < 0 || para.text.indexOf(selected, idx + 1) >= 0) {
@@ -240,8 +273,7 @@ export function DocxView({ version, doc, mode, chip, chipKey, canSelect, getUrl,
       onNotice("La selección ya incluye una variable.", true);
       return onClear();
     }
-    const box = frameRef.current?.getBoundingClientRect();
-    onPick({ p: para.i, start, end, text: picked, x: e.clientX - (box?.left ?? 0), y: e.clientY - (box?.top ?? 0) + (frameRef.current?.scrollTop ?? 0) });
+    onPick({ p: para.i, start, end, text: picked, x, y });
   };
 
   return (

@@ -8,8 +8,8 @@ import { FICHA_FIELDS, VAR_RE, VAR_TYPES, fieldLabel, slugName, type CatalogVari
 import { Field, toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { DownloadButton } from "../DownloadButton";
-import { deleteTemplate, markVariable, previewValues, removeVariable, saveVariable, templateUrl, updateTemplate } from "../actions";
-import { DocxView, type Hit } from "./DocxView";
+import { deleteTemplate, insertVariable, markVariable, previewValues, removeVariable, saveVariable, templateUrl, updateTemplate } from "../actions";
+import { DocxView, type Caret, type Hit } from "./DocxView";
 
 type Props = {
   template: LegalTemplate;
@@ -23,6 +23,10 @@ type Props = {
 };
 type Selection = { p: number; start: number; end: number; text: string; x: number; y: number };
 type VarForm = { name: string; label: string; type: VarType; source: string };
+const humanizeLabel = (name: string) => {
+  const t = name.replace(/_+/g, " ").trim();
+  return t ? t[0].toUpperCase() + t.slice(1) : name;
+};
 
 const emptyForm = (): VarForm => ({ name: "", label: "", type: "texto", source: "" });
 const formOf = (v: TemplateVariable): VarForm => ({ name: v.name, label: v.label, type: v.type, source: v.source ?? "" });
@@ -47,6 +51,7 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
   const [variables, setVariables] = useState(template.variables);
   const [version, setVersion] = useState(template.version);
   const [sel, setSel] = useState<Selection | null>(null);
+  const [caret, setCaret] = useState<Caret | null>(null); // clic sin selección: insertar una variable en ese punto
   const [pick, setPick] = useState<string>("__new"); // variable elegida en el popover (o «__new»)
   const [form, setForm] = useState<VarForm>(emptyForm());
   const [editing, setEditing] = useState<string | null>(null); // variable en edición en el panel (o «__new»)
@@ -64,7 +69,12 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
   const byName = useMemo(() => new Map(variables.map((v) => [v.name, v])), [variables]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSel(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSel(null);
+        setCaret(null);
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -125,7 +135,16 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
     const field = FICHA_FIELDS.find((f) => f.key === name);
     setForm({ name, label: hit.text.slice(0, 120), type: field?.type ?? "texto", source: field?.key ?? "" });
     setPick(byName.has(name) ? name : "__new");
+    setCaret(null);
     setSel(hit);
+  };
+
+  /** Clic en un punto del Word sin seleccionar texto: popover para insertar ahí una variable (existente, del catálogo o nueva). */
+  const pickCaret = (hit: Caret) => {
+    setForm(emptyForm());
+    setPick(variables[0] ? variables[0].name : catalog[0] ? `cat:${catalog[0].name}` : "__new");
+    setSel(null);
+    setCaret(hit);
   };
 
   /** Ficha de un marcador en la vista del Word: etiqueta y valor (modo «datos») según la variable */
@@ -138,24 +157,23 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
   };
 
   const mark = () => {
-    if (!sel) return;
+    if (!sel && !caret) return;
     const fromCatalog = pick.startsWith("cat:") ? catalog.find((c) => c.name === pick.slice(4)) : undefined;
     const name = pick === "__new" ? form.name.trim() : fromCatalog ? fromCatalog.name : pick;
+    if (!name) return toast("Indica el nombre de la variable.", true);
+    const create =
+      pick === "__new"
+        ? { label: form.label || humanizeLabel(name), type: form.type, source: form.source || null }
+        : fromCatalog
+          ? { label: fromCatalog.label, type: fromCatalog.type, source: fromCatalog.source }
+          : undefined;
     start(async () => {
-      const r = await markVariable(template.id, {
-        p: sel.p,
-        start: sel.start,
-        end: sel.end,
-        name,
-        create:
-          pick === "__new"
-            ? { label: form.label, type: form.type, source: form.source || null }
-            : fromCatalog
-              ? { label: fromCatalog.label, type: fromCatalog.type, source: fromCatalog.source }
-              : undefined,
-      });
-      if (apply(r, `Marcado como {${name}}`)) {
+      const r = sel
+        ? await markVariable(template.id, { p: sel.p, start: sel.start, end: sel.end, name, create })
+        : await insertVariable(template.id, { p: caret!.p, pos: caret!.pos, name, create });
+      if (apply(r, sel ? `Marcado como {${name}}` : `Insertado {${name}}`)) {
         setSel(null);
+        setCaret(null);
         window.getSelection()?.removeAllRanges();
       }
     });
@@ -370,7 +388,11 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
                   getUrl={() => templateUrl(template.id)}
                   frameRef={docRef}
                   onPick={pickSelection}
-                  onClear={() => setSel(null)}
+                  onCaret={pickCaret}
+                  onClear={() => {
+                    setSel(null);
+                    setCaret(null);
+                  }}
                   onNotice={(m, err) => toast(m, err)}
                   onFallback={(reason) => {
                     toast(`No se pudo dibujar el Word tal cual (${reason}); se muestra el texto.`, true);
@@ -382,16 +404,16 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
                   {doc.blocks.length ? renderBlocks(doc.blocks) : <p className="text-center text-muted">El documento está vacío.</p>}
                 </div>
               )}
-              {sel && (
+              {(sel || caret) && (
                 <div
                   className="panel absolute z-30 w-[320px] p-3 shadow-lg"
-                  style={{ left: Math.min(sel.x, (docRef.current?.clientWidth ?? 800) - 340), top: sel.y + 12 }}
+                  style={{ left: Math.min((sel ?? caret)!.x, (docRef.current?.clientWidth ?? 800) - 340), top: (sel ?? caret)!.y + 12 }}
                   role="dialog"
-                  aria-label="Convertir en variable"
+                  aria-label={sel ? "Convertir en variable" : "Insertar variable"}
                   onMouseUp={(e) => e.stopPropagation()}
                 >
-                  <div className="mb-2 truncate text-[12px] text-muted" title={sel.text}>
-                    «{sel.text}»
+                  <div className="mb-2 truncate text-[12px] text-muted" title={sel?.text}>
+                    {sel ? `«${sel.text}»` : "Insertar una variable en este punto"}
                   </div>
                   <div className="flex flex-col gap-2">
                     <select className="input" value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Variable">
@@ -441,11 +463,18 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
                       </>
                     )}
                     <div className="flex justify-end gap-2">
-                      <button type="button" className="btn-ghost btn-sm" onClick={() => setSel(null)}>
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        onClick={() => {
+                          setSel(null);
+                          setCaret(null);
+                        }}
+                      >
                         Cancelar
                       </button>
-                      <button type="button" className="btn-primary btn-sm" onClick={mark} disabled={pending}>
-                        {pending ? "Marcando…" : "Marcar como variable"}
+                      <button type="button" className="btn-primary btn-sm" onClick={mark} disabled={pending || (pick === "__new" && !form.name.trim())}>
+                        {pending ? (sel ? "Marcando…" : "Insertando…") : sel ? "Marcar como variable" : "Insertar variable"}
                       </button>
                     </div>
                   </div>
