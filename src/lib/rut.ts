@@ -4,7 +4,7 @@
 export const cleanRut = (rut: string) => rut.replace(/[^0-9kK]/g, "").toUpperCase();
 
 /** Dígito verificador (módulo 11) del cuerpo numérico. */
-export function rutDv(body: string): string {
+function rutDv(body: string): string {
   let sum = 0;
   let mul = 2;
   for (let i = body.length - 1; i >= 0; i--) {

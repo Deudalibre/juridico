@@ -13,7 +13,7 @@ export type Procedure = (typeof PROCEDURES)[number];
  * tribunal, sin comprobante) → Resolución de liquidación (hito) → gestiones del liquidador → Resolución de término,
  * que al subirse cierra la causa como «Causa terminada».
  */
-export const LIQUIDACION_STEPS = [
+const LIQUIDACION_STEPS = [
   "Preparación de documentos",
   "Ingreso de demanda",
   "Apercibimientos",
@@ -26,7 +26,7 @@ export const LIQUIDACION_STEPS = [
 ] as const;
 
 /** Pasos de la renegociación ante la Superintendencia, en orden. */
-export const RENEGOCIACION_STEPS = [
+const RENEGOCIACION_STEPS = [
   "Preparación de documentos",
   "Ingreso de la solicitud",
   "Admisibilidad",
@@ -136,8 +136,8 @@ export const REVIEW_EVERY_DAYS = 7;
  * porque es cuando el tribunal puede pedir algo con plazo; después, cada 7. Quien revisa no elige la fecha.
  */
 export const REVIEW_CADENCE = { critical: 3, settled: 7 } as const;
-export const STEP_RENEGOCIACION_HITO = "Ejecución";
-export const hitoFor = (p: string | null | undefined) => (p === "Renegociación" ? STEP_RENEGOCIACION_HITO : STEP_RESOLUTION);
+const STEP_RENEGOCIACION_HITO = "Ejecución";
+const hitoFor = (p: string | null | undefined) => (p === "Renegociación" ? STEP_RENEGOCIACION_HITO : STEP_RESOLUTION);
 
 export function reviewCadence(p: string | null | undefined, done: readonly string[]): { days: number; critical: boolean; label: string; reason: string } {
   const hito = hitoFor(p);

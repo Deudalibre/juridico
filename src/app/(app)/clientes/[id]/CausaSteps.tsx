@@ -177,7 +177,7 @@ export function CausaSteps({ clientId, procedure, steps, done, current, tasks, n
                   )}
                 </div>
                 {isMarking && (
-                  <form action={(fd) => submitStep(step, fd)} className="ml-10 flex flex-wrap items-end gap-2 rounded-lg border border-line bg-surface p-3">
+                  <form action={(fd) => submitStep(step, fd)} className="card ml-10 flex flex-wrap items-end gap-2 p-3">
                     <input type="hidden" name="step" value={step} />
                     {spec && (
                       <Field label={`${spec.label}${spec.required ? "" : " (opcional)"}`} className="basis-full">

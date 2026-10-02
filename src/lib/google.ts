@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // bóveda (migración 0017). Sin ella configurada, la base sigue aceptando las llamadas (ver auditoría 2026-09-30).
 const SERVER_KEY = process.env.DRIVE_SERVER_KEY ?? null;
 
-export const GOOGLE_SCOPE = ["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/userinfo.email"].join(" ");
+const GOOGLE_SCOPE = ["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/userinfo.email"].join(" ");
 
 export const googleConfigured = () => Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
@@ -41,7 +41,7 @@ async function tokenRequest(body: Record<string, string>): Promise<Tokens> {
 }
 
 export const exchangeCode = (code: string, redirectUri: string) => tokenRequest({ code, redirect_uri: redirectUri, grant_type: "authorization_code" });
-export const refreshAccess = (refreshToken: string) => tokenRequest({ refresh_token: refreshToken, grant_type: "refresh_token" });
+const refreshAccess = (refreshToken: string) => tokenRequest({ refresh_token: refreshToken, grant_type: "refresh_token" });
 
 async function gapi(access: string, url: string, init: RequestInit = {}) {
   const res = await fetch(url, { ...init, headers: { Authorization: `Bearer ${access}`, ...(init.headers ?? {}) } });
@@ -117,8 +117,6 @@ export function driveIdFromUrl(input: string | null | undefined): string | null 
 }
 
 /** Vista previa incrustable de un archivo (el Drive la sirve para quien tiene acceso). */
-export const previewUrl = (fileId: string) => `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview`;
-
 export type DriveState = { connected: boolean; email: string | null; rootId: string | null; rootName: string | null; error: string | null };
 
 /** Estado de la conexión (sin secretos). */

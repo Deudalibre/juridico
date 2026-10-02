@@ -36,7 +36,12 @@ function Group({ title, hint, count, tone, children }: { title: string; hint?: s
 export default async function RevisionPage(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string }> }) {
   const sp = await props.searchParams;
   const { supabase, user, profile, tz, can } = await requirePermission("legal.view");
-  const members = await getMembers(supabase);
+  // Abogados y causas activas a la vez (el filtro por abogado se aplica aquí: son pocas filas y ahorra un viaje)
+  const procWanted = (PROCEDURES as readonly string[]).includes(sp.proc ?? "") ? sp.proc! : "";
+  let cq = supabase.from("legal_clients").select("*").is("archived_at", null).limit(2000);
+  if (procWanted) cq = cq.eq("procedure_type", procWanted);
+  const [members, { data: cl, error }] = await Promise.all([getMembers(supabase), cq]);
+  if (error) throw new Error(error.message);
   const lawyers = members.filter((m) => m.active && (m.role === "juridico" || m.role === "administrador"));
   const wanted = sp.ver ?? "equipo";
   const view = wanted === "equipo" || wanted === "mios" || lawyers.some((m) => m.id === wanted) ? wanted : "equipo";
@@ -106,13 +111,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
     );
   }
 
-  let q = supabase.from("legal_clients").select("*").is("archived_at", null).limit(2000);
-  if (view === "mios") q = q.eq("lawyer_id", user.id);
-  else if (view !== "equipo") q = q.eq("lawyer_id", view);
-  if (proc) q = q.eq("procedure_type", proc);
-  const { data: cl, error } = await q;
-  if (error) throw new Error(error.message);
-  const clients = (cl ?? []) as LegalClient[];
+  const clients = ((cl ?? []) as LegalClient[]).filter((c) => (view === "mios" ? c.lawyer_id === user.id : view === "equipo" ? true : c.lawyer_id === view));
   const ids = clients.map((c) => c.id);
 
   let tasks: LegalTask[] = [];

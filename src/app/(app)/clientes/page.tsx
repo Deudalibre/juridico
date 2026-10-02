@@ -24,10 +24,13 @@ export default async function ClientesPage(props: { searchParams: Promise<SP> })
   if (proc) q = q.eq("procedure_type", proc);
   if (isDate(sp.desde)) q = q.gte("intake_date", sp.desde!);
   if (isDate(sp.hasta)) q = q.lte("intake_date", sp.hasta!);
-  const [members, res, counts] = await Promise.all([
+  // Todo lo que no depende entre sí va en un solo viaje: abogados, causas, totales y tareas pendientes
+  // (las tareas se piden completas y se cruzan aquí: son pocas y así no esperan a la lista de causas)
+  const [members, res, counts, pendingTasks] = await Promise.all([
     getMembers(supabase),
     q,
     supabase.from("legal_clients").select("id, archived_at"),
+    closed ? Promise.resolve({ data: [] as LegalTask[] }) : supabase.from("legal_tasks").select("*").eq("status", "pendiente").order("due_at", { ascending: true, nullsFirst: false }),
   ]);
   if (res.error) throw new Error(res.error.message);
   const lawyers = members.filter((m) => m.active && (m.role === "juridico" || m.role === "administrador"));
@@ -65,14 +68,9 @@ export default async function ClientesPage(props: { searchParams: Promise<SP> })
 
   // Próxima acción de cada causa: la tarea pendiente que vence antes
   const nextTasks: Record<string, LegalTask> = {};
-  if (!closed && rows.length > 0) {
-    const { data } = await supabase
-      .from("legal_tasks")
-      .select("*")
-      .in("client_id", rows.map((c) => c.id))
-      .eq("status", "pendiente")
-      .order("due_at", { ascending: true, nullsFirst: false });
-    for (const t of (data ?? []) as LegalTask[]) if (!nextTasks[t.client_id]) nextTasks[t.client_id] = t;
+  if (!closed) {
+    const shown = new Set(rows.map((c) => c.id));
+    for (const t of (pendingTasks.data ?? []) as LegalTask[]) if (shown.has(t.client_id) && !nextTasks[t.client_id]) nextTasks[t.client_id] = t;
   }
   const keep = sp.q ? `&q=${encodeURIComponent(sp.q)}` : "";
 

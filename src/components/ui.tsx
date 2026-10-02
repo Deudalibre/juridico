@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { useState, useTransition, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Icon } from "./icons";
 
 export function SubmitButton({ children, pendingText, className = "btn-primary" }: { children: ReactNode; pendingText?: string; className?: string }) {
@@ -68,35 +68,9 @@ export function PageTitle({ title, subtitle, icon, children }: { title: string; 
   );
 }
 
-export function Info({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="info">
-      <span className="label">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-export const Missing = ({ text = "No informado" }: { text?: string }) => <span className="text-[13.5px] text-faint">{text}</span>;
-
 /** Lanza un toast desde cualquier componente cliente (lo pinta <Toaster />). */
 export function toast(message: string, error = false) {
   window.dispatchEvent(new CustomEvent("crm:toast", { detail: { message, error } }));
 }
 
 /** Botón de borrar con confirmación en dos pasos; `action` es una server action. */
-export function DeleteButton({ action, label = "Eliminar", confirmText = "¿Seguro? Confirmar" }: { action: () => Promise<void>; label?: string; confirmText?: string }) {
-  const [armed, setArmed] = useState(false);
-  const [pending, start] = useTransition();
-  return (
-    <button
-      type="button"
-      className="btn-danger"
-      disabled={pending}
-      onBlur={() => setArmed(false)}
-      onClick={() => (armed ? start(() => action()) : setArmed(true))}
-    >
-      {pending ? "Eliminando…" : armed ? confirmText : label}
-    </button>
-  );
-}

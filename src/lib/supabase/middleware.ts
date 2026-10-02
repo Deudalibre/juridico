@@ -27,9 +27,10 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Verifica la firma del JWT localmente (claves asimétricas del proyecto) y refresca la sesión si caducó;
+  // no consulta al servidor de Auth en cada petición.
+  const { data: verified } = await supabase.auth.getClaims();
+  const user = verified?.claims ?? null;
 
   const path = request.nextUrl.pathname;
 
