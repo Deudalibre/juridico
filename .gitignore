@@ -50,3 +50,5 @@ dev-server.log
 
 # Datos de importación con información sensible: nunca al repositorio
 Importar/
+.next-build/
+.next-dev.log

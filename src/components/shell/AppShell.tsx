@@ -20,8 +20,8 @@ type Props = {
   name: string;
   role: Role;
   permissions: Permission[];
-  /** Causas por revisar + tareas vencidas: insignia en «Revisión» */
-  alerts: number;
+  /** Insignia de «Revisión» (causas por revisar, tareas vencidas): se cuenta aparte y llega en streaming */
+  badge?: ReactNode;
   crmUrl: string;
 };
 
@@ -167,7 +167,7 @@ function UserMenu({ name, role, crmUrl }: { name: string; role: Role; crmUrl: st
   );
 }
 
-export function AppShell({ children, userId, name, role, permissions, alerts, crmUrl }: Props) {
+export function AppShell({ children, userId, name, role, permissions, badge, crmUrl }: Props) {
   const path = usePathname();
   const search = useSearchParams();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -227,11 +227,7 @@ export function AppShell({ children, userId, name, role, permissions, alerts, cr
             <LinkPending />
             <Icon name={n.icon} />
             <span>{n.label}</span>
-            {n.href === "/revision" && alerts > 0 && (
-              <span className="rail-badge" title="Causas por revisar o con tareas vencidas">
-                {alerts > 99 ? "99+" : alerts}
-              </span>
-            )}
+            {n.href === "/revision" && badge}
           </Link>
         ))}
         <a href={crmUrl} className="rail-item" title="Volver al CRM comercial">
