@@ -7,8 +7,6 @@
 
 export type Role = "administrador" | "coordinador" | "ejecutivo" | "juridico";
 
-const ROLES: Role[] = ["administrador", "coordinador", "ejecutivo", "juridico"];
-
 export const ROLE_LABEL: Record<Role, string> = {
   administrador: "Administrador",
   coordinador: "Coordinador",
