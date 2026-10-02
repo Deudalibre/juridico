@@ -1,7 +1,8 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { requireUser } from "./supabase/server";
+import { cacheLife } from "next/cache";
+import { createClient, readSessionUser, type SessionUser } from "./supabase/server";
 import type { Permission } from "./permissions";
 import type { Profile } from "./types";
 
@@ -9,14 +10,31 @@ import type { Profile } from "./types";
  * Usuario, perfil y permisos. Misma base y misma matriz de permisos que el CRM
  * (tabla role_permissions, leída con my_permissions()); nada viene del cliente.
  */
-export const getContext = cache(async function getContext() {
-  const { supabase, user } = await requireUser();
+/**
+ * Sesión, perfil y permisos como datos planos en caché privada (Cache Components): dentro de una petición se lee
+ * una sola vez, y el navegador puede traer la cáscara del marco ya personalizada antes del clic (stale de 5 min;
+ * un router.refresh, p. ej. por Realtime, vuelve a leer). Nunca se guarda en el servidor entre peticiones.
+ */
+async function loadSession(): Promise<{ user: SessionUser; profile: Profile; permissions: Permission[] } | null> {
+  "use cache: private";
+  cacheLife({ stale: 300 });
+  const supabase = await createClient();
+  const user = await readSessionUser(supabase);
+  if (!user) return null;
   const [{ data: profile }, { data: perms }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
     supabase.rpc("my_permissions"),
   ]);
   const p = (profile ?? { id: user.id, full_name: user.email?.split("@")[0] ?? "", email: user.email ?? "", role: "ejecutivo", active: false, timezone: "America/Santiago" }) as Profile;
-  const permissions = new Set<Permission>(((perms ?? []) as Permission[]).filter(Boolean));
+  return { user, profile: p, permissions: ((perms ?? []) as Permission[]).filter(Boolean) };
+}
+
+export const getContext = cache(async function getContext() {
+  const session = await loadSession();
+  if (!session) redirect(`${process.env.NEXT_PUBLIC_CRM_URL ?? "http://localhost:3000"}/login`);
+  const { user, profile: p } = session;
+  const supabase = await createClient();
+  const permissions = new Set<Permission>(session.permissions);
   const can = (x: Permission) => p.active && permissions.has(x);
   return { supabase, user, profile: p, tz: p.timezone || "America/Santiago", permissions: Array.from(permissions), can };
 });

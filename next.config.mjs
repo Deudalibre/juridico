@@ -12,7 +12,17 @@ const securityHeaders = [
 
 const nextConfig = {
   poweredByHeader: false,
+  // Carpeta de salida configurable: permite hacer `next build` de validación (NEXT_DIST_DIR=.next-build)
+  // sin pisar la carpeta .next del servidor de desarrollo que está corriendo
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Cache Components (Next 16): cáscara estática prerenderizada + streaming de lo dinámico, «use cache» y
+  // conservación del estado de las pantallas al navegar (Activity). Los layouts/páginas ya no llevan force-dynamic.
+  cacheComponents: true,
+  // React Compiler: memoriza los componentes del cliente solo (tablas largas, editor de plantillas)
+  reactCompiler: true,
   experimental: {
+    // Versión nativa (Rust) del compilador dentro de Turbopack: sin babel-plugin
+    turbopackRustReactCompiler: true,
     // Navegación instantánea entre pantallas ya visitadas y precarga al pasar el mouse (igual que el CRM)
     staleTimes: { dynamic: 30 },
     dynamicOnHover: true,
