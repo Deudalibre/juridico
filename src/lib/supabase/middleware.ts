@@ -43,6 +43,8 @@ export async function updateSession(request: NextRequest) {
     return res;
   };
 
+  // Latido del cron de Vercel: no necesita sesión
+  if (path === "/api/ping") return response;
   if (!user) {
     const next = path === "/login" ? "" : `?next=${encodeURIComponent(request.nextUrl.href)}`;
     return NextResponse.redirect(`${CRM_URL}/login${next}`);
