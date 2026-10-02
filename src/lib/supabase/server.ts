@@ -23,12 +23,21 @@ export async function createClient() {
   });
 }
 
+/** Lo que la app necesita del usuario autenticado; sale del JWT verificado, no de una consulta al servidor de Auth. */
+export type SessionUser = { id: string; email: string | null; user_metadata: Record<string, unknown> };
+
 /** Cliente + usuario autenticado; sin sesión, al login del CRM (Jurídico no tiene login propio). */
-export async function requireUser() {
+export async function requireUser(): Promise<{ supabase: Awaited<ReturnType<typeof createClient>>; user: SessionUser }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect(`${process.env.NEXT_PUBLIC_CRM_URL ?? "http://localhost:3000"}/login`);
+  // getClaims verifica la firma del JWT localmente (el proyecto usa claves asimétricas ES256; el JWKS se cachea en memoria):
+  // antes, getUser() pedía el usuario al servidor de Auth en cada petición, un viaje de red extra por pantalla.
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub) redirect(`${process.env.NEXT_PUBLIC_CRM_URL ?? "http://localhost:3000"}/login`);
+  const user: SessionUser = {
+    id: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : null,
+    user_metadata: (claims.user_metadata ?? {}) as Record<string, unknown>,
+  };
   return { supabase, user };
 }

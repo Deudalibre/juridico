@@ -19,7 +19,7 @@ export const initials = (n: string) =>
     .join("")
     .toUpperCase();
 
-export const currencySymbol = (currency: string) => (currency === "EUR" ? "€" : "$");
+const currencySymbol = (currency: string) => (currency === "EUR" ? "€" : "$");
 
 export const money = (v: number, currency = "CLP") =>
   currencySymbol(currency) + Math.round(Number(v)).toLocaleString(currency === "EUR" ? "es-ES" : "es-CL");
@@ -45,7 +45,7 @@ function partsIn(date: Date, tz: string): Parts {
 const dayNumber = (p: Parts) => Date.UTC(p.y, p.m - 1, p.d) / 86_400_000;
 
 /** Días naturales entre la fecha y hoy (positivo = pasado). */
-export const daysAgo = (iso: string, tz: string, now = new Date()) =>
+const daysAgo = (iso: string, tz: string, now = new Date()) =>
   dayNumber(partsIn(now, tz)) - dayNumber(partsIn(new Date(iso), tz));
 
 export function relativeDays(iso: string | null, tz: string): string {
@@ -72,24 +72,12 @@ export const timeOf = (iso: string, tz: string) => {
 };
 
 /** Etiqueta de la agenda: hora si es hoy, «Mañana», o la fecha. */
-export function agendaLabel(iso: string, tz: string): string {
-  const n = -daysAgo(iso, tz);
-  if (n <= 0) return timeOf(iso, tz);
-  if (n === 1) return "Mañana";
-  return shortDate(iso, tz);
-}
-
 export const hourIn = (tz: string) => partsIn(new Date(), tz).h;
 
 export function longToday(tz: string) {
   const s = new Intl.DateTimeFormat("es-ES", { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(new Date());
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
-
-export const quarterIndex = (iso: string, tz: string) => {
-  const p = partsIn(new Date(iso), tz);
-  return p.y * 4 + Math.floor((p.m - 1) / 3);
-};
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -166,11 +154,3 @@ export function dateTime(iso: string, tz: string) {
   return `${shortDate(iso, tz)} · ${timeOf(iso, tz)}`;
 }
 
-/** Fecha YYYY-MM-DD según la preferencia de formato del perfil. */
-export function formatDay(date: string | null, fmt: string): string {
-  if (!date) return "—";
-  const [y, m, d] = date.slice(0, 10).split("-");
-  if (fmt === "mdy") return `${m}/${d}/${y}`;
-  if (fmt === "iso") return `${y}-${m}-${d}`;
-  return `${d}/${m}/${y}`;
-}

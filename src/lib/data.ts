@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireUser } from "./supabase/server";
@@ -8,7 +9,7 @@ import type { Profile } from "./types";
  * Usuario, perfil y permisos. Misma base y misma matriz de permisos que el CRM
  * (tabla role_permissions, leída con my_permissions()); nada viene del cliente.
  */
-export async function getContext() {
+export const getContext = cache(async function getContext() {
   const { supabase, user } = await requireUser();
   const [{ data: profile }, { data: perms }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
@@ -18,9 +19,7 @@ export async function getContext() {
   const permissions = new Set<Permission>(((perms ?? []) as Permission[]).filter(Boolean));
   const can = (x: Permission) => p.active && permissions.has(x);
   return { supabase, user, profile: p, tz: p.timezone || "America/Santiago", permissions: Array.from(permissions), can };
-}
-
-export type Context = Awaited<ReturnType<typeof getContext>>;
+});
 
 /** Exige un permiso del área jurídica; sin él, pantalla de «sin acceso». */
 export async function requirePermission(x: Permission) {

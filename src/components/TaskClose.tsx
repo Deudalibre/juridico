@@ -69,7 +69,7 @@ export function TaskClose({ task, clientId, layout = "inline", allowCancel = tru
 
   const panel = status && (
     <div
-      className={`flex flex-col gap-2 rounded-lg border border-line bg-surface p-3 text-left ${layout === "row" ? "order-last basis-full" : "w-full"}`}
+      className={`card flex flex-col gap-2 p-3 text-left ${layout === "row" ? "order-last basis-full" : "w-full"}`}
       onClick={stop}
       onKeyDown={stop}
       role="group"

@@ -7,8 +7,6 @@
 
 export type Role = "administrador" | "coordinador" | "ejecutivo" | "juridico";
 
-export const ROLES: Role[] = ["administrador", "coordinador", "ejecutivo", "juridico"];
-
 export const ROLE_LABEL: Record<Role, string> = {
   administrador: "Administrador",
   coordinador: "Coordinador",
@@ -52,4 +50,3 @@ export type Permission =
   | "documents.edit"
   | "documents.manage";
 
-export const isRole = (r: unknown): r is Role => ROLES.includes(r as Role);

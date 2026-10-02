@@ -1,7 +1,4 @@
 /** Estado devuelto por las server actions de formularios (useFormState). */
-export type FormState = { errors?: Record<string, string>; message?: string; ok?: boolean } | undefined;
-
-export type { Role } from "./permissions";
 import type { Role } from "./permissions";
 
 export interface Profile {

@@ -3,7 +3,7 @@
 import * as RS from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
 
-export type SelectOption = { key: string; label: string; disabled?: boolean };
+type SelectOption = { key: string; label: string; disabled?: boolean };
 
 // Radix no admite "" como valor de un ítem: se usa un centinela para la opción «todos / ninguno».
 const NONE = "__none__";

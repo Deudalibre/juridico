@@ -76,7 +76,7 @@ export function WeekCalendar({
                   <Link
                     key={t.id}
                     href={`/clientes/${t.client_id}?tab=Causa`}
-                    className="flex flex-col gap-0.5 rounded-lg border px-2 py-1.5 text-fg hover:text-fg"
+                    className="lift flex flex-col gap-0.5 rounded-lg border px-2 py-1.5 text-fg hover:text-fg"
                     style={{
                       borderColor: late ? "var(--danger-line)" : hearing ? "var(--brand-primary)" : "var(--border)",
                       background: done ? "var(--surface-secondary)" : "var(--surface)",

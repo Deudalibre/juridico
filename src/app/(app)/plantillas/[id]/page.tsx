@@ -11,7 +11,11 @@ export default async function PlantillaPage(props: { params: Promise<{ id: strin
   const { id } = await props.params;
   const { supabase, can } = await requirePermission("documents.view");
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const { data } = await supabase.from("legal_templates").select("*").eq("id", id).maybeSingle();
+  // La plantilla y la lista de clientes no dependen entre sí: se piden a la vez
+  const [{ data }, { data: clients }] = await Promise.all([
+    supabase.from("legal_templates").select("*").eq("id", id).maybeSingle(),
+    supabase.from("legal_clients").select("id, full_name").is("archived_at", null).order("full_name").limit(300),
+  ]);
   if (!data) notFound();
   const tpl = data as LegalTemplate;
 
@@ -24,7 +28,6 @@ export default async function PlantillaPage(props: { params: Promise<{ id: strin
   } catch (e) {
     docError = (e as Error).message;
   }
-  const { data: clients } = await supabase.from("legal_clients").select("id, full_name").is("archived_at", null).order("full_name").limit(300);
 
   return (
     <>
