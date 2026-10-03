@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { Field, toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import type { LegalClient } from "@/lib/data";
@@ -15,10 +15,10 @@ const yn = (v: boolean | null | undefined): YN => (v === true ? "si" : v === fal
 /** Sí / No en dos botones; sin responder queda vacío (y la ficha lo cuenta como pendiente). */
 function YesNo({ name, value, onChange, disabled, label }: { name: string; value: YN; onChange: (v: YN) => void; disabled?: boolean; label: string }) {
   return (
-    <div className="seg" role="radiogroup" aria-label={label}>
+    <div className="seg shrink-0" role="radiogroup" aria-label={label}>
       <input type="hidden" name={name} value={value} />
       {(["si", "no"] as const).map((v) => (
-        <button key={v} type="button" role="radio" aria-checked={value === v} aria-current={value === v ? "true" : undefined} disabled={disabled} onClick={() => onChange(value === v ? "" : v)}>
+        <button key={v} type="button" role="radio" aria-checked={value === v} aria-current={value === v ? "true" : undefined} disabled={disabled} onClick={() => onChange(value === v ? "" : v)} className="min-w-[44px] justify-center">
           {v === "si" ? "Sí" : "No"}
         </button>
       ))}
@@ -26,12 +26,33 @@ function YesNo({ name, value, onChange, disabled, label }: { name: string; value
   );
 }
 
+/** Bloque encuadrado: número y título a la izquierda, campos a la derecha; todos alineados a la misma rejilla. */
+function Section({ n, title, hint, aside, children }: { n: number; title: string; hint: string; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="grid gap-4 border-t border-line-soft px-5 py-5 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-8">
+      <div className="flex items-start gap-3">
+        <span className="tabnum flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11.5px] font-semibold text-accent" style={{ background: "var(--surface-active)" }}>
+          {n}
+        </span>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="card-title">{title}</span>
+          <span className="text-[12px] leading-relaxed text-muted">{hint}</span>
+          {aside && <div className="mt-1">{aside}</div>}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-12">{children}</div>
+    </div>
+  );
+}
+
+type Progress = { pct: number; missing: string[] };
+
 /**
  * Ficha Maestra en un solo formulario: datos del cliente, antecedentes, tribunal, situación laboral, las ocho
  * preguntas del art. 273 A y la carta de insolvencia. Un «Guardar» (o Ctrl+S) para todo: pensado para cargar
  * decenas de clientes seguidos sin cambiar de pantalla.
  */
-export function FichaForm({ client: c, ficha: f, canEdit }: { client: LegalClient; ficha: LvsFicha; canEdit: boolean }) {
+export function FichaForm({ client: c, ficha: f, canEdit, progress }: { client: LegalClient; ficha: LvsFicha; canEdit: boolean; progress: Progress }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
@@ -76,36 +97,43 @@ export function FichaForm({ client: c, ficha: f, canEdit }: { client: LegalClien
   };
 
   const disabled = !canEdit || pending;
+  const complete = progress.pct === 100;
   return (
     <form ref={formRef} onSubmit={save} className="flex flex-col gap-3">
       <fieldset disabled={disabled} className="contents">
-        {/* ---- Cliente ---- */}
-        <section className="panel gap-4 px-5 py-5">
-          <div className="flex flex-col gap-0.5">
-            <span className="card-title">Cliente</span>
-            <span className="text-[12.5px] text-muted">Los mismos datos de la causa: corregirlos aquí los corrige en todas partes.</span>
+        <div className="panel overflow-hidden">
+          {/* ---- Avance ---- */}
+          <div className="panel-head !py-3 flex-wrap gap-x-4 gap-y-2">
+            <span className="card-title">Ficha Maestra</span>
+            <span className="h-1.5 w-40 overflow-hidden rounded-full" style={{ background: "var(--border)" }} aria-hidden>
+              <span className="block h-full rounded-full bar-grow" style={{ width: `${progress.pct}%`, background: complete ? "var(--success)" : "var(--brand-dark)" }} />
+            </span>
+            <span className={`tabnum text-[12.5px] font-semibold ${complete ? "text-success" : "text-fg"}`}>{progress.pct}%</span>
+            <span className="min-w-0 flex-1 truncate text-[12px] text-muted">{complete ? "Completa: ya alimenta la demanda, la Declaración 273-A y los anexos." : `Falta: ${progress.missing.join(", ")}`}</span>
           </div>
-          <div className="grid-fields">
-            <Field label="Nombre completo" className="sm:col-span-2">
+
+          {/* ---- 1 · Cliente ---- */}
+          <Section n={1} title="Cliente" hint="Los mismos datos de la causa: corregirlos aquí los corrige en todas partes.">
+            <Field label="Nombre completo" className="sm:col-span-6">
               <input name="full_name" className="input" defaultValue={c.full_name} required autoComplete="off" />
             </Field>
-            <Field label="RUT">
+            <Field label="RUT" className="sm:col-span-3">
               <input name="rut" className="input tabnum" defaultValue={formatRut(c.rut)} placeholder="12.345.678-5" autoComplete="off" />
             </Field>
-            <Field label="Género">
+            <Field label="Género" className="sm:col-span-3">
               <div className="seg" role="radiogroup" aria-label="Género">
                 <input type="hidden" name="genero" value={genero} />
                 {(Object.keys(GENEROS) as ("F" | "M")[]).map((g) => (
-                  <button key={g} type="button" role="radio" aria-checked={genero === g} aria-current={genero === g ? "true" : undefined} onClick={() => setGenero(g)}>
+                  <button key={g} type="button" role="radio" aria-checked={genero === g} aria-current={genero === g ? "true" : undefined} onClick={() => setGenero(g)} className="flex-1 justify-center">
                     {GENEROS[g]}
                   </button>
                 ))}
               </div>
             </Field>
-            <Field label="Nacionalidad">
+            <Field label="Nacionalidad" className="sm:col-span-3">
               <input name="nacionalidad" className="input" defaultValue={f.nacionalidad} autoComplete="off" />
             </Field>
-            <Field label="Estado civil">
+            <Field label="Estado civil" className="sm:col-span-3">
               <select name="estado_civil" className="input" defaultValue={f.estado_civil ?? ""}>
                 <option value="">Sin definir</option>
                 {ESTADOS_CIVILES.map((e) => (
@@ -115,134 +143,117 @@ export function FichaForm({ client: c, ficha: f, canEdit }: { client: LegalClien
                 ))}
               </select>
             </Field>
-            <Field label="Profesión u oficio">
+            <Field label="Profesión u oficio" className="sm:col-span-6">
               <input name="profesion_oficio" className="input" defaultValue={f.profesion_oficio ?? ""} placeholder="dueña de casa, vendedor, técnico en…" autoComplete="off" />
             </Field>
-            <Field label="Teléfono">
-              <input name="phone" className="input tabnum" defaultValue={c.phone ?? ""} autoComplete="off" />
+            <Field label="Teléfono" className="sm:col-span-4">
+              <input name="phone" className="input tabnum" defaultValue={c.phone ?? ""} placeholder="+56 9 1234 5678" autoComplete="off" />
             </Field>
-            <Field label="Email">
+            <Field label="Email" className="sm:col-span-8">
               <input name="email" type="email" className="input" defaultValue={c.email ?? ""} autoComplete="off" />
             </Field>
-          </div>
-          <div className="grid-fields">
-            <Field label="Domicilio" className="sm:col-span-2">
+            <Field label="Domicilio" className="sm:col-span-6">
               <input name="domicilio" className="input" defaultValue={f.domicilio ?? ""} placeholder="calle, número, depto o casa" autoComplete="off" />
             </Field>
-            <Field label="Comuna">
+            <Field label="Comuna" className="sm:col-span-3">
               <input name="comuna" className="input" defaultValue={f.comuna ?? ""} autoComplete="off" />
             </Field>
-            <Field label="Región">
-              <input name="region" className="input" defaultValue={f.region ?? ""} placeholder="región Metropolitana" autoComplete="off" />
+            <Field label="Región" className="sm:col-span-3">
+              <input name="region" className="input" defaultValue={f.region ?? ""} placeholder="Metropolitana" autoComplete="off" />
             </Field>
-          </div>
-        </section>
+          </Section>
 
-        {/* ---- Tribunal y situación laboral ---- */}
-        <div className="grid gap-3 lg:grid-cols-2">
-          <section className="panel gap-4 px-5 py-5">
-            <div className="flex flex-col gap-0.5">
-              <span className="card-title">Tribunal</span>
-              <span className="text-[12.5px] text-muted">La suma de la demanda sale tal cual se escriba aquí.</span>
-            </div>
-            <div className="flex flex-col gap-4">
-              <Field label="Comuna del tribunal">
-                <input name="comuna_tribunal" className="input" defaultValue={f.comuna_tribunal ?? ""} autoComplete="off" />
-              </Field>
-              <Field label="Encabezado de la demanda (S.J.L.)">
-                <input name="sj_comuna" className="input" defaultValue={f.sj_comuna ?? ""} placeholder="S.J.L. Civil de Santiago" autoComplete="off" />
-              </Field>
-            </div>
-          </section>
+          {/* ---- 2 · Tribunal ---- */}
+          <Section n={2} title="Tribunal" hint="La suma de la demanda sale tal cual se escriba aquí. La competencia no se calcula todavía.">
+            <Field label="Comuna del tribunal" className="sm:col-span-4">
+              <input name="comuna_tribunal" className="input" defaultValue={f.comuna_tribunal ?? ""} autoComplete="off" />
+            </Field>
+            <Field label="Encabezado de la demanda (S.J.L.)" className="sm:col-span-8">
+              <input name="sj_comuna" className="input" defaultValue={f.sj_comuna ?? ""} placeholder="S.J.L. Civil de Santiago" autoComplete="off" />
+            </Field>
+          </Section>
 
-          <section className="panel gap-4 px-5 py-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex flex-col gap-0.5">
-                <span className="card-title">Situación laboral</span>
-                <span className="text-[12.5px] text-muted">Con relación laboral vigente la demanda acompaña contrato y tres liquidaciones.</span>
-              </div>
-              <YesNo name="relacion_laboral" value={relacion} onChange={setRelacion} disabled={disabled} label="Relación laboral vigente" />
+          {/* ---- 3 · Situación laboral ---- */}
+          <Section
+            n={3}
+            title="Situación laboral"
+            hint="Con relación laboral vigente, la demanda acompaña el contrato y las tres últimas liquidaciones."
+            aside={<YesNo name="relacion_laboral" value={relacion} onChange={setRelacion} disabled={disabled} label="Relación laboral vigente" />}
+          >
+            <Field label="Situación" className="sm:col-span-3">
+              <select name="situacion_laboral" className="input" defaultValue={f.situacion_laboral ?? ""}>
+                <option value="">Sin definir</option>
+                {SITUACIONES_LABORALES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Ingreso líquido mensual" className="sm:col-span-3">
+              <input name="ingreso_liquido" className="input tabnum" inputMode="numeric" defaultValue={f.ingreso_liquido ?? ""} placeholder="650000" autoComplete="off" />
+            </Field>
+            {relacion === "si" ? (
+              <>
+                <Field label="Empleador" className="sm:col-span-6">
+                  <input name="empleador" className="input" defaultValue={f.empleador ?? ""} autoComplete="off" />
+                </Field>
+                <Field label="RUT empleador" className="sm:col-span-4">
+                  <input name="rut_empleador" className="input tabnum" defaultValue={formatRut(f.rut_empleador)} autoComplete="off" />
+                </Field>
+                <Field label="Inicio del contrato" className="sm:col-span-4">
+                  <input name="fecha_inicio_contrato" type="date" className="input tabnum" defaultValue={f.fecha_inicio_contrato ?? ""} />
+                </Field>
+                <Field label="Tipo de contrato" className="sm:col-span-4">
+                  <select name="tipo_contrato" className="input" defaultValue={f.tipo_contrato ?? ""}>
+                    <option value="">Sin definir</option>
+                    {TIPOS_CONTRATO.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </>
+            ) : (
+              <div className="flex items-end pb-2 text-[12px] text-faint sm:col-span-6">{relacion === "no" ? "Sin relación laboral vigente: no se piden contrato ni liquidaciones." : "Responde Sí o No a la izquierda."}</div>
+            )}
+          </Section>
+
+          {/* ---- 4 · Art. 273 A ---- */}
+          <Section n={4} title="Artículo 273 A" hint="Ocho respuestas. Cada «sí» abre su lista en Bienes o Juicios y cambia el párrafo correspondiente de la demanda.">
+            <div className="grid gap-x-8 sm:col-span-12 sm:grid-cols-2">
+              {PREGUNTAS_273A.map((q) => (
+                <div key={q.key} className="flex items-center justify-between gap-3 border-b border-line-soft py-2.5">
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-[13px] font-medium text-fg">{q.label}</span>
+                    <span className="truncate text-[11.5px] text-muted">{q.hint}</span>
+                  </span>
+                  <YesNo name={q.key} value={answers[q.key]} onChange={(v) => setAnswers((a) => ({ ...a, [q.key]: v }))} disabled={disabled} label={q.label} />
+                </div>
+              ))}
             </div>
-            <div className="grid-fields">
-              <Field label="Situación">
-                <select name="situacion_laboral" className="input" defaultValue={f.situacion_laboral ?? ""}>
-                  <option value="">Sin definir</option>
-                  {SITUACIONES_LABORALES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Ingreso líquido mensual">
-                <input name="ingreso_liquido" className="input tabnum" inputMode="numeric" defaultValue={f.ingreso_liquido ?? ""} placeholder="650000" autoComplete="off" />
-              </Field>
-              {relacion === "si" && (
-                <>
-                  <Field label="Empleador" className="sm:col-span-2">
-                    <input name="empleador" className="input" defaultValue={f.empleador ?? ""} autoComplete="off" />
-                  </Field>
-                  <Field label="RUT empleador">
-                    <input name="rut_empleador" className="input tabnum" defaultValue={formatRut(f.rut_empleador)} autoComplete="off" />
-                  </Field>
-                  <Field label="Inicio del contrato">
-                    <input name="fecha_inicio_contrato" type="date" className="input tabnum" defaultValue={f.fecha_inicio_contrato ?? ""} />
-                  </Field>
-                  <Field label="Tipo de contrato">
-                    <select name="tipo_contrato" className="input" defaultValue={f.tipo_contrato ?? ""}>
-                      <option value="">Sin definir</option>
-                      {TIPOS_CONTRATO.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </>
-              )}
-            </div>
-          </section>
+          </Section>
+
+          {/* ---- 5 · Carta de insolvencia ---- */}
+          <Section
+            n={5}
+            title="Carta de insolvencia"
+            hint="A la izquierda, lo que escribió el cliente (se conserva). A la derecha, la versión que va en «Hechos» de la demanda; los saltos de párrafo se respetan en el Word."
+            aside={
+              <button type="button" className="btn-outline btn-sm" onClick={copyCarta} disabled={disabled}>
+                <Icon name="chevron" size={13} /> Usar el original como base
+              </button>
+            }
+          >
+            <Field label="Texto original del cliente" className="sm:col-span-6">
+              <textarea ref={cartaOriginal} name="carta_original" className="input min-h-[240px] resize-y leading-relaxed" defaultValue={f.carta_original ?? ""} placeholder="Pega aquí el relato del cliente tal como llegó." />
+            </Field>
+            <Field label="Versión para la demanda" className="sm:col-span-6">
+              <textarea ref={cartaDemanda} name="carta_demanda" className="input min-h-[240px] resize-y leading-relaxed" defaultValue={f.carta_demanda ?? ""} placeholder="Redacción revisada por el abogado." />
+            </Field>
+          </Section>
         </div>
-
-        {/* ---- Art. 273 A ---- */}
-        <section className="panel gap-3 px-5 py-5">
-          <div className="flex flex-col gap-0.5">
-            <span className="card-title">Artículo 273 A · ¿qué tiene el cliente?</span>
-            <span className="text-[12.5px] text-muted">Ocho respuestas. Cada «sí» abre su lista en las pestañas Bienes y Juicios y cambia el párrafo correspondiente de la demanda.</span>
-          </div>
-          <div className="grid gap-x-6 sm:grid-cols-2">
-            {PREGUNTAS_273A.map((q) => (
-              <div key={q.key} className="flex items-center justify-between gap-3 border-b border-line-soft py-2 last:border-0 sm:[&:nth-last-child(2)]:border-0">
-                <span className="flex min-w-0 flex-col">
-                  <span className="text-[13px] font-medium text-fg">{q.label}</span>
-                  <span className="truncate text-[11.5px] text-muted">{q.hint}</span>
-                </span>
-                <YesNo name={q.key} value={answers[q.key]} onChange={(v) => setAnswers((a) => ({ ...a, [q.key]: v }))} disabled={disabled} label={q.label} />
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ---- Carta de insolvencia ---- */}
-        <section className="panel gap-4 px-5 py-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex flex-col gap-0.5">
-              <span className="card-title">Carta de insolvencia</span>
-              <span className="text-[12.5px] text-muted">A la izquierda, lo que escribió el cliente (se conserva). A la derecha, la versión que va en «Hechos» de la demanda.</span>
-            </div>
-            <button type="button" className="btn-outline btn-sm" onClick={copyCarta} disabled={disabled}>
-              <Icon name="chevron" size={13} /> Usar el original como base
-            </button>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Field label="Texto original del cliente">
-              <textarea ref={cartaOriginal} name="carta_original" className="input min-h-[220px] resize-y leading-relaxed" defaultValue={f.carta_original ?? ""} placeholder="Pega aquí el relato del cliente tal como llegó." />
-            </Field>
-            <Field label="Versión para la demanda">
-              <textarea ref={cartaDemanda} name="carta_demanda" className="input min-h-[220px] resize-y leading-relaxed" defaultValue={f.carta_demanda ?? ""} placeholder="Redacción revisada por el abogado. Los saltos de párrafo se respetan en el Word." />
-            </Field>
-          </div>
-        </section>
       </fieldset>
 
       {canEdit && (

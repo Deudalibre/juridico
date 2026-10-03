@@ -99,7 +99,7 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
       ) : tab === "Resumen" ? (
         <Resumen f={f} c={c} pct={p.pct} missing={p.missing} />
       ) : tab === "Ficha maestra" ? (
-        <FichaForm client={c} ficha={f} canEdit={canEdit} />
+        <FichaForm client={c} ficha={f} canEdit={canEdit} progress={p} />
       ) : tab === "Historial" ? (
         <section className="panel overflow-hidden">
           <div className="panel-head !py-3">
