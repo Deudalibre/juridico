@@ -1,11 +1,26 @@
 import { requirePermission } from "@/lib/data";
+import { Suspense } from "react";
+import Loading from "@/app/(app)/loading";
 import { Icon } from "@/components/icons";
 
 // Etapa 4 (documentos generados, versiones y paquetes). Depende del gestor de plantillas.
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Documentos" };
 
-export default async function DocumentosPage() {
+/**
+ * La carga de datos vive en DocumentosContent, dentro de un <Suspense> con el esqueleto de loading.tsx. Así la navegación a
+ * esta pantalla es instantánea (Next 16 lo valida en desarrollo): marco y esqueleto aparecen al clic y los datos
+ * entran en streaming. loading.tsx solo cubre la carga directa, no la navegación entre pantallas.
+ */
+export default function DocumentosPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <DocumentosContent />
+    </Suspense>
+  );
+}
+
+async function DocumentosContent() {
   await requirePermission("documents.view");
   return (
     <>

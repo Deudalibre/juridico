@@ -1,5 +1,6 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import Loading from "@/app/(app)/loading";
 import { getMembers, requirePermission, type LegalClient, type LegalReview, type LegalTask } from "@/lib/data";
 import { addDaysKey, dayKey, hourIn, longToday, mondayOf, relativeDays, zonedToIso } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
@@ -36,7 +37,20 @@ function Group({ title, hint, count, tone, children }: { title: string; hint?: s
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Revisión" };
 
-export default async function RevisionPage(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string }> }) {
+/**
+ * La carga de datos vive en RevisionContent, dentro de un <Suspense> con el esqueleto de loading.tsx. Así la navegación a
+ * esta pantalla es instantánea (Next 16 lo valida en desarrollo): marco y esqueleto aparecen al clic y los datos
+ * entran en streaming. loading.tsx solo cubre la carga directa, no la navegación entre pantallas.
+ */
+export default function RevisionPage(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string }> }) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <RevisionContent searchParams={props.searchParams} />
+    </Suspense>
+  );
+}
+
+async function RevisionContent(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string }> }) {
   const sp = await props.searchParams;
   const { supabase, user, profile, tz, can } = await requirePermission("legal.view");
   // Abogados y causas activas a la vez (el filtro por abogado se aplica aquí: son pocas filas y ahorra un viaje)
@@ -354,7 +368,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                 <span className="ml-auto hidden text-[12px] font-medium text-accent group-open:inline">Ocultar</span>
               </summary>
               <div className="overflow-x-auto border-t" style={{ borderColor: "var(--warning-line)" }}>
-                <div className="grid min-w-[640px] grid-cols-[32px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-x-4 th-band border-b border-line px-4 py-2" role="row">
+                <div className="grid min-w-[640px] grid-cols-[32px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_160px] items-center gap-x-4 th-band border-b border-line px-4 py-2" role="row">
                   {["N°", "Cliente", "Alta en el sistema", "Abogado", ""].map((h, i) => (
                     <span key={i} className="th" role="columnheader">
                       {h}
@@ -362,7 +376,7 @@ export default async function RevisionPage(props: { searchParams: Promise<{ ver?
                   ))}
                 </div>
                 {prep.map((c) => (
-                  <div key={c.id} className="grid min-w-[640px] grid-cols-[32px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-x-4 row min-h-[44px] px-4 py-1.5" role="row">
+                  <div key={c.id} className="grid min-w-[640px] grid-cols-[32px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_160px] items-center gap-x-4 row min-h-[44px] px-4 py-1.5" role="row">
                     <span className="tabnum text-[12px] font-semibold text-muted" role="cell" title={c.internal_number ? `Causa N° ${c.internal_number}` : undefined}>
                       {seq.get(c.id)}
                     </span>

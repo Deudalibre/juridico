@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import Loading from "@/app/(app)/loading";
 import { requirePermission } from "@/lib/data";
 import { dateTime } from "@/lib/format";
 import { procedureTone } from "@/lib/legal";
@@ -14,7 +16,20 @@ const GRID = "grid grid-cols-[minmax(0,2fr)_1.2fr_0.7fr_0.6fr_1fr_220px] items-c
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Plantillas" };
 
-export default async function PlantillasPage() {
+/**
+ * La carga de datos vive en PlantillasContent, dentro de un <Suspense> con el esqueleto de loading.tsx. Así la navegación a
+ * esta pantalla es instantánea (Next 16 lo valida en desarrollo): marco y esqueleto aparecen al clic y los datos
+ * entran en streaming. loading.tsx solo cubre la carga directa, no la navegación entre pantallas.
+ */
+export default function PlantillasPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <PlantillasContent />
+    </Suspense>
+  );
+}
+
+async function PlantillasContent() {
   const { supabase, can, tz } = await requirePermission("documents.view");
   const { data, error } = await supabase.from("legal_templates").select("*").eq("active", true).order("name");
   if (error) throw new Error(error.message);

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import Loading from "@/app/(app)/loading";
 import { getMembers, requirePermission, type LegalTask } from "@/lib/data";
 import { dateTime, initials } from "@/lib/format";
 import { TASK_KINDS } from "@/lib/legal";
@@ -19,7 +21,20 @@ type Row = LegalTask & { canceled_at: string | null; closed_by: string | null; l
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Tareas cerradas" };
 
-export default async function TareasCerradasPage(props: { searchParams: Promise<{ quien?: string; desde?: string; hasta?: string; q?: string }> }) {
+/**
+ * La carga de datos vive en TareasCerradasContent, dentro de un <Suspense> con el esqueleto de loading.tsx. Así la navegación a
+ * esta pantalla es instantánea (Next 16 lo valida en desarrollo): marco y esqueleto aparecen al clic y los datos
+ * entran en streaming. loading.tsx solo cubre la carga directa, no la navegación entre pantallas.
+ */
+export default function TareasCerradasPage(props: { searchParams: Promise<{ quien?: string; desde?: string; hasta?: string; q?: string }> }) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <TareasCerradasContent searchParams={props.searchParams} />
+    </Suspense>
+  );
+}
+
+async function TareasCerradasContent(props: { searchParams: Promise<{ quien?: string; desde?: string; hasta?: string; q?: string }> }) {
   const sp = await props.searchParams;
   const { supabase, tz } = await requirePermission("legal.view");
   const members = await getMembers(supabase);
