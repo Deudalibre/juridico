@@ -96,6 +96,24 @@ try {
   ok("Historial · el cambio de estado del documento queda registrado", /pendiente → recibido/.test(hReq[0]?.summary ?? ""), hReq[0]?.summary);
   void cedula;
 
+  // Bienes (etapa 3): un vehículo → su CAV propio; el CAV genérico deja de aplicar
+  const veh = await jur.c.from("legal_lvs_vehiculos").insert({ client_id: id, tipo_codigo: 1, patente: "ABCD12", marca: "Toyota", modelo: "Yaris", anio: 2018, avaluo_fiscal: 5000000 }).select().single();
+  ok("Bienes · jurídico agrega un vehículo (RLS)", !veh.error && veh.data?.tipo_codigo === 1, veh.error?.message);
+  const mueble = await jur.c.from("legal_lvs_bienes_muebles").insert({ client_id: id, tipo_codigo: 16, datos: "Cuenta de ahorro Banco Estado", monto: 120000 }).select().single();
+  ok("Bienes · bien mueble con código del Anexo 8", !mueble.error && mueble.data?.tipo_codigo === 16, mueble.error?.message);
+  const bad = await jur.c.from("legal_lvs_vehiculos").insert({ client_id: id, tipo_codigo: 99 });
+  ok("Bienes · la base rechaza un código fuera del Anexo 4", Boolean(bad.error));
+  const eVeh = await eje.c.from("legal_lvs_vehiculos").select("id");
+  ok("Ejecutivo · no ve los bienes LVS", (eVeh.data ?? []).length === 0);
+  const bienesPage = await page(jur, `/documentos/lvs/${id}?tab=Bienes`);
+  ok("Bienes · pestaña con la lista del vehículo y del bien mueble", bienesPage.status === 200 && /Toyota Yaris 2018/.test(bienesPage.text) && /Cuenta de ahorro Banco Estado/.test(bienesPage.text) && /Anexo N\.º 4/.test(bienesPage.text), String(bienesPage.status));
+  // Al abrir Documentación se sincroniza: CAV por vehículo
+  await page(jur, `/documentos/lvs/${id}?tab=Documentación`);
+  const cavs = sql(`select nombre, estado, entidad_id from legal_lvs_requisitos where client_id = '${id}' and codigo = 'cav' order by created_at`);
+  ok("Documentación · CAV genérico pasa a no aplica y aparece el CAV del vehículo ABCD12", cavs.some((r) => r.entidad_id === null && r.estado === "no_aplica") && cavs.some((r) => r.entidad_id === veh.data?.id && r.estado === "pendiente" && /ABCD12/.test(r.nombre)), JSON.stringify(cavs.map((r) => [r.nombre, r.estado])));
+  const hBien = sql(`select summary from legal_case_history where client_id = '${id}' and summary like 'Vehículo%' limit 1`);
+  ok("Historial · alta del vehículo registrada", /Vehículo agregado/.test(hBien[0]?.summary ?? ""));
+
   // Historial: creación + cambios con campos antes/después
   const hist = sql(`select summary, before, after from legal_case_history where client_id = '${id}' and kind = 'lvs' order by at`);
   const fichaHist = hist.filter((h) => /^Ficha LVS:/.test(h.summary));

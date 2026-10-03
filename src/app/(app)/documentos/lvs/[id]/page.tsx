@@ -8,6 +8,8 @@ import { formatRut } from "@/lib/rut";
 import { LVS_ESTADOS, LVS_TABS, PREGUNTAS_273A, PREGUNTAS_BIENES, lvsEstadoTone, lvsProgress, type LvsFicha, type LvsTab } from "@/lib/lvs";
 import { FichaForm } from "./FichaForm";
 import { DocumentacionTab } from "./DocumentacionTab";
+import { BienesTab } from "./BienesTab";
+import { CATEGORIAS, EMPTY_BIENES, type BienRow, type BienesPorCategoria } from "@/lib/lvs-bienes";
 import { resumenRequisitos, type LvsRequisito } from "@/lib/lvs-requisitos";
 import { syncRequisitos } from "@/lib/lvs-sync";
 import { AbrirExpediente } from "./AbrirExpediente";
@@ -18,7 +20,6 @@ type History = { id: number; at: string; actor_name: string | null; kind: string
 
 /** Etapas que aún no están construidas: la pestaña existe para que el flujo ya se vea completo. */
 const PROXIMAS: Partial<Record<LvsTab, { etapa: number; texto: string }>> = {
-  Bienes: { etapa: 3, texto: "Listas de bienes raíces, vehículos, aguas, sociedades, instrumentos y bienes muebles (Anexo 8), según lo respondido en la ficha." },
   Acreedores: { etapa: 5, texto: "Deudas del cliente tomadas del catálogo maestro de acreedores; alimentan el Anexo 9 y su total." },
   Juicios: { etapa: 6, texto: "Causas pendientes del cliente para el numeral 4 del artículo 273 A." },
   Generados: { etapa: 8, texto: "Anexo 8, Anexo 9, Declaración 273-A y demanda generados desde las plantillas Word, con versión y descarga." },
@@ -42,6 +43,16 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
     requisitos = ((await supabase.from("legal_lvs_requisitos").select("*").eq("client_id", id).order("orden")).data ?? []) as LvsRequisito[];
   }
   const docs = resumenRequisitos(requisitos);
+  // Bienes: solo las categorías marcadas con «sí» (una consulta por categoría activa)
+  const bienes: BienesPorCategoria = { ...EMPTY_BIENES };
+  if (lvs) {
+    const activas = CATEGORIAS.filter((cat) => (lvs as LvsFicha)[cat.pregunta] === true);
+    const res = await Promise.all(activas.map((cat) => supabase.from(cat.table).select("*").eq("client_id", id).order("orden")));
+    activas.forEach((cat, i) => {
+      bienes[cat.key] = (res[i].data ?? []) as BienRow[];
+    });
+  }
+  const totalBienes = Object.values(bienes).reduce((n, rows) => n + rows.length, 0);
   if (!client) notFound();
   const c = client as LegalClient;
   const f = (lvs as LvsFicha | null) ?? null;
@@ -108,9 +119,11 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
       {!f ? (
         <AbrirExpediente clientId={c.id} canCreate={can("legal.create") && !c.archived_at} />
       ) : tab === "Resumen" ? (
-        <Resumen f={f} c={c} pct={p.pct} missing={p.missing} docs={docs} />
+        <Resumen f={f} c={c} pct={p.pct} missing={p.missing} docs={docs} totalBienes={totalBienes} />
       ) : tab === "Ficha maestra" ? (
         <FichaForm client={c} ficha={f} canEdit={canEdit} progress={p} />
+      ) : tab === "Bienes" ? (
+        <BienesTab clientId={c.id} ficha={f} bienes={bienes} canEdit={canEdit} />
       ) : tab === "Documentación" ? (
         <DocumentacionTab clientId={c.id} requisitos={requisitos} canEdit={canEdit} canUpload={canEdit && can("documents.upload")} tz={tz} />
       ) : tab === "Historial" ? (
@@ -152,7 +165,7 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
 }
 
 /** Portada del expediente: avance de cada bloque de un vistazo, sin repetir los datos de la ficha. */
-function Resumen({ f, c, pct, missing, docs }: { f: LvsFicha; c: LegalClient; pct: number; missing: string[]; docs: ReturnType<typeof resumenRequisitos> }) {
+function Resumen({ f, c, pct, missing, docs, totalBienes }: { f: LvsFicha; c: LegalClient; pct: number; missing: string[]; docs: ReturnType<typeof resumenRequisitos>; totalBienes: number }) {
   const si = PREGUNTAS_273A.filter((q) => f[q.key] === true);
   const sinResponder = PREGUNTAS_273A.filter((q) => f[q.key] == null);
   const card = (title: string, value: string, detail: string, href: string, tone: "" | "warn" | "success" = "") => (
@@ -166,7 +179,7 @@ function Resumen({ f, c, pct, missing, docs }: { f: LvsFicha; c: LegalClient; pc
     <>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         {card("Ficha maestra", `${pct}%`, missing.length ? `Falta: ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "…" : ""}` : "Completa", "Ficha maestra", pct === 100 ? "success" : "warn")}
-        {card("Bienes", si.filter((q) => q.numeral === 1).length.toString(), sinResponder.length ? `${sinResponder.length} preguntas sin responder` : "categorías declaradas con «sí»", "Bienes")}
+        {card("Bienes", totalBienes.toString(), (() => { const cats = si.filter((q) => q.numeral === 1).length; return cats === 0 ? (sinResponder.length ? `${sinResponder.length} preguntas sin responder` : "sin categorías con «sí»") : totalBienes === 0 ? `${cats} ${cats === 1 ? "categoría" : "categorías"} con «sí» · falta cargar los bienes` : `en ${cats} ${cats === 1 ? "categoría" : "categorías"}`; })(), "Bienes", si.filter((q) => q.numeral === 1).length > 0 && totalBienes === 0 ? "warn" : "")}
         {card("Acreedores", "—", "Etapa 5 · catálogo maestro", "Acreedores")}
         {card("Documentación", `${docs.recibidos}/${docs.requeridos}`, docs.requeridos ? `${docs.pendientes} pendientes${docs.observados ? ` · ${docs.observados} observados o vencidos` : ""}` : "Sin documentos todavía", "Documentación", docs.requeridos && docs.recibidos === docs.requeridos ? "success" : docs.observados ? "warn" : "")}
       </div>
