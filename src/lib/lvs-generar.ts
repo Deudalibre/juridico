@@ -50,6 +50,25 @@ export function datosAnexo8(c: LegalClient, f: LvsFicha, bienes: BienRow[], lawy
   return { data, errores, advertencias };
 }
 
+/** Datos de la Declaración 273-A: todo sale de la ficha; sin alguno de estos no se genera. */
+export function datosDeclaracion(c: LegalClient, f: LvsFicha, lawyer: string | null) {
+  const errores: string[] = [];
+  const falta = (ok: unknown, que: string) => {
+    if (!ok) errores.push(`Falta ${que} en la ficha.`);
+  };
+  falta(c.full_name?.trim(), "el nombre");
+  falta(c.rut, "el RUT");
+  falta(f.genero, "el género (don/doña, domiciliado/a)");
+  falta(f.profesion_oficio, "la profesión u oficio");
+  falta(f.nacionalidad, "la nacionalidad");
+  falta(f.estado_civil, "el estado civil");
+  falta(f.domicilio, "el domicilio");
+  falta(f.comuna, "la comuna");
+  falta(f.region, "la región");
+  const data = { ...clientValues(c, lawyer), ...lvsValues(f) };
+  return { data, errores, advertencias: [] as string[] };
+}
+
 /**
  * Genera un documento LVS: toma la plantilla del slot, la rellena, guarda el Word en el bucket de documentos de la
  * causa, lo registra como documento (y como generado).
