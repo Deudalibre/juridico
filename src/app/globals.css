@@ -3561,3 +3561,102 @@ textarea::placeholder {
     animation-delay: 0s !important;
   }
 }
+
+/* ============================================================
+   Pulido final: detalles de producto terminado (idéntico en CRM y Jurídico).
+   - La marca de la opción activa (barra lateral, submenú y pestañas de ficha) se desliza
+     hasta la nueva opción al navegar: es un elemento compartido entre pantallas
+     (React <ViewTransition name=… share="nav-marker">), no un cambio brusco.
+   - Selección de texto en turquesa, barras de desplazamiento finas y hueco estable del
+     scroll (la pantalla no «salta» entre páginas con y sin desplazamiento).
+   - Cifras con ancho fijo en toda el área de trabajo: las columnas de números alinean.
+   - Sin elevaciones al pasar el dedo en pantallas táctiles (no hay «hover» que se quede pegado).
+   ============================================================ */
+::selection {
+  background: rgba(var(--brand-rgb), 0.24);
+  color: var(--text-primary);
+}
+.content {
+  scrollbar-gutter: stable;
+  font-variant-numeric: tabular-nums;
+}
+.content,
+.submenu,
+.column,
+.drawer,
+.menu-content,
+.sel-content,
+.modal,
+textarea {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(31, 41, 51, 0.2) transparent;
+}
+
+/* ---- Marca de la opción activa ---- */
+.rail-item::before {
+  content: none;
+}
+.rail-marker {
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 3px;
+  height: 22px;
+  margin-top: -11px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand-dark);
+}
+.submenu-item {
+  isolation: isolate;
+}
+.submenu-item[aria-current="page"] {
+  background: transparent;
+}
+.submenu-marker {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 8px;
+  background: rgba(var(--brand-rgb), 0.08);
+}
+.seg > * {
+  position: relative;
+  isolation: isolate;
+}
+.seg > [aria-current="true"] {
+  background: transparent;
+  box-shadow: none;
+}
+.seg-marker {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(52, 66, 86, 0.1);
+}
+::view-transition-group(.nav-marker) {
+  animation-duration: 280ms;
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-old(.nav-marker),
+::view-transition-new(.nav-marker) {
+  animation-duration: 120ms;
+}
+
+/* ---- Pantallas táctiles: sin elevación al tocar ---- */
+@media (hover: none) {
+  .lift:hover,
+  .settings-card:hover,
+  .kpi:hover,
+  .btn-primary:hover:not(:disabled),
+  .btn-secondary:hover:not(:disabled),
+  .btn-outline:hover:not(:disabled),
+  .btn-ghost:hover:not(:disabled),
+  .btn-danger:hover:not(:disabled),
+  .icon-btn:not(.plain):hover:not(:disabled),
+  .topbar-btn:hover {
+    transform: none;
+    box-shadow: var(--shadow-panel);
+  }
+}

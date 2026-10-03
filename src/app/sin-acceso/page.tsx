@@ -3,6 +3,9 @@ import { signOut } from "@/app/(auth)/actions";
 const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL ?? "http://localhost:3000";
 
 // Página estática (no redirige): evita un bucle con requirePermission → /sin-acceso → /clientes → …
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Sin acceso" };
+
 export default function SinAcceso() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">

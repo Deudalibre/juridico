@@ -9,6 +9,9 @@ import { VariablesManager } from "./VariablesManager";
  * y sirve para todas las plantillas. Al subir un Word, los marcadores que coinciden se reconocen solos;
  * en el editor se ofrecen para marcar sin volver a definirlos.
  */
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Variables del estudio" };
+
 export default async function VariablesPage() {
   const { supabase, can } = await requirePermission("documents.view");
   const [{ data: rows, error }, { data: templates }] = await Promise.all([

@@ -8,6 +8,9 @@ import type { CatalogVariable } from "@/lib/templates";
 
 // Editor de una plantilla: el documento a la izquierda (se selecciona texto y se convierte en variable)
 // y el panel de variables a la derecha. Misma estructura que la ficha del cliente: cabecera, y 1fr + columna fija.
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Plantilla" };
+
 export default async function PlantillaPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
   const { supabase, can } = await requirePermission("documents.view");

@@ -4,6 +4,9 @@ import { Icon } from "@/components/icons";
 import { DriveCard } from "./DriveCard";
 
 // Configuración del área jurídica (solo legal.settings): Google Drive del estudio, estados de la causa y proveedor de IA.
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Configuración" };
+
 export default async function ConfiguracionPage() {
   const { supabase } = await requirePermission("legal.settings");
   const [statuses, drive] = await Promise.all([getStatuses(supabase), driveState(supabase)]);

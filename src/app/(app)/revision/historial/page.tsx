@@ -5,6 +5,9 @@ import { Icon } from "@/components/icons";
 import { ExportButton } from "@/components/ExportButton";
 
 // Historial de revisiones del estudio: qué causa, cuándo, quién, si hubo movimiento y qué quedó pendiente.
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Historial de revisiones" };
+
 export default async function HistorialRevisionesPage(props: { searchParams: Promise<{ q?: string }> }) {
   const sp = await props.searchParams;
   const { supabase, tz } = await requirePermission("legal.view");

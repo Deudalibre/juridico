@@ -2,6 +2,9 @@ import { requirePermission } from "@/lib/data";
 import { Icon } from "@/components/icons";
 
 // Etapa 4 (documentos generados, versiones y paquetes). Depende del gestor de plantillas.
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Documentos" };
+
 export default async function DocumentosPage() {
   await requirePermission("documents.view");
   return (
