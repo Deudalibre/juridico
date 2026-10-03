@@ -15,6 +15,9 @@ type SP = { q?: string; estado?: string; proc?: string; abogado?: string; paso?:
 const PAGE = 50;
 const isDate = (s?: string) => /^\d{4}-\d{2}-\d{2}$/.test(s ?? "");
 
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Causas" };
+
 export default async function ClientesPage(props: { searchParams: Promise<SP> }) {
   const sp = await props.searchParams;
   const { supabase, can, tz } = await requirePermission("legal.view");

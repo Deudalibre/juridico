@@ -4,6 +4,9 @@ import { Icon } from "@/components/icons";
 import { NuevoForm } from "./NuevoForm";
 
 // Alta manual de un cliente. Los que vienen del CRM se crean desde la ficha del lead contratado.
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Nuevo cliente" };
+
 export default async function NuevoClientePage() {
   await requirePermission("legal.create");
   return (

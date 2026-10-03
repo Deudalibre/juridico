@@ -16,6 +16,9 @@ const DAY = 86400_000;
 
 type Row = LegalTask & { canceled_at: string | null; closed_by: string | null; legal_clients: { full_name: string; rol: string | null } | null };
 
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Tareas cerradas" };
+
 export default async function TareasCerradasPage(props: { searchParams: Promise<{ quien?: string; desde?: string; hasta?: string; q?: string }> }) {
   const sp = await props.searchParams;
   const { supabase, tz } = await requirePermission("legal.view");

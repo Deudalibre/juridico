@@ -145,6 +145,25 @@ const CRUMB_ICON: Record<string, string> = {
   Configuración: "settings",
 };
 
+/**
+ * Marca de la opción activa. Lleva un nombre de transición compartido: al navegar, React y la
+ * View Transitions API la deslizan desde la opción anterior hasta la nueva en vez de encenderla de golpe.
+ */
+function RailMarker() {
+  return (
+    <ViewTransition name="rail-active" share="nav-marker">
+      <span className="rail-marker" aria-hidden />
+    </ViewTransition>
+  );
+}
+function SubmenuMarker() {
+  return (
+    <ViewTransition name="submenu-active" share="nav-marker">
+      <span className="submenu-marker" aria-hidden />
+    </ViewTransition>
+  );
+}
+
 function UserMenu({ name, role, crmUrl }: { name: string; role: Role; crmUrl: string }) {
   return (
     <Menu
@@ -234,6 +253,7 @@ export function AppShell({ children, userId, name, role, permissions, badge, crm
         {nav.map((n) => (
           <Link key={n.href} href={n.href} className="rail-item" aria-current={n.match(path) ? "page" : undefined}>
             <LinkPending />
+            {n.match(path) && <RailMarker />}
             <Icon name={n.icon} />
             <span>{n.label}</span>
             {n.href === "/revision" && badge}
@@ -247,6 +267,7 @@ export function AppShell({ children, userId, name, role, permissions, badge, crm
         {can("legal.settings") && (
           <Link href="/configuracion" className="rail-item" aria-current={starts(path, "/configuracion") ? "page" : undefined}>
             <LinkPending />
+            {starts(path, "/configuracion") && <RailMarker />}
             <Icon name="settings" />
             <span>Configuración</span>
           </Link>
@@ -261,6 +282,7 @@ export function AppShell({ children, userId, name, role, permissions, badge, crm
               {i.group && i.group !== section.items[k - 1]?.group && <span className="submenu-group">{i.group}</span>}
               <Link href={i.href} className="submenu-item" aria-current={isActive(i) ? "page" : undefined}>
                 <LinkPending />
+                {isActive(i) && <SubmenuMarker />}
                 <Icon name={i.icon} size={15} />
                 {i.label}
               </Link>

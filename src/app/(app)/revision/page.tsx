@@ -33,6 +33,9 @@ function Group({ title, hint, count, tone, children }: { title: string; hint?: s
   );
 }
 
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Revisión" };
+
 export default async function RevisionPage(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string }> }) {
   const sp = await props.searchParams;
   const { supabase, user, profile, tz, can } = await requirePermission("legal.view");

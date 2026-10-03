@@ -11,6 +11,9 @@ import { DownloadButton } from "./DownloadButton";
 // Cada plantilla se abre en su editor, donde se marcan las variables sobre el propio documento.
 const GRID = "grid grid-cols-[minmax(0,2fr)_1.2fr_0.7fr_0.6fr_1fr_220px] items-center gap-3";
 
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Plantillas" };
+
 export default async function PlantillasPage() {
   const { supabase, can, tz } = await requirePermission("documents.view");
   const { data, error } = await supabase.from("legal_templates").select("*").eq("active", true).order("name");

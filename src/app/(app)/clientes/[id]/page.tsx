@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
+import { ViewTransition, type ReactNode } from "react";
 import {
   getMembers,
   requirePermission,
@@ -58,6 +58,9 @@ function ExternalButton({ icon, label, url }: { icon: string; label: string; url
     </Link>
   );
 }
+
+// Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
+export const metadata = { title: "Ficha de la causa" };
 
 export default async function ClientePage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const searchParams = await props.searchParams;
@@ -292,6 +295,12 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
         <nav className="seg self-start" aria-label="Secciones de la ficha">
           {TABS.map((t) => (
             <Link key={t} href={`/clientes/${c.id}?tab=${encodeURIComponent(t)}`} aria-current={tab === t ? "true" : undefined}>
+              {/* La pestaña activa lleva la marca compartida: se desliza a la nueva pestaña al cambiar */}
+              {tab === t && (
+                <ViewTransition name="seg-active" share="nav-marker">
+                  <span className="seg-marker" aria-hidden />
+                </ViewTransition>
+              )}
               {t}
             </Link>
           ))}
