@@ -9,6 +9,7 @@ import { LVS_ESTADOS, LVS_TABS, PREGUNTAS_273A, PREGUNTAS_BIENES, lvsEstadoTone,
 import { FichaForm } from "./FichaForm";
 import { DocumentacionTab } from "./DocumentacionTab";
 import { GeneradosTab } from "./GeneradosTab";
+import { totalDeudas, type AcreedorLite, type Deuda } from "@/lib/lvs-acreedores";
 import type { LvsGenerado } from "@/lib/lvs-generados";
 import { CATEGORIAS, EMPTY_BIENES, type BienRow, type BienesPorCategoria } from "@/lib/lvs-bienes";
 import { cruzarConDrive, documentosCarpeta, sinPistas, type DriveMatch } from "@/lib/lvs-documentos";
@@ -18,11 +19,6 @@ import { AbrirExpediente } from "./AbrirExpediente";
 export const metadata = { title: "Expediente LVS" };
 
 type History = { id: number; at: string; actor_name: string | null; kind: string; summary: string | null };
-
-/** Etapas que aún no están construidas: la pestaña existe para que el flujo ya se vea completo. */
-const PROXIMAS: Partial<Record<LvsTab, { etapa: number; texto: string }>> = {
-  Acreedores: { etapa: 5, texto: "Deudas del cliente tomadas del catálogo maestro de acreedores; alimentan el Anexo 9 y su total." },
-};
 
 export default async function ExpedientePage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const [{ id }, sp] = await Promise.all([props.params, props.searchParams]);
@@ -42,6 +38,17 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
     });
   }
   const totalBienes = CATEGORIAS.filter((cat) => cat.key !== "juicios").reduce((n, cat) => n + bienes[cat.key].length, 0);
+  // Deudas del expediente y catálogo de acreedores (lo justo para buscar y rellenar)
+  let deudas: Deuda[] = [];
+  let catalogo: AcreedorLite[] = [];
+  if (lvs && (!sp.tab || sp.tab === "Resumen" || sp.tab === "Ficha maestra")) {
+    const [d, a] = await Promise.all([
+      supabase.from("legal_lvs_deudas").select("*").eq("client_id", id).order("orden"),
+      sp.tab === "Ficha maestra" ? supabase.from("legal_acreedores").select("id, nombre, rut, alias, email, telefono, naturaleza").eq("activo", true).order("nombre").limit(2000) : Promise.resolve({ data: [] as AcreedorLite[] }),
+    ]);
+    deudas = (d.data ?? []) as Deuda[];
+    catalogo = (a.data ?? []) as AcreedorLite[];
+  }
   // Documentación: lista recordatorio desde la ficha, cruzada con la carpeta del Drive si está vinculada
   const docs = lvs ? documentosCarpeta(lvs as LvsFicha, bienes) : [];
   let driveMatch: Record<number, DriveMatch> = {};
@@ -132,9 +139,9 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
       {!f ? (
         <AbrirExpediente clientId={c.id} canCreate={can("legal.create") && !c.archived_at} />
       ) : tab === "Resumen" ? (
-        <Resumen f={f} c={c} pct={p.pct} missing={p.missing} docs={docs.filter((d) => !d.generado).length} totalBienes={totalBienes} generados={generados.filter((g) => g.estado !== "reemplazado").length} bienes={bienes} />
+        <Resumen f={f} c={c} pct={p.pct} missing={p.missing} docs={docs.filter((d) => !d.generado).length} totalBienes={totalBienes} generados={generados.filter((g) => g.estado !== "reemplazado").length} bienes={bienes} deudas={deudas} />
       ) : tab === "Ficha maestra" ? (
-        <FichaForm client={c} ficha={f} canEdit={canEdit} progress={p} bienes={bienes} />
+        <FichaForm client={c} ficha={f} canEdit={canEdit} progress={p} bienes={bienes} deudas={deudas} catalogo={catalogo} />
       ) : tab === "Generados" ? (
         <GeneradosTab clientId={c.id} ficha={f} generados={generados} totalMuebles={bienes.muebles.length} plantillas={plantillas} canEdit={canEdit && can("documents.edit")} />
       ) : tab === "Documentación" ? (
@@ -162,23 +169,13 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
             ))
           )}
         </section>
-      ) : (
-        <section className="panel empty">
-          <span className="icon-tile">
-            <Icon name="clock" />
-          </span>
-          <span className="empty-title">
-            {tab} · se construye en la etapa {PROXIMAS[tab]?.etapa}
-          </span>
-          <span className="empty-text">{PROXIMAS[tab]?.texto}</span>
-        </section>
-      )}
+      ) : null}
     </>
   );
 }
 
 /** Portada del expediente: avance de cada bloque de un vistazo, sin repetir los datos de la ficha. */
-function Resumen({ f, c, pct, missing, docs, totalBienes, generados, bienes }: { f: LvsFicha; c: LegalClient; pct: number; missing: string[]; docs: number; totalBienes: number; generados: number; bienes: BienesPorCategoria }) {
+function Resumen({ f, c, pct, missing, docs, totalBienes, generados, bienes, deudas }: { f: LvsFicha; c: LegalClient; pct: number; missing: string[]; docs: number; totalBienes: number; generados: number; bienes: BienesPorCategoria; deudas: Deuda[] }) {
   const si = PREGUNTAS_273A.filter((q) => f[q.key] === true);
   const sinResponder = PREGUNTAS_273A.filter((q) => f[q.key] == null);
   const card = (title: string, value: string, detail: string, href: string, tone: "" | "warn" | "success" = "") => (
@@ -193,7 +190,7 @@ function Resumen({ f, c, pct, missing, docs, totalBienes, generados, bienes }: {
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         {card("Ficha maestra", `${pct}%`, missing.length ? `Falta: ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "…" : ""}` : "Completa", "Ficha maestra", pct === 100 ? "success" : "warn")}
         {card("Bienes", totalBienes.toString(), (() => { const cats = si.filter((q) => q.numeral === 1).length; return cats === 0 ? (sinResponder.length ? `${sinResponder.length} preguntas sin responder` : "sin categorías con «sí»") : totalBienes === 0 ? `${cats} ${cats === 1 ? "categoría" : "categorías"} con «sí» · falta cargar los bienes` : `en ${cats} ${cats === 1 ? "categoría" : "categorías"}`; })(), "Ficha maestra", si.filter((q) => q.numeral === 1).length > 0 && totalBienes === 0 ? "warn" : "")}
-        {card("Acreedores", "—", "Etapa 5 · catálogo maestro", "Acreedores")}
+        {card("Acreedores", deudas.length.toString(), deudas.length ? `total $ ${totalDeudas(deudas).toLocaleString("es-CL")}` : "sin deudas cargadas en la ficha", "Ficha maestra", deudas.length === 0 ? "warn" : "")}
         {card("Generados", generados.toString(), generados ? "documentos vigentes" : "Anexo 8 listo cuando haya bienes muebles", "Generados")}
         {card("Documentación", docs.toString(), "documentos que lleva la carpeta · lista para el cliente", "Documentación")}
       </div>

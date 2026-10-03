@@ -90,7 +90,7 @@ export function lvsProgress(f: LvsFicha | null, c: Pick<LegalClient, "full_name"
 }
 
 /** Pestañas del expediente. Las de etapas posteriores ya tienen su lugar aunque todavía no tengan contenido. */
-export const LVS_TABS = ["Resumen", "Ficha maestra", "Acreedores", "Documentación", "Generados", "Historial"] as const;
+export const LVS_TABS = ["Resumen", "Ficha maestra", "Documentación", "Generados", "Historial"] as const;
 export type LvsTab = (typeof LVS_TABS)[number];
 
 export const PREGUNTAS_BIENES = PREGUNTAS_273A.filter((q) => q.numeral === 1);

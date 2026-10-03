@@ -95,7 +95,7 @@ begin
     v_accion := case tg_op when 'INSERT' then 'agregada' when 'DELETE' then 'quitada' else 'editada' end;
   end if;
   insert into public.legal_case_history (client_id, actor_id, actor_name, kind, summary, before, after)
-  values (v_client, auth.uid(), public.member_name(auth.uid()), 'lvs', v_que || ' ' || v_accion || coalesce(': ' || (case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end) ->> 'nombre', ''),
+  values (v_client, auth.uid(), public.member_name(auth.uid()), 'lvs', v_que || ' ' || v_accion || coalesce(': ' || ((case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end) ->> 'nombre'), ''),
     case when tg_op = 'INSERT' then null else to_jsonb(old) - 'created_at' - 'updated_at' end,
     case when tg_op = 'DELETE' then null else to_jsonb(new) - 'created_at' - 'updated_at' end);
   perform public.audit('lvs.bien.' || v_accion, tg_table_name, coalesce(new.id, old.id)::text, null, jsonb_build_object('cliente', v_client));

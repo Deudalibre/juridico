@@ -9,6 +9,8 @@ import { ESTADOS_CIVILES, GENEROS, PREGUNTAS_273A, PREGUNTAS_BIENES, PREGUNTA_JU
 import { formatRut } from "@/lib/rut";
 import { CATEGORIAS, type BienCategoria, type BienRow, type BienesPorCategoria } from "@/lib/lvs-bienes";
 import { BienesInline } from "./BienesInline";
+import { DeudasInline } from "./DeudasInline";
+import type { AcreedorLite, Deuda } from "@/lib/lvs-acreedores";
 import { saveLvs } from "../actions";
 
 type YN = "si" | "no" | "";
@@ -103,7 +105,7 @@ type Progress = { pct: number; missing: string[] };
  * preguntas del art. 273 A y la carta de insolvencia. Un «Guardar» (o Ctrl+S) para todo: pensado para cargar
  * decenas de clientes seguidos sin cambiar de pantalla.
  */
-export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes }: { client: LegalClient; ficha: LvsFicha; canEdit: boolean; progress: Progress; bienes: BienesPorCategoria }) {
+export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deudas, catalogo }: { client: LegalClient; ficha: LvsFicha; canEdit: boolean; progress: Progress; bienes: BienesPorCategoria; deudas: Deuda[]; catalogo: AcreedorLite[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
@@ -262,9 +264,16 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes }: { 
             </div>
           </Section>
 
-          {/* ---- 6 · Carta de insolvencia ---- */}
+          {/* ---- 6 · Acreedores (Anexo 9) ---- */}
+          <Section n={6} title="Acreedores · Anexo N.º 9" hint="Escribe parte del nombre o el RUT y elige: el catálogo rellena RUT, correo y teléfono. Solo falta el monto y la naturaleza. El total se calcula solo.">
+            <div className="sm:col-span-12">
+              <DeudasInline clientId={c.id} deudas={deudas} catalogo={catalogo} canEdit={canEdit} />
+            </div>
+          </Section>
+
+          {/* ---- 7 · Carta de insolvencia ---- */}
           <Section
-            n={6}
+            n={7}
             title="Carta de insolvencia"
             hint="A la izquierda, lo que escribió el cliente (se conserva). A la derecha, la versión que va en «Hechos» de la demanda; los saltos de párrafo se respetan en el Word."
             aside={

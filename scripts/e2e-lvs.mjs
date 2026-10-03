@@ -53,7 +53,7 @@ try {
   const nueva = await page(jur, "/documentos/lvs/nueva?q=LVS%20Cliente");
   ok("/documentos/lvs/nueva encuentra al cliente y avisa que ya tiene expediente", nueva.status === 200 && /Ya tiene expediente/.test(nueva.text), String(nueva.status));
   const exp = await page(jur, `/documentos/lvs/${id}?tab=Ficha%20maestra`);
-  ok("Expediente · pestañas y formulario de la Ficha Maestra", exp.status === 200 && /Resumen.*Ficha maestra.*Acreedores.*Documentación.*Generados.*Historial/.test(exp.text) && /Patrimonio · art. 273 A/.test(exp.text) && /Juicios pendientes · art. 273 A/.test(exp.text), String(exp.status));
+  ok("Expediente · pestañas y formulario de la Ficha Maestra", exp.status === 200 && /Resumen.*Ficha maestra.*Documentación.*Generados.*Historial/.test(exp.text) && /Patrimonio · art. 273 A/.test(exp.text) && /Juicios pendientes · art. 273 A/.test(exp.text), String(exp.status));
   ok("Expediente · avance inicial parcial (nombre y RUT ya cuentan)", /ficha 11%/.test(exp.text));
   const ejeExp = await page(eje, `/documentos/lvs/${id}`);
   ok("Ejecutivo · el expediente no se le muestra", ejeExp.status !== 200 || /Sin acceso/.test(ejeExp.text), String(ejeExp.status));
@@ -87,6 +87,19 @@ try {
   ok("Juicios · la base rechaza una calidad fuera de la norma", Boolean(juiBad.error));
   const hBien = sql(`select summary from legal_case_history where client_id = '${id}' and summary like 'Vehículo%' limit 1`);
   ok("Historial · alta del vehículo registrada", /Vehículo agregado/.test(hBien[0]?.summary ?? ""));
+
+  // Acreedores (Anexo 9): catálogo importado y deudas del expediente
+  const cat = await jur.c.from("legal_acreedores").select("id, nombre, rut, email").ilike("nombre", "%falabella%");
+  ok("Acreedores · el catálogo trae los Falabella con RUT y correo", (cat.data ?? []).length >= 3 && cat.data.every((a) => a.rut && a.email), String((cat.data ?? []).length));
+  const fal = (cat.data ?? []).find((a) => /Promotora CMR/i.test(a.nombre));
+  const deuda = await jur.c.from("legal_lvs_deudas").insert({ client_id: id, acreedor_id: fal?.id, nombre: fal?.nombre, rut: fal?.rut, email: fal?.email, monto: 2500000, naturaleza: "Valista" }).select().single();
+  ok("Acreedores · deuda enlazada al catálogo (RLS legal.edit)", !deuda.error && deuda.data?.naturaleza === "Valista", deuda.error?.message);
+  const deudaBad = await jur.c.from("legal_lvs_deudas").insert({ client_id: id, nombre: "X", naturaleza: "Otra" });
+  ok("Acreedores · la base rechaza una naturaleza fuera de la norma", Boolean(deudaBad.error));
+  const eDeu = await eje.c.from("legal_acreedores").select("id").limit(1);
+  ok("Ejecutivo · no ve el catálogo de acreedores", (eDeu.data ?? []).length === 0);
+  const fichaDeudas = await page(jur, `/documentos/lvs/${id}?tab=Ficha%20maestra`);
+  ok("Ficha · sección Acreedores con la deuda y el total", fichaDeudas.status === 200 && /Acreedores · Anexo N\.º 9/.test(fichaDeudas.text) && /Promotora CMR/.test(fichaDeudas.text) && /2\.500\.000/.test(fichaDeudas.text), String(fichaDeudas.status));
 
   // Documentación: lista recordatorio desde la ficha (sin marcar nada)
   const docsPage = await page(jur, `/documentos/lvs/${id}?tab=Documentación`);
