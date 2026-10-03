@@ -7,6 +7,8 @@ import { Icon } from "@/components/icons";
 import type { LegalClient } from "@/lib/data";
 import { ESTADOS_CIVILES, GENEROS, PREGUNTAS_273A, PREGUNTAS_BIENES, PREGUNTA_JUICIOS, type LvsFicha, type Pregunta273A } from "@/lib/lvs";
 import { formatRut } from "@/lib/rut";
+import { CATEGORIAS, type BienesPorCategoria } from "@/lib/lvs-bienes";
+import { BienesInline } from "./BienesInline";
 import { saveLvs } from "../actions";
 
 type YN = "si" | "no" | "";
@@ -52,7 +54,7 @@ type Progress = { pct: number; missing: string[] };
  * preguntas del art. 273 A y la carta de insolvencia. Un «Guardar» (o Ctrl+S) para todo: pensado para cargar
  * decenas de clientes seguidos sin cambiar de pantalla.
  */
-export function FichaForm({ client: c, ficha: f, canEdit, progress }: { client: LegalClient; ficha: LvsFicha; canEdit: boolean; progress: Progress }) {
+export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes }: { client: LegalClient; ficha: LvsFicha; canEdit: boolean; progress: Progress; bienes: BienesPorCategoria }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
@@ -195,7 +197,7 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress }: { client: 
           </Section>
 
           {/* ---- 4 · Art. 273 A, numeral 1: patrimonio ---- */}
-          <Section n={4} title="Patrimonio · art. 273 A n.º 1" hint="Seis categorías de bienes, una por anexo (3 a 8). Cada «sí» abre su lista en Bienes y cambia el párrafo correspondiente de la demanda; la exclusión se marca bien por bien.">
+          <Section n={4} title="Patrimonio · art. 273 A n.º 1" hint="Seis categorías de bienes, una por anexo (3 a 8). Cada «Sí» despliega aquí mismo su lista; la exclusión se marca bien por bien. Agregar un bien marca el «Sí» solo.">
             <div className="grid gap-x-8 sm:col-span-12 sm:grid-cols-2">
               {PREGUNTAS_BIENES.map((q) => (
                 <div key={q.key} className="flex items-center justify-between gap-3 border-b border-line-soft py-2.5">
@@ -207,10 +209,16 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress }: { client: 
                 </div>
               ))}
             </div>
+            {CATEGORIAS.filter((cat) => cat.key !== "juicios" && (answers[cat.pregunta] === "si" || bienes[cat.key].length > 0)).map((cat) => (
+              <div key={cat.key} className="sm:col-span-12">
+                <BienesInline clientId={c.id} cat={cat} rows={bienes[cat.key]} canEdit={canEdit} />
+                {answers[cat.pregunta] !== "si" && bienes[cat.key].length > 0 && <span className="mt-1 block text-[11.5px] text-warning">Hay elementos cargados pero la respuesta no es «Sí»: no saldrán en los documentos.</span>}
+              </div>
+            ))}
           </Section>
 
           {/* ---- 5 · Art. 273 A, numeral 4: juicios ---- */}
-          <Section n={5} title="Juicios pendientes · art. 273 A n.º 4" hint="Incluye causas en cumplimiento incidental o ejecutivo. Con «sí» se detallan en la pestaña Juicios (rol, tribunal, corte, estado, calidad y monto).">
+          <Section n={5} title="Juicios pendientes · art. 273 A n.º 4" hint="Incluye causas en cumplimiento incidental o ejecutivo. Con «Sí» se cargan aquí mismo (rol, tribunal, corte, estado, calidad y monto) para el numeral 4 de la demanda.">
             <div className="flex items-center justify-between gap-3 border-b border-line-soft py-2.5 sm:col-span-12">
               <span className="flex min-w-0 flex-col">
                 <span className="text-[13px] font-medium text-fg">{PREGUNTA_JUICIOS.label}</span>
@@ -218,6 +226,11 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress }: { client: 
               </span>
               <YesNo name={PREGUNTA_JUICIOS.key} value={answers[PREGUNTA_JUICIOS.key]} onChange={(v) => setAnswers((a) => ({ ...a, [PREGUNTA_JUICIOS.key]: v }))} disabled={disabled} label={PREGUNTA_JUICIOS.label} />
             </div>
+            {(answers.tiene_juicios === "si" || bienes.juicios.length > 0) && (
+              <div className="sm:col-span-12">
+                <BienesInline clientId={c.id} cat={CATEGORIAS.find((x) => x.key === "juicios")!} rows={bienes.juicios} canEdit={canEdit} />
+              </div>
+            )}
           </Section>
 
           {/* ---- 6 · Carta de insolvencia ---- */}

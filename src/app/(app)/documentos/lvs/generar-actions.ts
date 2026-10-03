@@ -1,0 +1,58 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { getContext, type LegalClient } from "@/lib/data";
+import type { LvsFicha } from "@/lib/lvs";
+import type { BienRow } from "@/lib/lvs-bienes";
+import { GENERADOS, type GeneradoTipo } from "@/lib/lvs-generados";
+import { datosAnexo8, generarDocumento } from "@/lib/lvs-generar";
+
+type Result = { error?: string; advertencias?: string[] };
+const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
+
+/** Genera un documento de la LVS (hoy: Anexo 8). Con errores no genera; con advertencias genera y las guarda. */
+export async function generarLvs(clientId: string, tipo: GeneradoTipo): Promise<Result> {
+  const { supabase, can, user } = await getContext();
+  if (!can("documents.edit") || !can("legal.edit")) return { error: "No tienes permiso para generar documentos." };
+  if (!isUuid(clientId) || !(tipo in GENERADOS)) return { error: "Datos no válidos." };
+  if (tipo !== "anexo8") return { error: `«${GENERADOS[tipo].nombre}» se genera en la etapa ${GENERADOS[tipo].etapa}.` };
+  const [{ data: client }, { data: lvs }, { data: bienes }] = await Promise.all([
+    supabase.from("legal_clients").select("*").eq("id", clientId).maybeSingle(),
+    supabase.from("legal_lvs").select("*").eq("client_id", clientId).maybeSingle(),
+    supabase.from("legal_lvs_bienes_muebles").select("*").eq("client_id", clientId).order("orden"),
+  ]);
+  if (!client || !lvs) return { error: "Expediente no encontrado." };
+  const c = client as LegalClient;
+  let lawyer: string | null = null;
+  if (c.lawyer_id) lawyer = (await supabase.from("profiles").select("full_name").eq("id", c.lawyer_id).maybeSingle()).data?.full_name ?? null;
+  const { data, errores, advertencias } = datosAnexo8(c, lvs as LvsFicha, (bienes ?? []) as BienRow[], lawyer);
+  if (errores.length) return { error: errores.join(" ") };
+  const r = await generarDocumento(supabase, user.id, c, tipo, data, advertencias);
+  if (r.error) return { error: r.error };
+  revalidatePath(`/documentos/lvs/${clientId}`);
+  revalidatePath(`/clientes/${clientId}`);
+  return { advertencias };
+}
+
+/** Marca una versión como final (o la devuelve a borrador). */
+export async function setGeneradoEstado(clientId: string, id: string, estado: "borrador" | "final"): Promise<Result> {
+  const { supabase, can } = await getContext();
+  if (!can("documents.edit")) return { error: "No tienes permiso para editar documentos." };
+  if (!isUuid(clientId) || !isUuid(id)) return { error: "Datos no válidos." };
+  const { error } = await supabase.from("legal_lvs_generados").update({ estado }).eq("id", id).eq("client_id", clientId).neq("estado", "reemplazado");
+  if (error) return { error: error.message };
+  revalidatePath(`/documentos/lvs/${clientId}`);
+  return {};
+}
+
+/** Enlace temporal de descarga del Word generado. */
+export async function generadoUrl(clientId: string, id: string): Promise<Result & { url?: string }> {
+  const { supabase, can } = await getContext();
+  if (!can("documents.view")) return { error: "Sin permiso." };
+  if (!isUuid(clientId) || !isUuid(id)) return { error: "Datos no válidos." };
+  const { data: g } = await supabase.from("legal_lvs_generados").select("storage_path, file_name").eq("id", id).eq("client_id", clientId).maybeSingle();
+  if (!g) return { error: "Documento no encontrado." };
+  const { data, error } = await supabase.storage.from("legal-documents").createSignedUrl(g.storage_path, 120, { download: g.file_name });
+  if (error || !data) return { error: error?.message ?? "No se pudo generar el enlace." };
+  return { url: data.signedUrl };
+}

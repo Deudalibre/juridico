@@ -53,7 +53,7 @@ try {
   const nueva = await page(jur, "/documentos/lvs/nueva?q=LVS%20Cliente");
   ok("/documentos/lvs/nueva encuentra al cliente y avisa que ya tiene expediente", nueva.status === 200 && /Ya tiene expediente/.test(nueva.text), String(nueva.status));
   const exp = await page(jur, `/documentos/lvs/${id}?tab=Ficha%20maestra`);
-  ok("Expediente · pestañas y formulario de la Ficha Maestra", exp.status === 200 && /Resumen.*Ficha maestra.*Bienes.*Acreedores.*Juicios.*Documentación.*Generados.*Historial/.test(exp.text) && /Patrimonio · art. 273 A/.test(exp.text) && /Juicios pendientes · art. 273 A/.test(exp.text), String(exp.status));
+  ok("Expediente · pestañas y formulario de la Ficha Maestra", exp.status === 200 && /Resumen.*Ficha maestra.*Acreedores.*Documentación.*Generados.*Historial/.test(exp.text) && /Patrimonio · art. 273 A/.test(exp.text) && /Juicios pendientes · art. 273 A/.test(exp.text), String(exp.status));
   ok("Expediente · avance inicial parcial (nombre y RUT ya cuentan)", /ficha 11%/.test(exp.text));
   const ejeExp = await page(eje, `/documentos/lvs/${id}`);
   ok("Ejecutivo · el expediente no se le muestra", ejeExp.status !== 200 || /Sin acceso/.test(ejeExp.text), String(ejeExp.status));
@@ -105,8 +105,12 @@ try {
   ok("Bienes · la base rechaza un código fuera del Anexo 4", Boolean(bad.error));
   const eVeh = await eje.c.from("legal_lvs_vehiculos").select("id");
   ok("Ejecutivo · no ve los bienes LVS", (eVeh.data ?? []).length === 0);
-  const bienesPage = await page(jur, `/documentos/lvs/${id}?tab=Bienes`);
-  ok("Bienes · pestaña con la lista del vehículo y del bien mueble", bienesPage.status === 200 && /Toyota Yaris 2018/.test(bienesPage.text) && /Cuenta de ahorro Banco Estado/.test(bienesPage.text) && /Anexo N\.º 4/.test(bienesPage.text), String(bienesPage.status));
+  const bienesPage = await page(jur, `/documentos/lvs/${id}?tab=Ficha%20maestra`);
+  ok("Ficha · las listas de vehículos y bienes muebles se despliegan bajo su «Sí»", bienesPage.status === 200 && /Toyota Yaris 2018/.test(bienesPage.text) && /Cuenta de ahorro Banco Estado/.test(bienesPage.text) && /Anexo N\.º 4/.test(bienesPage.text), String(bienesPage.status));
+  const jui = await jur.c.from("legal_lvs_juicios").insert({ client_id: id, rol: "C-55-2025", tribunal: "2º Juzgado Civil de Santiago", calidad: "Demandado", monto: 1500000 }).select().single();
+  ok("Juicios · se cargan desde la ficha (RLS) con calidad validada", !jui.error && jui.data?.calidad === "Demandado", jui.error?.message);
+  const juiBad = await jur.c.from("legal_lvs_juicios").insert({ client_id: id, calidad: "Otro" });
+  ok("Juicios · la base rechaza una calidad fuera de la norma", Boolean(juiBad.error));
   // Al abrir Documentación se sincroniza: CAV por vehículo
   await page(jur, `/documentos/lvs/${id}?tab=Documentación`);
   const cavs = sql(`select nombre, estado, entidad_id from legal_lvs_requisitos where client_id = '${id}' and codigo = 'cav' order by created_at`);

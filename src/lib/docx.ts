@@ -274,6 +274,12 @@ function insertInXml(xml: string, index: number, pos: number, text: string): str
   return xml.slice(0, t.contentStart) + newContent + xml.slice(t.contentEnd);
 }
 
+/** Inserta un texto cualquiera (p. ej. marcas de bucle {#x}…{/x}) en la posición `pos` del párrafo `index`. */
+export function insertText(buf: Uint8Array, index: number, pos: number, text: string): Buffer {
+  const { zip, xml } = open(buf);
+  return save(zip, insertInXml(xml, index, pos, text));
+}
+
 /** Inserta la variable {name} en la posición `pos` del párrafo `index` (sin reemplazar texto). */
 export function insertVariable(buf: Uint8Array, index: number, pos: number, name: string): Buffer {
   const { zip, xml } = open(buf);

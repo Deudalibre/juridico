@@ -24,10 +24,14 @@ export type LegalTemplate = {
   version: number;
   variables: TemplateVariable[];
   active: boolean;
+  /** Papel fijo en la LVS (anexo8, anexo9, declaracion_273a, demanda_lvs): la app genera ese documento con esta plantilla */
+  slot: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export const SLOT_LABEL: Record<string, string> = { anexo8: "Anexo 8", anexo9: "Anexo 9", declaracion_273a: "Declaración 273-A", demanda_lvs: "Demanda LVS" };
 
 export const TEMPLATE_BUCKET = "legal-templates";
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
