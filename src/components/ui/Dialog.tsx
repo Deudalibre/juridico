@@ -17,6 +17,7 @@ export function Modal({
   onClose,
   busy,
   wide,
+  size,
   children,
   hideTitle,
 }: {
@@ -25,6 +26,8 @@ export function Modal({
   onClose: () => void;
   busy?: boolean;
   wide?: boolean;
+  /** Formularios anchos (tablas de los anexos): 820 px */
+  size?: "lg";
   children: ReactNode;
   /** El contenido ya muestra su propio encabezado: el título queda solo para lectores de pantalla */
   hideTitle?: boolean;
@@ -34,7 +37,7 @@ export function Modal({
       <D.Portal>
         <div onClick={stop} onPointerDown={stop}>
           <D.Overlay className="modal-backdrop fade-in" />
-          <D.Content className={`card modal animate-in ${wide ? "!max-w-[560px]" : "!max-w-[460px]"}`} aria-describedby={undefined}>
+          <D.Content className={`card modal animate-in ${size === "lg" ? "!max-w-[820px]" : wide ? "!max-w-[560px]" : "!max-w-[460px]"}`} aria-describedby={undefined}>
             <div className={hideTitle ? "sr-only" : "flex flex-col gap-1"}>
               <D.Title className="card-title">{title}</D.Title>
               {subtitle && <D.Description className="text-[13px] text-muted">{subtitle}</D.Description>}
