@@ -164,7 +164,7 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress }: { client: 
           </Section>
 
           {/* ---- 2 · Tribunal ---- */}
-          <Section n={2} title="Tribunal" hint="La suma de la demanda sale tal cual se escriba aquí. La competencia no se calcula todavía.">
+          <Section n={2} title="Tribunal" hint="Basta la comuna: el encabezado se arma solo como «S.J.L. Civil de …» si se deja vacío, y se puede corregir.">
             <Field label="Comuna del tribunal" className="sm:col-span-4">
               <input name="comuna_tribunal" className="input" defaultValue={f.comuna_tribunal ?? ""} autoComplete="off" />
             </Field>

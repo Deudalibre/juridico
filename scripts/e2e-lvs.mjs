@@ -70,10 +70,37 @@ try {
   const after = await page(jur, `/documentos/lvs/${id}?tab=Resumen`);
   ok("Resumen · la ficha marca 100% y las respuestas del 273 A", after.status === 200 && /100%/.test(after.text) && /Patrimonio · art. 273 A/.test(after.text) && /Anexo 8/.test(after.text), String(after.status));
 
+  // Documentación requerida: la crea la ficha (y la ajusta al cambiar)
+  const { syncReq } = { syncReq: async () => (await page(jur, `/documentos/lvs/${id}?tab=Documentación`)) };
+  let docsPage = await syncReq();
+  ok("Documentación · pestaña con la lista generada por la ficha", docsPage.status === 200 && /Documentación requerida/.test(docsPage.text) && /Cédula de identidad/.test(docsPage.text), String(docsPage.status));
+  const reqs = sql(`select codigo, estado, vigencia_dias from legal_lvs_requisitos where client_id = '${id}' order by orden`);
+  const codes = reqs.map((r) => r.codigo);
+  ok("Documentación · fijos + soltera + trabaja + vehículos + bienes muebles", ["cedula", "cert_superir", "informe_cmf", "carpeta_tributaria", "sit_tributaria", "cert_no_matrimonio", "contrato_trabajo", "liquidacion_1", "liquidacion_2", "liquidacion_3", "cav", "anexo_4", "anexo_8", "anexo_9", "declaracion_273a"].every((c) => codes.includes(c)), codes.join(","));
+  ok("Documentación · sin dominio vigente ni Anexo 3 (no tiene bienes raíces)", !codes.includes("dominio_vigente") && !codes.includes("anexo_3"));
+  ok("Documentación · vigencias de la NCG 22 (CAV 5 días, carpeta 30)", reqs.find((r) => r.codigo === "cav")?.vigencia_dias === 5 && reqs.find((r) => r.codigo === "carpeta_tributaria")?.vigencia_dias === 30);
+  // Cambia la ficha: casada y sin trabajo → no matrimonio pasa a «no aplica», aparece matrimonio, contrato fuera
+  await jur.c.from("legal_lvs").update({ estado_civil: "Casado/a", relacion_laboral: false, empleador: null, rut_empleador: null }).eq("client_id", id);
+  docsPage = await syncReq();
+  const reqs2 = sql(`select codigo, estado from legal_lvs_requisitos where client_id = '${id}'`);
+  const st = (c) => reqs2.find((r) => r.codigo === c)?.estado;
+  ok("Documentación · al cambiar la ficha: no matrimonio → no aplica, matrimonio pendiente, contrato → no aplica", docsPage.status === 200 && st("cert_no_matrimonio") === "no_aplica" && st("cert_matrimonio") === "pendiente" && st("contrato_trabajo") === "no_aplica", JSON.stringify({ nm: st("cert_no_matrimonio"), m: st("cert_matrimonio"), c: st("contrato_trabajo") }));
+  const eReq = await eje.c.from("legal_lvs_requisitos").select("id");
+  ok("Ejecutivo · no ve la documentación LVS", (eReq.data ?? []).length === 0);
+  // Subida y estado: se simula el archivo registrándolo como hace uploadRequisito
+  const cedula = reqs.find((r) => r.codigo === "cedula");
+  const docIns = await jur.c.from("legal_documents").insert({ client_id: id, name: "Cédula", status: "recibido", storage_path: `${id}/prueba.pdf`, mime: "application/pdf", file_size: 10 }).select("id").single();
+  const linked = await jur.c.from("legal_lvs_requisitos").update({ document_id: docIns.data?.id, estado: "recibido", fecha_carga: new Date().toISOString() }).eq("client_id", id).eq("codigo", "cedula").select().single();
+  ok("Documentación · enlazar archivo deja el requisito en «recibido»", !linked.error && linked.data?.estado === "recibido", linked.error?.message);
+  const hReq = sql(`select summary from legal_case_history where client_id = '${id}' and summary like 'Documento «%' order by at desc limit 1`);
+  ok("Historial · el cambio de estado del documento queda registrado", /pendiente → recibido/.test(hReq[0]?.summary ?? ""), hReq[0]?.summary);
+  void cedula;
+
   // Historial: creación + cambios con campos antes/después
   const hist = sql(`select summary, before, after from legal_case_history where client_id = '${id}' and kind = 'lvs' order by at`);
-  ok("Historial · creación y guardado con campos cambiados", hist.length >= 2 && /creado/.test(hist[0].summary) && /Ficha LVS:/.test(hist[hist.length - 1].summary), String(hist.length));
-  const last = hist[hist.length - 1];
+  const fichaHist = hist.filter((h) => /^Ficha LVS:/.test(h.summary));
+  ok("Historial · creación y guardado con campos cambiados", hist.length >= 2 && /creado/.test(hist[0].summary) && fichaHist.length >= 1, String(hist.length));
+  const last = fichaHist[0];
   ok("Historial · guarda valor anterior y nuevo", last.before?.comuna === null && last.after?.comuna === "Maipú");
   const hpage = await page(jur, `/documentos/lvs/${id}?tab=Historial`);
   ok("Pestaña Historial muestra los movimientos", hpage.status === 200 && /Expediente LVS creado/.test(hpage.text) && /Ficha LVS:/.test(hpage.text));
