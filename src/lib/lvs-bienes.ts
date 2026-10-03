@@ -46,16 +46,16 @@ export type BienCategoria = {
   key: BienCategoriaKey;
   table: string;
   pregunta: Pregunta273A;
-  anexo: number;
+  /** Anexo oficial que lista esta categoría; los juicios no tienen anexo (van en el numeral 4 de la demanda) */
+  anexo?: number;
   titulo: string;
   singular: string;
-  /** Qué documento de dominio exige cada fila (código de requisito) y su vigencia */
-  requisito?: { codigo: string; nombre: (r: BienRow) => string; vigencia_dias: number; regla: string };
   fields: BienField[];
   /** Línea de resumen en la lista */
   resumen: (r: BienRow) => { titulo: string; detalle: string };
 };
-export type BienCategoriaKey = "raices" | "vehiculos" | "aguas" | "participaciones" | "instrumentos" | "muebles";
+export type BienCategoriaKey = "raices" | "vehiculos" | "aguas" | "participaciones" | "instrumentos" | "muebles" | "juicios";
+export const CALIDADES_JUICIO = ["Demandante", "Demandado", "Tercero"] as const;
 
 const excl: BienField[] = [
   { name: "excluido", label: "Bien excluido", type: "bool", span: 3 },
@@ -77,7 +77,6 @@ export const CATEGORIAS: BienCategoria[] = [
     anexo: 3,
     titulo: "Bienes raíces",
     singular: "inmueble",
-    requisito: { codigo: "dominio_vigente", nombre: (r) => `Certificado de dominio vigente · ${str(r.rol_avaluo) || str(r.direccion) || "inmueble"}`, vigencia_dias: 30, regla: "Bien raíz · no más de 30 días" },
     fields: [
       { name: "descripcion", label: "Descripción", type: "text", span: 6, placeholder: "casa, departamento, sitio…" },
       { name: "tipo", label: "Tipo", type: "select", span: 3, options: [{ key: "No agrícola", label: "No agrícola" }, { key: "Agrícola", label: "Agrícola" }] },
@@ -108,7 +107,6 @@ export const CATEGORIAS: BienCategoria[] = [
     anexo: 4,
     titulo: "Vehículos y otros bienes registrables",
     singular: "vehículo",
-    requisito: { codigo: "cav", nombre: (r) => `Certificado de anotaciones vigentes · ${str(r.patente) || str(r.descripcion) || "vehículo"}`, vigencia_dias: 5, regla: "Vehículo · no más de 5 días" },
     fields: [
       { name: "tipo_codigo", label: "Tipo (código del Anexo 4)", type: "select", span: 4, options: opts(TIPOS_VEHICULO) },
       { name: "patente", label: "Patente o matrícula", type: "text", span: 3 },
@@ -226,8 +224,61 @@ export const CATEGORIAS: BienCategoria[] = [
     ],
     resumen: (r) => ({ titulo: str(r.datos) || TIPOS_BIEN_MUEBLE[Number(r.tipo_codigo)] || "Bien", detalle: [TIPOS_BIEN_MUEBLE[Number(r.tipo_codigo)], str(r.cantidad) ? `x${str(r.cantidad)}` : "", money(r.monto), r.excluido ? "excluido" : ""].filter(Boolean).join(" · ") }),
   },
+  {
+    key: "juicios",
+    table: "legal_lvs_juicios",
+    pregunta: "tiene_juicios",
+    titulo: "Juicios pendientes",
+    singular: "juicio",
+    fields: [
+      { name: "rol", label: "Rol de la causa", type: "text", span: 3, placeholder: "C-1234-2025" },
+      { name: "tribunal", label: "Tribunal", type: "text", span: 5 },
+      { name: "corte", label: "Corte de Apelaciones", type: "text", span: 4 },
+      { name: "caratula", label: "Carátula", type: "text", span: 8 },
+      { name: "calidad", label: "Calidad del cliente", type: "select", span: 4, options: CALIDADES_JUICIO.map((c) => ({ key: c, label: c })) },
+      { name: "estado", label: "Estado actual del juicio", type: "text", span: 8, placeholder: "en tramitación, cumplimiento incidental, ejecutivo…" },
+      { name: "monto", label: "Monto demandado", type: "money", span: 4 },
+      { name: "puede_ingreso", label: "Puede producir ingreso de dinero", type: "bool", span: 6 },
+      { name: "puede_desembolso", label: "Puede producir desembolso", type: "bool", span: 6 },
+      obs,
+    ],
+    resumen: (r) => ({ titulo: [str(r.rol), str(r.caratula)].filter(Boolean).join(" · ") || "Juicio", detalle: [str(r.tribunal), str(r.calidad), str(r.estado), money(r.monto)].filter(Boolean).join(" · ") }),
+  },
 ];
 
 export const categoria = (key: string) => CATEGORIAS.find((c) => c.key === key) ?? null;
+
+/** Lo que el estudio repite en cada fila del Anexo 8 cuando el deudor solo da el nombre del bien. */
+export const MUEBLE_DEFAULTS: Record<string, string> = { marca_modelo: "SIN INFORMAR", cantidad: "1", estado_conservacion: "REGULAR", observaciones: "SIN OBSERVACIONES" };
+
+// Palabras que delatan el tipo del Anexo 8 (minúsculas, sin tildes). Orden: lo más específico primero.
+const PISTAS: [number, string[]][] = [
+  [19, ["afp", "cuenta 2", "cuenta dos"]],
+  [16, ["cuenta de ahorro", "cuenta ahorro", "ahorro vivienda", "cuenta rut"]],
+  [18, ["cuenta corriente", "cuenta vista", "saldo"]],
+  [20, ["libreta"]],
+  [21, ["seguro"]],
+  [15, ["cripto", "bitcoin", "ethereum", "usdt"]],
+  [22, ["efectivo", "dinero"]],
+  [17, ["factura"]],
+  [14, ["joya", "anillo", "collar", "pulsera", "aro", "reloj de oro", "oro"]],
+  [13, ["bicicleta", "bici", "scooter", "trotadora", "caminadora", "maquina de ejercicio", "elíptica", "eliptica", "mancuerna"]],
+  [6, ["notebook", "computador", "laptop", "pc ", "monitor", "impresora", "teclado", "mouse", "disco duro"]],
+  [8, ["televisor", "tv", "smart tv", "parlante", "consola", "playstation", "xbox", "nintendo", "celular", "telefono", "tablet", "ipad", "camara", "equipo de musica", "audifono", "smartwatch", "proyector"]],
+  [7, ["cafetera", "plancha", "hervidor", "microondas", "refrigerador", "refri", "lavadora", "secadora", "horno", "licuadora", "aspiradora", "estufa", "ventilador", "tostador", "batidora", "freidora", "minipimer", "calefactor", "secador", "cocina", "lavavajilla", "congelador", "jugera", "sanduchera", "wafflera", "termo", "calefon", "aire acondicionado"]],
+  [5, ["escritorio", "silla de oficina", "archivador"]],
+  [3, ["taladro", "esmeril", "sierra", "herramienta", "atornillador", "compresor", "soldadora"]],
+  [2, ["maquina", "máquina", "equipo"]],
+  [11, ["cuadro", "pintura", "obra de arte", "escultura"]],
+  [1, ["cama", "colchon", "sofa", "sillon", "living", "comedor", "mesa", "silla", "velador", "closet", "ropero", "comoda", "estante", "rack", "mueble", "lampara", "alfombra", "cortina", "vajilla", "olla", "juego de"]],
+];
+const plain = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** Tipo probable del Anexo 8 para un nombre de bien («cafetera» → 7, «notebook» → 6); null si no hay pista. */
+export function sugerirTipoMueble(texto: string): number | null {
+  const t = ` ${plain(texto)} `;
+  for (const [codigo, palabras] of PISTAS) if (palabras.some((p) => t.includes(plain(p)))) return codigo;
+  return null;
+}
 export type BienesPorCategoria = Record<BienCategoriaKey, BienRow[]>;
-export const EMPTY_BIENES: BienesPorCategoria = { raices: [], vehiculos: [], aguas: [], participaciones: [], instrumentos: [], muebles: [] };
+export const EMPTY_BIENES: BienesPorCategoria = { raices: [], vehiculos: [], aguas: [], participaciones: [], instrumentos: [], muebles: [], juicios: [] };

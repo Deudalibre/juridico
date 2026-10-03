@@ -4,9 +4,6 @@ import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import { cleanRut, isValidRut } from "@/lib/rut";
 import { ESTADOS_CIVILES, PREGUNTAS_273A, lvsProgress, type LvsFicha } from "@/lib/lvs";
-import { ESTADOS_REQUISITO, type LvsRequisito, type RequisitoEstado } from "@/lib/lvs-requisitos";
-import { syncRequisitos } from "@/lib/lvs-sync";
-import type { UploadedFile } from "@/lib/upload-client";
 
 type Result = { error?: string };
 const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
@@ -34,7 +31,6 @@ export async function createLvs(clientId: string): Promise<Result & { id?: strin
   const { error } = await supabase.from("legal_lvs").insert({ client_id: clientId });
   if (error && !/duplicate key/.test(error.message)) return { error: error.message };
   if (!client.procedure_type) await supabase.from("legal_clients").update({ procedure_type: "Liquidación voluntaria" }).eq("id", clientId);
-  await syncRequisitos(supabase, clientId);
   revalidate(clientId);
   return { id: clientId };
 }
@@ -62,7 +58,6 @@ export async function createLvsClient(fd: FormData): Promise<Result & { id?: str
   if (error) return { error: error.message };
   const ins = await supabase.from("legal_lvs").insert({ client_id: data.id });
   if (ins.error) return { error: ins.error.message };
-  await syncRequisitos(supabase, data.id as string);
   revalidatePath("/clientes");
   revalidate(data.id);
   return { id: data.id as string };
@@ -120,76 +115,7 @@ export async function saveLvs(clientId: string, fd: FormData): Promise<Result & 
   if (pct === 100 && estado === "borrador") await supabase.from("legal_lvs").update({ estado: "ficha_completa" }).eq("client_id", clientId);
   else if (pct < 100 && estado === "ficha_completa") await supabase.from("legal_lvs").update({ estado: "borrador" }).eq("client_id", clientId);
 
-  await syncRequisitos(supabase, clientId, saved as LvsFicha);
   revalidate(clientId);
   revalidatePath("/clientes");
   return { pct };
-}
-
-/* ---------------- Documentación requerida ---------------- */
-
-/** Registra el archivo subido al bucket como documento de la causa y lo enlaza al requisito (estado «recibido»). */
-export async function uploadRequisito(clientId: string, reqId: string, up: UploadedFile): Promise<Result> {
-  const { supabase, can, user } = await getContext();
-  if (!can("documents.upload") || !can("legal.edit")) return { error: "No tienes permiso para subir documentos." };
-  if (!isUuid(clientId) || !isUuid(reqId)) return { error: "Datos no válidos." };
-  if (!up.path.startsWith(`${clientId}/`)) return { error: "Ruta de archivo no válida." };
-  const { data: req } = await supabase.from("legal_lvs_requisitos").select("*").eq("id", reqId).eq("client_id", clientId).maybeSingle();
-  if (!req) return { error: "Requisito no encontrado." };
-  if (req.generado) return { error: "Este documento lo genera la app; no se sube." };
-  const version = req.document_id ? 2 : 1;
-  const { data: doc, error } = await supabase
-    .from("legal_documents")
-    .insert({ client_id: clientId, name: req.nombre, status: "recibido", storage_path: up.path, file_size: up.size, mime: up.mime, replaces_id: req.document_id, version })
-    .select("id")
-    .single();
-  if (error) return { error: error.message };
-  if (req.document_id) await supabase.from("legal_documents").update({ is_current: false, status: "reemplazado" }).eq("id", req.document_id);
-  const upd = await supabase
-    .from("legal_lvs_requisitos")
-    .update({ document_id: doc.id, estado: "recibido", fecha_carga: new Date().toISOString(), cargado_por: user.id })
-    .eq("id", reqId);
-  if (upd.error) return { error: upd.error.message };
-  revalidate(clientId);
-  return {};
-}
-
-/** Estado, fecha de emisión u observación de un requisito. Aprobado y observado guardan quién revisó y cuándo. */
-export async function setRequisito(clientId: string, reqId: string, input: { estado?: RequisitoEstado; fecha_emision?: string | null; observacion?: string | null }): Promise<Result> {
-  const { supabase, can, user } = await getContext();
-  if (!can("legal.edit")) return { error: "No tienes permiso para editar expedientes." };
-  if (!isUuid(clientId) || !isUuid(reqId)) return { error: "Datos no válidos." };
-  const patch: Partial<LvsRequisito> = {};
-  if (input.estado !== undefined) {
-    if (!(input.estado in ESTADOS_REQUISITO)) return { error: "Estado no válido." };
-    patch.estado = input.estado;
-    if (input.estado === "aprobado" || input.estado === "observado") {
-      patch.fecha_revision = new Date().toISOString();
-      patch.revisado_por = user.id;
-    }
-  }
-  if (input.fecha_emision !== undefined) {
-    if (input.fecha_emision && !/^\d{4}-\d{2}-\d{2}$/.test(input.fecha_emision)) return { error: "Fecha de emisión no válida." };
-    patch.fecha_emision = input.fecha_emision || null;
-  }
-  if (input.observacion !== undefined) patch.observacion = input.observacion?.trim().slice(0, 500) || null;
-  if (!Object.keys(patch).length) return {};
-  const { error } = await supabase.from("legal_lvs_requisitos").update(patch).eq("id", reqId).eq("client_id", clientId);
-  if (error) return { error: error.message };
-  revalidate(clientId);
-  return {};
-}
-
-/** Documento extra que pide el tribunal o el abogado para este expediente. */
-export async function addRequisitoManual(clientId: string, nombre: string): Promise<Result> {
-  const { supabase, can } = await getContext();
-  if (!can("legal.edit")) return { error: "No tienes permiso para editar expedientes." };
-  if (!isUuid(clientId)) return { error: "Cliente no válido." };
-  const name = nombre.trim().slice(0, 160);
-  if (!name) return { error: "Indica el nombre del documento." };
-  const codigo = `manual_${Date.now().toString(36)}`;
-  const { error } = await supabase.from("legal_lvs_requisitos").insert({ client_id: clientId, codigo, nombre: name, origen: "manual", orden: 9000 });
-  if (error) return { error: error.message };
-  revalidate(clientId);
-  return {};
 }

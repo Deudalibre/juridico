@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
-import { categoria, type BienField } from "@/lib/lvs-bienes";
-import { syncRequisitos } from "@/lib/lvs-sync";
+import { MUEBLE_DEFAULTS, categoria, type BienField } from "@/lib/lvs-bienes";
 import { cleanRut, isValidRut } from "@/lib/rut";
 
 type Result = { error?: string };
@@ -59,6 +58,10 @@ export async function saveBien(clientId: string, catKey: string, id: string | nu
   }
   // Lo que depende de un Sí/No apagado se limpia
   for (const f of cat.fields) if (f.when && f.when.field !== "clase" && fd.get(f.when.field) !== f.when.is) row[f.name] = null;
+  if (cat.key === "muebles" && !id) {
+    // Carga rápida: el deudor solo da el nombre del bien; el resto es lo que el estudio repite en cada fila
+    for (const [k, v] of Object.entries(MUEBLE_DEFAULTS)) if (!row[k]) row[k] = v;
+  }
   if (cat.key === "muebles" && !row.direccion) {
     const { data: lvs } = await supabase.from("legal_lvs").select("domicilio").eq("client_id", clientId).maybeSingle();
     row.direccion = lvs?.domicilio ?? null;
@@ -73,7 +76,8 @@ export async function saveBien(clientId: string, catKey: string, id: string | nu
     if (error) return { error: error.message };
     savedId = data.id as string;
   }
-  await syncRequisitos(supabase, clientId);
+  // Cargar un elemento es la respuesta «Sí» a esa pregunta de la ficha: no hay que volver a marcarla
+  await supabase.from("legal_lvs").update({ [cat.pregunta]: true }).eq("client_id", clientId).neq(cat.pregunta, true);
   revalidatePath(`/documentos/lvs/${clientId}`);
   return { id: savedId ?? undefined };
 }
@@ -86,7 +90,6 @@ export async function deleteBien(clientId: string, catKey: string, id: string): 
   if (!cat) return { error: "Categoría no válida." };
   const { error } = await supabase.from(cat.table).delete().eq("id", id).eq("client_id", clientId);
   if (error) return { error: error.message };
-  await syncRequisitos(supabase, clientId);
   revalidatePath(`/documentos/lvs/${clientId}`);
   return {};
 }
