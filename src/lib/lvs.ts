@@ -29,7 +29,6 @@ export type LvsFicha = {
   tiene_instrumentos: boolean | null;
   tiene_bienes_muebles: boolean | null;
   tiene_juicios: boolean | null;
-  tiene_bienes_excluidos: boolean | null;
   estado: LvsEstado;
   created_by: string | null;
   created_at: string;
@@ -60,10 +59,9 @@ export type Pregunta273A =
   | "tiene_participaciones"
   | "tiene_instrumentos"
   | "tiene_bienes_muebles"
-  | "tiene_juicios"
-  | "tiene_bienes_excluidos";
+  | "tiene_juicios";
 
-/** Las ocho preguntas del art. 273 A. Cada «sí» abre su lista (etapas siguientes) y decide un párrafo de la demanda. */
+/** Las siete preguntas del art. 273 A (la exclusión de bienes se marca bien por bien en cada anexo). Cada «sí» abre su lista (etapas siguientes) y decide un párrafo de la demanda. */
 export const PREGUNTAS_273A: { key: Pregunta273A; label: string; hint: string }[] = [
   { key: "tiene_bienes_raices", label: "Bienes raíces", hint: "Casas, departamentos, sitios o parcelas a su nombre" },
   { key: "tiene_vehiculos", label: "Vehículos u otros bienes registrables", hint: "Autos, motos, remolques" },
@@ -72,7 +70,6 @@ export const PREGUNTAS_273A: { key: Pregunta273A; label: string; hint: string }[
   { key: "tiene_instrumentos", label: "Instrumentos financieros transables", hint: "Fondos mutuos, depósitos a plazo, bonos" },
   { key: "tiene_bienes_muebles", label: "Otros bienes muebles o financieros", hint: "Anexo 8: muebles, electrodomésticos, ahorros, cuenta 2 AFP, efectivo" },
   { key: "tiene_juicios", label: "Juicios pendientes", hint: "Causas civiles, laborales o de familia en curso" },
-  { key: "tiene_bienes_excluidos", label: "Bienes legalmente excluidos", hint: "Bienes inembargables o de terceros que están en su poder" },
 ];
 
 /** Qué falta para dar la ficha por completa: lo mínimo que piden la demanda y la Declaración 273-A. */

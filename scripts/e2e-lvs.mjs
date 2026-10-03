@@ -63,7 +63,7 @@ try {
     genero: "F", estado_civil: "Soltero/a", profesion_oficio: "Vendedora", domicilio: "Calle 1 n° 2", comuna: "Maipú", region: "Metropolitana",
     relacion_laboral: true, empleador: "Empresa SpA", rut_empleador: "761234560", fecha_inicio_contrato: "2024-03-01", tipo_contrato: "Indefinido", ingreso_liquido: 650000,
     comuna_tribunal: "Santiago", sj_comuna: "S.J.L. Civil de Santiago", carta_original: "Texto del cliente", carta_demanda: "Texto para la demanda",
-    tiene_bienes_raices: false, tiene_vehiculos: true, tiene_aguas: false, tiene_participaciones: false, tiene_instrumentos: false, tiene_bienes_muebles: true, tiene_juicios: false, tiene_bienes_excluidos: false,
+    tiene_bienes_raices: false, tiene_vehiculos: true, tiene_aguas: false, tiene_participaciones: false, tiene_instrumentos: false, tiene_bienes_muebles: true, tiene_juicios: false,
   };
   const upd = await jur.c.from("legal_lvs").update(full).eq("client_id", id).select().single();
   ok("Jurídico guarda la ficha completa (RLS legal.edit)", !upd.error && upd.data?.tiene_vehiculos === true, upd.error?.message);

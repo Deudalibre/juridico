@@ -48,7 +48,7 @@ function Section({ n, title, hint, aside, children }: { n: number; title: string
 type Progress = { pct: number; missing: string[] };
 
 /**
- * Ficha Maestra en un solo formulario: datos del cliente, antecedentes, tribunal, situación laboral, las ocho
+ * Ficha Maestra en un solo formulario: datos del cliente, antecedentes, tribunal, situación laboral, las siete
  * preguntas del art. 273 A y la carta de insolvencia. Un «Guardar» (o Ctrl+S) para todo: pensado para cargar
  * decenas de clientes seguidos sin cambiar de pantalla.
  */
@@ -221,7 +221,7 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress }: { client: 
           </Section>
 
           {/* ---- 4 · Art. 273 A ---- */}
-          <Section n={4} title="Artículo 273 A" hint="Ocho respuestas. Cada «sí» abre su lista en Bienes o Juicios y cambia el párrafo correspondiente de la demanda.">
+          <Section n={4} title="Artículo 273 A" hint="Siete respuestas. Cada «sí» abre su lista en Bienes o Juicios y cambia el párrafo correspondiente de la demanda.">
             <div className="grid gap-x-8 sm:col-span-12 sm:grid-cols-2">
               {PREGUNTAS_273A.map((q) => (
                 <div key={q.key} className="flex items-center justify-between gap-3 border-b border-line-soft py-2.5">

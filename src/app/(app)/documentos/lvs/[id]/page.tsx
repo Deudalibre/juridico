@@ -153,7 +153,7 @@ function Resumen({ f, c, pct, missing }: { f: LvsFicha; c: LegalClient; pct: num
     <>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         {card("Ficha maestra", `${pct}%`, missing.length ? `Falta: ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "…" : ""}` : "Completa", "Ficha maestra", pct === 100 ? "success" : "warn")}
-        {card("Bienes", si.filter((q) => q.key !== "tiene_juicios" && q.key !== "tiene_bienes_excluidos").length.toString(), sinResponder.length ? `${sinResponder.length} preguntas sin responder` : "categorías declaradas con «sí»", "Bienes")}
+        {card("Bienes", si.filter((q) => q.key !== "tiene_juicios").length.toString(), sinResponder.length ? `${sinResponder.length} preguntas sin responder` : "categorías declaradas con «sí»", "Bienes")}
         {card("Acreedores", "—", "Etapa 5 · catálogo maestro", "Acreedores")}
         {card("Documentación", "—", "Etapa 2 · requisitos y estados", "Documentación")}
       </div>
