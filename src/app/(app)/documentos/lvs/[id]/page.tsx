@@ -11,8 +11,8 @@ import { DocumentacionTab } from "./DocumentacionTab";
 import { GeneradosTab } from "./GeneradosTab";
 import type { LvsGenerado } from "@/lib/lvs-generados";
 import { CATEGORIAS, EMPTY_BIENES, type BienRow, type BienesPorCategoria } from "@/lib/lvs-bienes";
-import { resumenRequisitos, type LvsRequisito } from "@/lib/lvs-requisitos";
-import { syncRequisitos } from "@/lib/lvs-sync";
+import { cruzarConDrive, documentosCarpeta, sinPistas, type DriveMatch } from "@/lib/lvs-documentos";
+import { clientDrive } from "@/lib/drive-client";
 import { AbrirExpediente } from "./AbrirExpediente";
 
 export const metadata = { title: "Expediente LVS" };
@@ -29,28 +29,32 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const { supabase, can, tz } = await getContext();
   if (!can("legal.view")) notFound();
-  const [{ data: client }, { data: lvs }, reqRes] = await Promise.all([
+  const [{ data: client }, { data: lvs }] = await Promise.all([
     supabase.from("legal_clients").select("*").eq("id", id).maybeSingle(),
     supabase.from("legal_lvs").select("*").eq("client_id", id).maybeSingle(),
-    supabase.from("legal_lvs_requisitos").select("*").eq("client_id", id).order("orden"),
   ]);
-  let requisitos = (reqRes.data ?? []) as LvsRequisito[];
-  // Al abrir Documentación la lista se alinea con la ficha (idempotente): cubre expedientes anteriores a esta etapa
-  // y cambios hechos por otra vía. En el resto de pestañas basta con lo que ya hay.
-  if (lvs && can("legal.edit") && (requisitos.length === 0 || sp.tab === "Documentación")) {
-    await syncRequisitos(supabase, id, lvs as LvsFicha);
-    requisitos = ((await supabase.from("legal_lvs_requisitos").select("*").eq("client_id", id).order("orden")).data ?? []) as LvsRequisito[];
-  }
-  const docs = resumenRequisitos(requisitos);
   // Bienes y juicios de todas las categorías (se despliegan en la ficha bajo cada «Sí»)
   const bienes: BienesPorCategoria = { ...EMPTY_BIENES };
-  if (lvs && (!sp.tab || sp.tab === "Resumen" || sp.tab === "Ficha maestra")) {
+  if (lvs && (!sp.tab || sp.tab === "Resumen" || sp.tab === "Ficha maestra" || sp.tab === "Documentación")) {
     const res = await Promise.all(CATEGORIAS.map((cat) => supabase.from(cat.table).select("*").eq("client_id", id).order("orden")));
     CATEGORIAS.forEach((cat, i) => {
       bienes[cat.key] = (res[i].data ?? []) as BienRow[];
     });
   }
   const totalBienes = CATEGORIAS.filter((cat) => cat.key !== "juicios").reduce((n, cat) => n + bienes[cat.key].length, 0);
+  // Documentación: lista recordatorio desde la ficha, cruzada con la carpeta del Drive si está vinculada
+  const docs = lvs ? documentosCarpeta(lvs as LvsFicha, bienes) : [];
+  let driveMatch: Record<number, DriveMatch> = {};
+  let driveFolder: { name: string; link: string } | null = null;
+  let driveConnected = false;
+  if (lvs && sp.tab === "Documentación") {
+    const d = await clientDrive(supabase, client as LegalClient);
+    driveConnected = d.connected;
+    if (d.folder) {
+      driveFolder = { name: d.folder.name, link: d.folder.webViewLink };
+      driveMatch = Object.fromEntries(cruzarConDrive(docs, d.files));
+    }
+  }
   // Generados y plantillas con slot (solo cuando se mira esa pestaña o el resumen)
   let generados: LvsGenerado[] = [];
   const plantillas: Record<string, { version: number } | null> = {};
@@ -128,13 +132,13 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
       {!f ? (
         <AbrirExpediente clientId={c.id} canCreate={can("legal.create") && !c.archived_at} />
       ) : tab === "Resumen" ? (
-        <Resumen f={f} c={c} pct={p.pct} missing={p.missing} docs={docs} totalBienes={totalBienes} generados={generados.filter((g) => g.estado !== "reemplazado").length} bienes={bienes} />
+        <Resumen f={f} c={c} pct={p.pct} missing={p.missing} docs={docs.filter((d) => !d.generado).length} totalBienes={totalBienes} generados={generados.filter((g) => g.estado !== "reemplazado").length} bienes={bienes} />
       ) : tab === "Ficha maestra" ? (
         <FichaForm client={c} ficha={f} canEdit={canEdit} progress={p} bienes={bienes} />
       ) : tab === "Generados" ? (
         <GeneradosTab clientId={c.id} ficha={f} generados={generados} totalMuebles={bienes.muebles.length} plantillas={plantillas} canEdit={canEdit && can("documents.edit")} />
       ) : tab === "Documentación" ? (
-        <DocumentacionTab clientId={c.id} requisitos={requisitos} canEdit={canEdit} canUpload={canEdit && can("documents.upload")} tz={tz} />
+        <DocumentacionTab clientId={c.id} docs={sinPistas(docs)} drive={driveMatch} driveFolder={driveFolder} driveConnected={driveConnected} />
       ) : tab === "Historial" ? (
         <section className="panel overflow-hidden">
           <div className="panel-head !py-3">
@@ -174,7 +178,7 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
 }
 
 /** Portada del expediente: avance de cada bloque de un vistazo, sin repetir los datos de la ficha. */
-function Resumen({ f, c, pct, missing, docs, totalBienes, generados, bienes }: { f: LvsFicha; c: LegalClient; pct: number; missing: string[]; docs: ReturnType<typeof resumenRequisitos>; totalBienes: number; generados: number; bienes: BienesPorCategoria }) {
+function Resumen({ f, c, pct, missing, docs, totalBienes, generados, bienes }: { f: LvsFicha; c: LegalClient; pct: number; missing: string[]; docs: number; totalBienes: number; generados: number; bienes: BienesPorCategoria }) {
   const si = PREGUNTAS_273A.filter((q) => f[q.key] === true);
   const sinResponder = PREGUNTAS_273A.filter((q) => f[q.key] == null);
   const card = (title: string, value: string, detail: string, href: string, tone: "" | "warn" | "success" = "") => (
@@ -191,7 +195,7 @@ function Resumen({ f, c, pct, missing, docs, totalBienes, generados, bienes }: {
         {card("Bienes", totalBienes.toString(), (() => { const cats = si.filter((q) => q.numeral === 1).length; return cats === 0 ? (sinResponder.length ? `${sinResponder.length} preguntas sin responder` : "sin categorías con «sí»") : totalBienes === 0 ? `${cats} ${cats === 1 ? "categoría" : "categorías"} con «sí» · falta cargar los bienes` : `en ${cats} ${cats === 1 ? "categoría" : "categorías"}`; })(), "Ficha maestra", si.filter((q) => q.numeral === 1).length > 0 && totalBienes === 0 ? "warn" : "")}
         {card("Acreedores", "—", "Etapa 5 · catálogo maestro", "Acreedores")}
         {card("Generados", generados.toString(), generados ? "documentos vigentes" : "Anexo 8 listo cuando haya bienes muebles", "Generados")}
-        {card("Documentación", `${docs.recibidos}/${docs.requeridos}`, docs.requeridos ? `${docs.pendientes} pendientes${docs.observados ? ` · ${docs.observados} observados o vencidos` : ""}` : "Sin documentos todavía", "Documentación", docs.requeridos && docs.recibidos === docs.requeridos ? "success" : docs.observados ? "warn" : "")}
+        {card("Documentación", docs.toString(), "documentos que lleva la carpeta · lista para el cliente", "Documentación")}
       </div>
       <section className="panel gap-3 px-5 py-4">
         <span className="card-title">Patrimonio · art. 273 A n.º 1</span>

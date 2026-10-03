@@ -50,8 +50,6 @@ export type BienCategoria = {
   anexo?: number;
   titulo: string;
   singular: string;
-  /** Qué documento de dominio exige cada fila (código de requisito) y su vigencia */
-  requisito?: { codigo: string; nombre: (r: BienRow) => string; vigencia_dias: number; regla: string };
   fields: BienField[];
   /** Línea de resumen en la lista */
   resumen: (r: BienRow) => { titulo: string; detalle: string };
@@ -79,7 +77,6 @@ export const CATEGORIAS: BienCategoria[] = [
     anexo: 3,
     titulo: "Bienes raíces",
     singular: "inmueble",
-    requisito: { codigo: "dominio_vigente", nombre: (r) => `Certificado de dominio vigente · ${str(r.rol_avaluo) || str(r.direccion) || "inmueble"}`, vigencia_dias: 30, regla: "Bien raíz · no más de 30 días" },
     fields: [
       { name: "descripcion", label: "Descripción", type: "text", span: 6, placeholder: "casa, departamento, sitio…" },
       { name: "tipo", label: "Tipo", type: "select", span: 3, options: [{ key: "No agrícola", label: "No agrícola" }, { key: "Agrícola", label: "Agrícola" }] },
@@ -110,7 +107,6 @@ export const CATEGORIAS: BienCategoria[] = [
     anexo: 4,
     titulo: "Vehículos y otros bienes registrables",
     singular: "vehículo",
-    requisito: { codigo: "cav", nombre: (r) => `Certificado de anotaciones vigentes · ${str(r.patente) || str(r.descripcion) || "vehículo"}`, vigencia_dias: 5, regla: "Vehículo · no más de 5 días" },
     fields: [
       { name: "tipo_codigo", label: "Tipo (código del Anexo 4)", type: "select", span: 4, options: opts(TIPOS_VEHICULO) },
       { name: "patente", label: "Patente o matrícula", type: "text", span: 3 },

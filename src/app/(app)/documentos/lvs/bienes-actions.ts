@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import { MUEBLE_DEFAULTS, categoria, type BienField } from "@/lib/lvs-bienes";
-import { syncRequisitos } from "@/lib/lvs-sync";
 import { cleanRut, isValidRut } from "@/lib/rut";
 
 type Result = { error?: string };
@@ -79,7 +78,6 @@ export async function saveBien(clientId: string, catKey: string, id: string | nu
   }
   // Cargar un elemento es la respuesta «Sí» a esa pregunta de la ficha: no hay que volver a marcarla
   await supabase.from("legal_lvs").update({ [cat.pregunta]: true }).eq("client_id", clientId).neq(cat.pregunta, true);
-  await syncRequisitos(supabase, clientId);
   revalidatePath(`/documentos/lvs/${clientId}`);
   return { id: savedId ?? undefined };
 }
@@ -92,7 +90,6 @@ export async function deleteBien(clientId: string, catKey: string, id: string): 
   if (!cat) return { error: "Categoría no válida." };
   const { error } = await supabase.from(cat.table).delete().eq("id", id).eq("client_id", clientId);
   if (error) return { error: error.message };
-  await syncRequisitos(supabase, clientId);
   revalidatePath(`/documentos/lvs/${clientId}`);
   return {};
 }

@@ -70,33 +70,7 @@ try {
   const after = await page(jur, `/documentos/lvs/${id}?tab=Resumen`);
   ok("Resumen · la ficha marca 100% y las respuestas del 273 A", after.status === 200 && /100%/.test(after.text) && /Patrimonio · art. 273 A/.test(after.text) && /Anexo 8/.test(after.text), String(after.status));
 
-  // Documentación requerida: la crea la ficha (y la ajusta al cambiar)
-  const { syncReq } = { syncReq: async () => (await page(jur, `/documentos/lvs/${id}?tab=Documentación`)) };
-  let docsPage = await syncReq();
-  ok("Documentación · pestaña con la lista generada por la ficha", docsPage.status === 200 && /Documentación requerida/.test(docsPage.text) && /Cédula de identidad/.test(docsPage.text), String(docsPage.status));
-  const reqs = sql(`select codigo, estado, vigencia_dias from legal_lvs_requisitos where client_id = '${id}' order by orden`);
-  const codes = reqs.map((r) => r.codigo);
-  ok("Documentación · fijos + soltera + trabaja + vehículos + bienes muebles", ["cedula", "cert_superir", "informe_cmf", "carpeta_tributaria", "sit_tributaria", "cert_no_matrimonio", "contrato_trabajo", "liquidacion_1", "liquidacion_2", "liquidacion_3", "cav", "anexo_4", "anexo_8", "anexo_9", "declaracion_273a"].every((c) => codes.includes(c)), codes.join(","));
-  ok("Documentación · sin dominio vigente ni Anexo 3 (no tiene bienes raíces)", !codes.includes("dominio_vigente") && !codes.includes("anexo_3"));
-  ok("Documentación · vigencias de la NCG 22 (CAV 5 días, carpeta 30)", reqs.find((r) => r.codigo === "cav")?.vigencia_dias === 5 && reqs.find((r) => r.codigo === "carpeta_tributaria")?.vigencia_dias === 30);
-  // Cambia la ficha: casada y sin trabajo → no matrimonio pasa a «no aplica», aparece matrimonio, contrato fuera
-  await jur.c.from("legal_lvs").update({ estado_civil: "Casado/a", relacion_laboral: false, empleador: null, rut_empleador: null }).eq("client_id", id);
-  docsPage = await syncReq();
-  const reqs2 = sql(`select codigo, estado from legal_lvs_requisitos where client_id = '${id}'`);
-  const st = (c) => reqs2.find((r) => r.codigo === c)?.estado;
-  ok("Documentación · al cambiar la ficha: no matrimonio → no aplica, matrimonio pendiente, contrato → no aplica", docsPage.status === 200 && st("cert_no_matrimonio") === "no_aplica" && st("cert_matrimonio") === "pendiente" && st("contrato_trabajo") === "no_aplica", JSON.stringify({ nm: st("cert_no_matrimonio"), m: st("cert_matrimonio"), c: st("contrato_trabajo") }));
-  const eReq = await eje.c.from("legal_lvs_requisitos").select("id");
-  ok("Ejecutivo · no ve la documentación LVS", (eReq.data ?? []).length === 0);
-  // Subida y estado: se simula el archivo registrándolo como hace uploadRequisito
-  const cedula = reqs.find((r) => r.codigo === "cedula");
-  const docIns = await jur.c.from("legal_documents").insert({ client_id: id, name: "Cédula", status: "recibido", storage_path: `${id}/prueba.pdf`, mime: "application/pdf", file_size: 10 }).select("id").single();
-  const linked = await jur.c.from("legal_lvs_requisitos").update({ document_id: docIns.data?.id, estado: "recibido", fecha_carga: new Date().toISOString() }).eq("client_id", id).eq("codigo", "cedula").select().single();
-  ok("Documentación · enlazar archivo deja el requisito en «recibido»", !linked.error && linked.data?.estado === "recibido", linked.error?.message);
-  const hReq = sql(`select summary from legal_case_history where client_id = '${id}' and summary like 'Documento «%' order by at desc limit 1`);
-  ok("Historial · el cambio de estado del documento queda registrado", /pendiente → recibido/.test(hReq[0]?.summary ?? ""), hReq[0]?.summary);
-  void cedula;
-
-  // Bienes (etapa 3): un vehículo → su CAV propio; el CAV genérico deja de aplicar
+  // Bienes y juicios (etapa 3): se cargan desde la ficha; la base valida los códigos oficiales
   const veh = await jur.c.from("legal_lvs_vehiculos").insert({ client_id: id, tipo_codigo: 1, patente: "ABCD12", marca: "Toyota", modelo: "Yaris", anio: 2018, avaluo_fiscal: 5000000 }).select().single();
   ok("Bienes · jurídico agrega un vehículo (RLS)", !veh.error && veh.data?.tipo_codigo === 1, veh.error?.message);
   const mueble = await jur.c.from("legal_lvs_bienes_muebles").insert({ client_id: id, tipo_codigo: 16, datos: "Cuenta de ahorro Banco Estado", monto: 120000 }).select().single();
@@ -106,17 +80,21 @@ try {
   const eVeh = await eje.c.from("legal_lvs_vehiculos").select("id");
   ok("Ejecutivo · no ve los bienes LVS", (eVeh.data ?? []).length === 0);
   const bienesPage = await page(jur, `/documentos/lvs/${id}?tab=Ficha%20maestra`);
-  ok("Ficha · las listas de vehículos y bienes muebles se despliegan bajo su «Sí»", bienesPage.status === 200 && /Toyota Yaris 2018/.test(bienesPage.text) && /Cuenta de ahorro Banco Estado/.test(bienesPage.text) && /Anexo N\.º 4/.test(bienesPage.text), String(bienesPage.status));
+  ok("Ficha · las listas de vehículos y bienes muebles se despliegan bajo su «Sí»", bienesPage.status === 200 && /Toyota Yaris 2018/.test(bienesPage.text) && /Cuenta de ahorro Banco Estado/.test(bienesPage.text) && /Anexo N.º 4/.test(bienesPage.text), String(bienesPage.status));
   const jui = await jur.c.from("legal_lvs_juicios").insert({ client_id: id, rol: "C-55-2025", tribunal: "2º Juzgado Civil de Santiago", calidad: "Demandado", monto: 1500000 }).select().single();
   ok("Juicios · se cargan desde la ficha (RLS) con calidad validada", !jui.error && jui.data?.calidad === "Demandado", jui.error?.message);
   const juiBad = await jur.c.from("legal_lvs_juicios").insert({ client_id: id, calidad: "Otro" });
   ok("Juicios · la base rechaza una calidad fuera de la norma", Boolean(juiBad.error));
-  // Al abrir Documentación se sincroniza: CAV por vehículo
-  await page(jur, `/documentos/lvs/${id}?tab=Documentación`);
-  const cavs = sql(`select nombre, estado, entidad_id from legal_lvs_requisitos where client_id = '${id}' and codigo = 'cav' order by created_at`);
-  ok("Documentación · CAV genérico pasa a no aplica y aparece el CAV del vehículo ABCD12", cavs.some((r) => r.entidad_id === null && r.estado === "no_aplica") && cavs.some((r) => r.entidad_id === veh.data?.id && r.estado === "pendiente" && /ABCD12/.test(r.nombre)), JSON.stringify(cavs.map((r) => [r.nombre, r.estado])));
   const hBien = sql(`select summary from legal_case_history where client_id = '${id}' and summary like 'Vehículo%' limit 1`);
   ok("Historial · alta del vehículo registrada", /Vehículo agregado/.test(hBien[0]?.summary ?? ""));
+
+  // Documentación: lista recordatorio desde la ficha (sin marcar nada)
+  const docsPage = await page(jur, `/documentos/lvs/${id}?tab=Documentación`);
+  ok("Documentación · lista con los fijos, contrato y liquidaciones (trabaja), no matrimonio (soltera), Anexo 4 y CAV del vehículo", docsPage.status === 200 && /Lo que lleva la carpeta/.test(docsPage.text) && /Carnet de identidad/.test(docsPage.text) && /Contrato de trabajo/.test(docsPage.text) && /no matrimonio/.test(docsPage.text) && /Anexo N\.º 4/.test(docsPage.text) && /anotaciones vigentes · ABCD12/.test(docsPage.text), String(docsPage.status));
+  ok("Documentación · sin Anexo 3 ni dominio vigente (no tiene bienes raíces)", !/Anexo N\.º 3/.test(docsPage.text));
+  await jur.c.from("legal_lvs").update({ estado_civil: "Casado/a", relacion_laboral: false, empleador: null, rut_empleador: null }).eq("client_id", id);
+  const docsPage2 = await page(jur, `/documentos/lvs/${id}?tab=Documentación`);
+  ok("Documentación · casada y cesante: certificado de matrimonio y 12 cotizaciones en vez de contrato", /Certificado de matrimonio/.test(docsPage2.text) && /cotizaciones/.test(docsPage2.text) && !/Contrato de trabajo/.test(docsPage2.text));
 
   // Historial: creación + cambios con campos antes/después
   const hist = sql(`select summary, before, after from legal_case_history where client_id = '${id}' and kind = 'lvs' order by at`);

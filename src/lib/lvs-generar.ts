@@ -52,7 +52,7 @@ export function datosAnexo8(c: LegalClient, f: LvsFicha, bienes: BienRow[], lawy
 
 /**
  * Genera un documento LVS: toma la plantilla del slot, la rellena, guarda el Word en el bucket de documentos de la
- * causa, lo registra como documento (y como generado) y deja el requisito correspondiente en «recibido».
+ * causa, lo registra como documento (y como generado).
  * Si ya había una versión, la anterior pasa a «reemplazado».
  */
 export async function generarDocumento(supabase: SupabaseClient, userId: string, c: LegalClient, tipo: GeneradoTipo, data: Record<string, unknown>, advertencias: string[]): Promise<{ error?: string; id?: string }> {
@@ -88,11 +88,5 @@ export async function generarDocumento(supabase: SupabaseClient, userId: string,
     await supabase.from("legal_lvs_generados").update({ estado: "reemplazado" }).eq("id", prev.id);
     if (prev.document_id) await supabase.from("legal_documents").update({ is_current: false, status: "reemplazado" }).eq("id", prev.document_id);
   }
-  // El requisito «lo genera la app» queda cubierto
-  await supabase
-    .from("legal_lvs_requisitos")
-    .update({ document_id: doc.id, estado: "recibido", fecha_carga: new Date().toISOString(), cargado_por: userId })
-    .eq("client_id", c.id)
-    .eq("codigo", GENERADOS[tipo].requisito);
   return { id: gen.id as string };
 }
