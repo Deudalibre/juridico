@@ -7,7 +7,7 @@ import { Icon } from "@/components/icons";
 import type { LegalClient } from "@/lib/data";
 import { ESTADOS_CIVILES, GENEROS, PREGUNTAS_273A, PREGUNTAS_BIENES, PREGUNTA_JUICIOS, type LvsFicha, type Pregunta273A } from "@/lib/lvs";
 import { formatRut } from "@/lib/rut";
-import { CATEGORIAS, type BienesPorCategoria } from "@/lib/lvs-bienes";
+import { CATEGORIAS, type BienCategoria, type BienRow, type BienesPorCategoria } from "@/lib/lvs-bienes";
 import { BienesInline } from "./BienesInline";
 import { saveLvs } from "../actions";
 
@@ -24,6 +24,45 @@ function YesNo({ name, value, onChange, disabled, label }: { name: string; value
           {v === "si" ? "Sí" : "No"}
         </button>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Una pregunta Sí/No del art. 273 A con su submenú justo debajo: al marcar «Sí» (o si ya hay elementos cargados)
+ * se abre la lista de esa categoría, con un chevrón para plegarla sin perder nada.
+ */
+function PreguntaConLista({ q, cat, rows, value, onChange, clientId, canEdit, disabled }: { q: { key: Pregunta273A; label: string; hint: string }; cat: BienCategoria; rows: BienRow[]; value: YN; onChange: (v: YN) => void; clientId: string; canEdit: boolean; disabled: boolean }) {
+  const activa = value === "si" || rows.length > 0;
+  const [abierta, setAbierta] = useState(true);
+  return (
+    <div className="border-b border-line-soft last:border-0">
+      <div className="flex items-center gap-3 py-2.5">
+        {activa ? (
+          <button type="button" className="icon-btn plain -ml-1 shrink-0" onClick={() => setAbierta((o) => !o)} aria-expanded={abierta} aria-label={abierta ? "Plegar lista" : "Desplegar lista"}>
+            <span className={`inline-block transition-transform ${abierta ? "rotate-90" : ""}`}>
+              <Icon name="chevron" size={14} />
+            </span>
+          </button>
+        ) : (
+          <span className="w-5 shrink-0" aria-hidden />
+        )}
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex items-center gap-2 text-[13px] font-medium text-fg">
+            {q.label}
+            {rows.length > 0 && <span className="tag brand">{rows.length}</span>}
+            {cat.anexo && <span className="text-[11px] font-normal text-faint">Anexo N.º {cat.anexo}</span>}
+          </span>
+          <span className="truncate text-[11.5px] text-muted">{q.hint}</span>
+        </span>
+        <YesNo name={q.key} value={value} onChange={onChange} disabled={disabled} label={q.label} />
+      </div>
+      {activa && abierta && (
+        <div className="pb-3 pl-8">
+          <BienesInline clientId={clientId} cat={cat} rows={rows} canEdit={canEdit} />
+          {value !== "si" && rows.length > 0 && <span className="mt-1 block text-[11.5px] text-warning">Hay elementos cargados pero la respuesta no es «Sí»: no saldrán en los documentos.</span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -197,40 +236,20 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes }: { 
           </Section>
 
           {/* ---- 4 · Art. 273 A, numeral 1: patrimonio ---- */}
-          <Section n={4} title="Patrimonio · art. 273 A n.º 1" hint="Seis categorías de bienes, una por anexo (3 a 8). Cada «Sí» despliega aquí mismo su lista; la exclusión se marca bien por bien. Agregar un bien marca el «Sí» solo.">
-            <div className="grid gap-x-8 sm:col-span-12 sm:grid-cols-2">
-              {PREGUNTAS_BIENES.map((q) => (
-                <div key={q.key} className="flex items-center justify-between gap-3 border-b border-line-soft py-2.5">
-                  <span className="flex min-w-0 flex-col">
-                    <span className="text-[13px] font-medium text-fg">{q.label}</span>
-                    <span className="truncate text-[11.5px] text-muted">{q.hint}</span>
-                  </span>
-                  <YesNo name={q.key} value={answers[q.key]} onChange={(v) => setAnswers((a) => ({ ...a, [q.key]: v }))} disabled={disabled} label={q.label} />
-                </div>
-              ))}
+          <Section n={4} title="Patrimonio · art. 273 A n.º 1" hint="Seis categorías de bienes, una por anexo (3 a 8). Al marcar «Sí» se abre debajo su lista para cargar y editar; la exclusión se marca bien por bien. Agregar un bien marca el «Sí» solo.">
+            <div className="flex flex-col sm:col-span-12">
+              {PREGUNTAS_BIENES.map((q) => {
+                const cat = CATEGORIAS.find((x) => x.pregunta === q.key)!;
+                return <PreguntaConLista key={q.key} q={q} cat={cat} rows={bienes[cat.key]} value={answers[q.key]} onChange={(v) => setAnswers((a) => ({ ...a, [q.key]: v }))} clientId={c.id} canEdit={canEdit} disabled={disabled} />;
+              })}
             </div>
-            {CATEGORIAS.filter((cat) => cat.key !== "juicios" && (answers[cat.pregunta] === "si" || bienes[cat.key].length > 0)).map((cat) => (
-              <div key={cat.key} className="sm:col-span-12">
-                <BienesInline clientId={c.id} cat={cat} rows={bienes[cat.key]} canEdit={canEdit} />
-                {answers[cat.pregunta] !== "si" && bienes[cat.key].length > 0 && <span className="mt-1 block text-[11.5px] text-warning">Hay elementos cargados pero la respuesta no es «Sí»: no saldrán en los documentos.</span>}
-              </div>
-            ))}
           </Section>
 
           {/* ---- 5 · Art. 273 A, numeral 4: juicios ---- */}
-          <Section n={5} title="Juicios pendientes · art. 273 A n.º 4" hint="Incluye causas en cumplimiento incidental o ejecutivo. Con «Sí» se cargan aquí mismo (rol, tribunal, corte, estado, calidad y monto) para el numeral 4 de la demanda.">
-            <div className="flex items-center justify-between gap-3 border-b border-line-soft py-2.5 sm:col-span-12">
-              <span className="flex min-w-0 flex-col">
-                <span className="text-[13px] font-medium text-fg">{PREGUNTA_JUICIOS.label}</span>
-                <span className="truncate text-[11.5px] text-muted">{PREGUNTA_JUICIOS.hint}</span>
-              </span>
-              <YesNo name={PREGUNTA_JUICIOS.key} value={answers[PREGUNTA_JUICIOS.key]} onChange={(v) => setAnswers((a) => ({ ...a, [PREGUNTA_JUICIOS.key]: v }))} disabled={disabled} label={PREGUNTA_JUICIOS.label} />
+          <Section n={5} title="Juicios pendientes · art. 273 A n.º 4" hint="Incluye causas en cumplimiento incidental o ejecutivo. Al marcar «Sí» se abre debajo la lista (rol, tribunal, corte, estado, calidad y monto) para el numeral 4 de la demanda.">
+            <div className="flex flex-col sm:col-span-12">
+              <PreguntaConLista q={PREGUNTA_JUICIOS} cat={CATEGORIAS.find((x) => x.key === "juicios")!} rows={bienes.juicios} value={answers.tiene_juicios} onChange={(v) => setAnswers((a) => ({ ...a, tiene_juicios: v }))} clientId={c.id} canEdit={canEdit} disabled={disabled} />
             </div>
-            {(answers.tiene_juicios === "si" || bienes.juicios.length > 0) && (
-              <div className="sm:col-span-12">
-                <BienesInline clientId={c.id} cat={CATEGORIAS.find((x) => x.key === "juicios")!} rows={bienes.juicios} canEdit={canEdit} />
-              </div>
-            )}
           </Section>
 
           {/* ---- 6 · Carta de insolvencia ---- */}

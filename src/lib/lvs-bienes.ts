@@ -249,7 +249,7 @@ export const CATEGORIAS: BienCategoria[] = [
 export const categoria = (key: string) => CATEGORIAS.find((c) => c.key === key) ?? null;
 
 /** Lo que el estudio repite en cada fila del Anexo 8 cuando el deudor solo da el nombre del bien. */
-export const MUEBLE_DEFAULTS = { cantidad: "1", estado_conservacion: "Regular", observaciones: "Sin observaciones" } as const;
+export const MUEBLE_DEFAULTS: Record<string, string> = { marca_modelo: "SIN INFORMAR", cantidad: "1", estado_conservacion: "REGULAR", observaciones: "SIN OBSERVACIONES" };
 
 // Palabras que delatan el tipo del Anexo 8 (minúsculas, sin tildes). Orden: lo más específico primero.
 const PISTAS: [number, string[]][] = [

@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { Icon } from "@/components/icons";
 import { Field, toast } from "@/components/ui";
 import { Modal } from "@/components/ui/Dialog";
-import { TIPOS_BIEN_MUEBLE, sugerirTipoMueble, type BienCategoria, type BienField, type BienRow } from "@/lib/lvs-bienes";
+import { MUEBLE_DEFAULTS, TIPOS_BIEN_MUEBLE, sugerirTipoMueble, type BienCategoria, type BienField, type BienRow } from "@/lib/lvs-bienes";
 import { formatRut } from "@/lib/rut";
 import { deleteBien, saveBien } from "../bienes-actions";
 
@@ -95,7 +95,7 @@ export function BienesInline({ clientId, cat, rows, canEdit }: { clientId: strin
           <button type="button" className="btn-primary btn-sm" disabled={pending || !rapido.datos.trim()} onClick={agregarRapido}>
             Agregar
           </button>
-          <span className="w-full text-[11px] text-muted">Cantidad 1 · estado Regular · sin observaciones · dirección del domicilio. Para cambiar algo, «Editar».</span>
+          <span className="w-full text-[11px] text-muted">Marca/modelo SIN INFORMAR · cantidad 1 · estado REGULAR · excluido NO · gravamen NO · SIN OBSERVACIONES · dirección del domicilio. Para cambiar algo, «Editar».</span>
         </div>
       )}
       {rows.map((row, i) => {
@@ -146,7 +146,9 @@ function BienModal({ clientId, cat, row, onClose, onSaved }: { clientId: string;
   const initial: Record<string, string> = {};
   for (const f of cat.fields) {
     const v = row?.[f.name];
-    initial[f.name] = f.type === "bool" ? (v ? "si" : "no") : v == null ? (f.name === "clase" ? (f.options?.[0]?.key ?? "") : f.name === "moneda" ? "CLP" : "") : f.name === "rut" || f.name === "causante_rut" ? formatRut(String(v)) : String(v);
+    // Anexo 8 nuevo: viene precargado con lo que el estudio repite en cada fila (se cambia solo si es distinto)
+    const porDefecto = !row && cat.key === "muebles" ? (MUEBLE_DEFAULTS[f.name] ?? "") : "";
+    initial[f.name] = f.type === "bool" ? (v ? "si" : "no") : v == null ? (f.name === "clase" ? (f.options?.[0]?.key ?? "") : f.name === "moneda" ? "CLP" : porDefecto) : f.name === "rut" || f.name === "causante_rut" ? formatRut(String(v)) : String(v);
   }
   const [vals, setVals] = useState(initial);
   const set = (k: string, v: string) => setVals((s) => ({ ...s, [k]: v }));
