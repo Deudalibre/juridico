@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import Loading from "../loading";
 import { getMembers, requirePermission, type LegalClient, type LegalTask } from "@/lib/data";
 import { dateTime } from "@/lib/format";
 import { COMPLETED, PROCEDURES, stepsFor } from "@/lib/legal";
@@ -18,7 +20,20 @@ const isDate = (s?: string) => /^\d{4}-\d{2}-\d{2}$/.test(s ?? "");
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Causas" };
 
-export default async function ClientesPage(props: { searchParams: Promise<SP> }) {
+/**
+ * La carga de datos vive en el hijo de abajo, dentro de un <Suspense> con el mismo esqueleto de loading.tsx.
+ * Así la navegación a esta pantalla es instantánea (Next 16 lo valida en desarrollo): el marco y el esqueleto
+ * aparecen al clic y los datos entran en streaming. loading.tsx solo cubre la carga directa, no la navegación.
+ */
+export default function ClientesPage(props: { searchParams: Promise<SP> }) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ClientesContent searchParams={props.searchParams} />
+    </Suspense>
+  );
+}
+
+async function ClientesContent(props: { searchParams: Promise<SP> }) {
   const sp = await props.searchParams;
   const { supabase, can, tz } = await requirePermission("legal.view");
   const closed = sp.estado === "cerradas";

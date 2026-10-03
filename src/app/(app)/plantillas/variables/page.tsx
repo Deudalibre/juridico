@@ -1,4 +1,6 @@
 import { requirePermission } from "@/lib/data";
+import { Suspense } from "react";
+import Loading from "@/app/(app)/loading";
 import { FICHA_FIELDS, type CatalogVariable, type LegalTemplate } from "@/lib/templates";
 import { Icon } from "@/components/icons";
 import { HelpPop } from "@/components/HelpPop";
@@ -12,7 +14,20 @@ import { VariablesManager } from "./VariablesManager";
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Variables del estudio" };
 
-export default async function VariablesPage() {
+/**
+ * La carga de datos vive en VariablesContent, dentro de un <Suspense> con el esqueleto de loading.tsx. Así la navegación a
+ * esta pantalla es instantánea (Next 16 lo valida en desarrollo): marco y esqueleto aparecen al clic y los datos
+ * entran en streaming. loading.tsx solo cubre la carga directa, no la navegación entre pantallas.
+ */
+export default function VariablesPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <VariablesContent />
+    </Suspense>
+  );
+}
+
+async function VariablesContent() {
   const { supabase, can } = await requirePermission("documents.view");
   const [{ data: rows, error }, { data: templates }] = await Promise.all([
     supabase.from("legal_variables").select("*").order("position").order("label"),

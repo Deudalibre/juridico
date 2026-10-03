@@ -1,4 +1,6 @@
 import { getStatuses, requirePermission } from "@/lib/data";
+import { Suspense } from "react";
+import Loading from "@/app/(app)/loading";
 import { driveState, googleConfigured } from "@/lib/google";
 import { Icon } from "@/components/icons";
 import { DriveCard } from "./DriveCard";
@@ -7,7 +9,20 @@ import { DriveCard } from "./DriveCard";
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Configuración" };
 
-export default async function ConfiguracionPage() {
+/**
+ * La carga de datos vive en ConfiguracionContent, dentro de un <Suspense> con el esqueleto de loading.tsx. Así la navegación a
+ * esta pantalla es instantánea (Next 16 lo valida en desarrollo): marco y esqueleto aparecen al clic y los datos
+ * entran en streaming. loading.tsx solo cubre la carga directa, no la navegación entre pantallas.
+ */
+export default function ConfiguracionPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ConfiguracionContent />
+    </Suspense>
+  );
+}
+
+async function ConfiguracionContent() {
   const { supabase } = await requirePermission("legal.settings");
   const [statuses, drive] = await Promise.all([getStatuses(supabase), driveState(supabase)]);
   const iaConfigured = Boolean(process.env.IA_PROVIDER && process.env.IA_API_KEY);

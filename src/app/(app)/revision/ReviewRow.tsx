@@ -28,7 +28,9 @@ type Props = {
 };
 
 // Una sola rejilla para cabecera y filas: así cada dato queda en su columna y la lista se lee como una tabla.
-const GRID = "grid grid-cols-[32px_minmax(0,2.4fr)_minmax(0,1.5fr)_minmax(0,1.6fr)_auto] items-center gap-x-4";
+// La columna de acciones tiene ancho fijo: con «auto» cada grupo la calculaba a su manera y «Última revisión» se
+// corría de una tabla a otra (con o sin botón «Completar»).
+const GRID = "grid grid-cols-[32px_minmax(0,2.4fr)_minmax(0,1.5fr)_minmax(0,1.6fr)_272px] items-center gap-x-4";
 
 /** Cabecera de columnas de la cola (una por lista). */
 export function ReviewHeader() {

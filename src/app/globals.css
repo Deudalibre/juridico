@@ -3660,3 +3660,30 @@ textarea {
     box-shadow: var(--shadow-panel);
   }
 }
+
+/* ---- Desplazamiento ligero ----
+   Medido en Chrome con sesión real (2026-10-03): tras entrar en una lista quedaban 50 animaciones
+   «row-in» terminadas pero vivas (una por fila, por el fill-mode «both»), y al navegar la vuelta
+   arriba se animaba por el scroll-behavior «smooth» del área de trabajo: parecía que la pantalla
+   «tardaba en deslizar». Las entradas conservan su retardo (backwards) pero se sueltan al terminar,
+   y el desplazamiento vuelve a ser inmediato. */
+.content {
+  scroll-behavior: auto;
+}
+.row,
+.list-row,
+.deal-card,
+.stagger > *,
+.fade-in,
+.animate-in,
+.frame,
+.filter-group-body,
+.fold > .fold-body,
+.rail-badge,
+.bar-track > span,
+.bar-grow,
+.menu-content,
+.sel-content,
+.popover {
+  animation-fill-mode: backwards;
+}

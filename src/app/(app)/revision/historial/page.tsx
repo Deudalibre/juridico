@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import Loading from "@/app/(app)/loading";
 import { requirePermission, type LegalReview } from "@/lib/data";
 import { dateTime, initials } from "@/lib/format";
 import { Icon } from "@/components/icons";
@@ -8,7 +10,20 @@ import { ExportButton } from "@/components/ExportButton";
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Historial de revisiones" };
 
-export default async function HistorialRevisionesPage(props: { searchParams: Promise<{ q?: string }> }) {
+/**
+ * La carga de datos vive en HistorialRevisionesContent, dentro de un <Suspense> con el esqueleto de loading.tsx. Así la navegación a
+ * esta pantalla es instantánea (Next 16 lo valida en desarrollo): marco y esqueleto aparecen al clic y los datos
+ * entran en streaming. loading.tsx solo cubre la carga directa, no la navegación entre pantallas.
+ */
+export default function HistorialRevisionesPage(props: { searchParams: Promise<{ q?: string }> }) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <HistorialRevisionesContent searchParams={props.searchParams} />
+    </Suspense>
+  );
+}
+
+async function HistorialRevisionesContent(props: { searchParams: Promise<{ q?: string }> }) {
   const sp = await props.searchParams;
   const { supabase, tz } = await requirePermission("legal.view");
   const { data, error } = await supabase.from("legal_reviews").select("*, legal_clients(full_name, rol, procedure_type), legal_tasks(title)").order("reviewed_at", { ascending: false }).limit(300);
