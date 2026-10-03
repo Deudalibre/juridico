@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 import { Field, toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import type { LegalClient } from "@/lib/data";
-import { ESTADOS_CIVILES, GENEROS, PREGUNTAS_273A, SITUACIONES_LABORALES, TIPOS_CONTRATO, type LvsFicha, type Pregunta273A } from "@/lib/lvs";
+import { ESTADOS_CIVILES, GENEROS, PREGUNTAS_273A, PREGUNTAS_BIENES, PREGUNTA_JUICIOS, SITUACIONES_LABORALES, TIPOS_CONTRATO, type LvsFicha, type Pregunta273A } from "@/lib/lvs";
 import { formatRut } from "@/lib/rut";
 import { saveLvs } from "../actions";
 
@@ -220,10 +220,10 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress }: { client: 
             )}
           </Section>
 
-          {/* ---- 4 · Art. 273 A ---- */}
-          <Section n={4} title="Artículo 273 A" hint="Siete respuestas. Cada «sí» abre su lista en Bienes o Juicios y cambia el párrafo correspondiente de la demanda.">
+          {/* ---- 4 · Art. 273 A, numeral 1: patrimonio ---- */}
+          <Section n={4} title="Patrimonio · art. 273 A n.º 1" hint="Seis categorías de bienes, una por anexo (3 a 8). Cada «sí» abre su lista en Bienes y cambia el párrafo correspondiente de la demanda; la exclusión se marca bien por bien.">
             <div className="grid gap-x-8 sm:col-span-12 sm:grid-cols-2">
-              {PREGUNTAS_273A.map((q) => (
+              {PREGUNTAS_BIENES.map((q) => (
                 <div key={q.key} className="flex items-center justify-between gap-3 border-b border-line-soft py-2.5">
                   <span className="flex min-w-0 flex-col">
                     <span className="text-[13px] font-medium text-fg">{q.label}</span>
@@ -235,9 +235,20 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress }: { client: 
             </div>
           </Section>
 
-          {/* ---- 5 · Carta de insolvencia ---- */}
+          {/* ---- 5 · Art. 273 A, numeral 4: juicios ---- */}
+          <Section n={5} title="Juicios pendientes · art. 273 A n.º 4" hint="Incluye causas en cumplimiento incidental o ejecutivo. Con «sí» se detallan en la pestaña Juicios (rol, tribunal, corte, estado, calidad y monto).">
+            <div className="flex items-center justify-between gap-3 border-b border-line-soft py-2.5 sm:col-span-12">
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[13px] font-medium text-fg">{PREGUNTA_JUICIOS.label}</span>
+                <span className="truncate text-[11.5px] text-muted">{PREGUNTA_JUICIOS.hint}</span>
+              </span>
+              <YesNo name={PREGUNTA_JUICIOS.key} value={answers[PREGUNTA_JUICIOS.key]} onChange={(v) => setAnswers((a) => ({ ...a, [PREGUNTA_JUICIOS.key]: v }))} disabled={disabled} label={PREGUNTA_JUICIOS.label} />
+            </div>
+          </Section>
+
+          {/* ---- 6 · Carta de insolvencia ---- */}
           <Section
-            n={5}
+            n={6}
             title="Carta de insolvencia"
             hint="A la izquierda, lo que escribió el cliente (se conserva). A la derecha, la versión que va en «Hechos» de la demanda; los saltos de párrafo se respetan en el Word."
             aside={

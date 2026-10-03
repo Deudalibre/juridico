@@ -5,7 +5,7 @@ import { Icon } from "@/components/icons";
 import { getContext, type LegalClient } from "@/lib/data";
 import { dateTime, initials } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import { LVS_ESTADOS, LVS_TABS, PREGUNTAS_273A, lvsEstadoTone, lvsProgress, type LvsFicha, type LvsTab } from "@/lib/lvs";
+import { LVS_ESTADOS, LVS_TABS, PREGUNTAS_273A, PREGUNTAS_BIENES, lvsEstadoTone, lvsProgress, type LvsFicha, type LvsTab } from "@/lib/lvs";
 import { FichaForm } from "./FichaForm";
 import { AbrirExpediente } from "./AbrirExpediente";
 
@@ -153,23 +153,33 @@ function Resumen({ f, c, pct, missing }: { f: LvsFicha; c: LegalClient; pct: num
     <>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         {card("Ficha maestra", `${pct}%`, missing.length ? `Falta: ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "…" : ""}` : "Completa", "Ficha maestra", pct === 100 ? "success" : "warn")}
-        {card("Bienes", si.filter((q) => q.key !== "tiene_juicios").length.toString(), sinResponder.length ? `${sinResponder.length} preguntas sin responder` : "categorías declaradas con «sí»", "Bienes")}
+        {card("Bienes", si.filter((q) => q.numeral === 1).length.toString(), sinResponder.length ? `${sinResponder.length} preguntas sin responder` : "categorías declaradas con «sí»", "Bienes")}
         {card("Acreedores", "—", "Etapa 5 · catálogo maestro", "Acreedores")}
         {card("Documentación", "—", "Etapa 2 · requisitos y estados", "Documentación")}
       </div>
       <section className="panel gap-3 px-5 py-4">
-        <span className="card-title">Respuestas del artículo 273 A</span>
+        <span className="card-title">Patrimonio · art. 273 A n.º 1</span>
         <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-          {PREGUNTAS_273A.map((q) => {
+          {PREGUNTAS_BIENES.map((q) => {
             const v = f[q.key];
             return (
               <div key={q.key} className="flex items-center justify-between gap-3 border-b border-line-soft py-1.5 text-[13px] last:border-0">
-                <span className="text-soft">{q.label}</span>
+                <span className="text-soft">
+                  {q.label}
+                  {q.anexo ? <span className="text-faint"> · Anexo {q.anexo}</span> : null}
+                </span>
                 <span className={`tag ${v === true ? "brand" : v === false ? "" : "warn"}`}>{v === true ? "Sí" : v === false ? "No" : "Sin responder"}</span>
               </div>
             );
           })}
         </div>
+      </section>
+      <section className="panel gap-2 px-5 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <span className="card-title">Juicios pendientes · art. 273 A n.º 4</span>
+          <span className={`tag ${f.tiene_juicios === true ? "brand" : f.tiene_juicios === false ? "" : "warn"}`}>{f.tiene_juicios === true ? "Sí" : f.tiene_juicios === false ? "No" : "Sin responder"}</span>
+        </div>
+        <span className="text-[12px] text-muted">{f.tiene_juicios ? "Se detallan en la pestaña Juicios (etapa 6)." : "Sin juicios: la demanda usa el texto «La parte deudora declara que no tiene juicios pendientes»."}</span>
       </section>
     </>
   );

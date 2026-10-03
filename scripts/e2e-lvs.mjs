@@ -53,7 +53,7 @@ try {
   const nueva = await page(jur, "/documentos/lvs/nueva?q=LVS%20Cliente");
   ok("/documentos/lvs/nueva encuentra al cliente y avisa que ya tiene expediente", nueva.status === 200 && /Ya tiene expediente/.test(nueva.text), String(nueva.status));
   const exp = await page(jur, `/documentos/lvs/${id}?tab=Ficha%20maestra`);
-  ok("Expediente · pestañas y formulario de la Ficha Maestra", exp.status === 200 && /Resumen.*Ficha maestra.*Bienes.*Acreedores.*Juicios.*Documentación.*Generados.*Historial/.test(exp.text) && /Artículo 273 A/.test(exp.text), String(exp.status));
+  ok("Expediente · pestañas y formulario de la Ficha Maestra", exp.status === 200 && /Resumen.*Ficha maestra.*Bienes.*Acreedores.*Juicios.*Documentación.*Generados.*Historial/.test(exp.text) && /Patrimonio · art. 273 A/.test(exp.text) && /Juicios pendientes · art. 273 A/.test(exp.text), String(exp.status));
   ok("Expediente · avance inicial parcial (nombre y RUT ya cuentan)", /ficha 11%/.test(exp.text));
   const ejeExp = await page(eje, `/documentos/lvs/${id}`);
   ok("Ejecutivo · el expediente no se le muestra", ejeExp.status !== 200 || /Sin acceso/.test(ejeExp.text), String(ejeExp.status));
@@ -68,7 +68,7 @@ try {
   const upd = await jur.c.from("legal_lvs").update(full).eq("client_id", id).select().single();
   ok("Jurídico guarda la ficha completa (RLS legal.edit)", !upd.error && upd.data?.tiene_vehiculos === true, upd.error?.message);
   const after = await page(jur, `/documentos/lvs/${id}?tab=Resumen`);
-  ok("Resumen · la ficha marca 100% y las respuestas del 273 A", after.status === 200 && /100%/.test(after.text) && /Respuestas del artículo 273 A/.test(after.text), String(after.status));
+  ok("Resumen · la ficha marca 100% y las respuestas del 273 A", after.status === 200 && /100%/.test(after.text) && /Patrimonio · art. 273 A/.test(after.text) && /Anexo 8/.test(after.text), String(after.status));
 
   // Historial: creación + cambios con campos antes/después
   const hist = sql(`select summary, before, after from legal_case_history where client_id = '${id}' and kind = 'lvs' order by at`);

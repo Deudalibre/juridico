@@ -61,15 +61,18 @@ export type Pregunta273A =
   | "tiene_bienes_muebles"
   | "tiene_juicios";
 
-/** Las siete preguntas del art. 273 A (la exclusión de bienes se marca bien por bien en cada anexo). Cada «sí» abre su lista (etapas siguientes) y decide un párrafo de la demanda. */
-export const PREGUNTAS_273A: { key: Pregunta273A; label: string; hint: string }[] = [
-  { key: "tiene_bienes_raices", label: "Bienes raíces", hint: "Casas, departamentos, sitios o parcelas a su nombre" },
-  { key: "tiene_vehiculos", label: "Vehículos u otros bienes registrables", hint: "Autos, motos, remolques" },
-  { key: "tiene_aguas", label: "Derechos de agua o concesiones", hint: "Aprovechamiento de aguas, concesiones mineras o marítimas" },
-  { key: "tiene_participaciones", label: "Sociedades, acciones o herencias", hint: "Participación en empresas, acciones, comunidades hereditarias" },
-  { key: "tiene_instrumentos", label: "Instrumentos financieros transables", hint: "Fondos mutuos, depósitos a plazo, bonos" },
-  { key: "tiene_bienes_muebles", label: "Otros bienes muebles o financieros", hint: "Anexo 8: muebles, electrodomésticos, ahorros, cuenta 2 AFP, efectivo" },
-  { key: "tiene_juicios", label: "Juicios pendientes", hint: "Causas civiles, laborales o de familia en curso" },
+/**
+ * Las siete preguntas del art. 273 A: seis del numeral 1 (patrimonio, Anexos 3 a 8) y una del numeral 4 (juicios).
+ * La exclusión de bienes no se pregunta: se marca bien por bien en cada anexo. Cada «sí» abre su lista y decide un párrafo de la demanda.
+ */
+export const PREGUNTAS_273A: { key: Pregunta273A; numeral: 1 | 4; label: string; hint: string; anexo?: number }[] = [
+  { key: "tiene_bienes_raices", numeral: 1, anexo: 3, label: "Bienes raíces", hint: "Casas, departamentos, sitios o parcelas a su nombre" },
+  { key: "tiene_vehiculos", numeral: 1, anexo: 4, label: "Vehículos u otros bienes registrables", hint: "Autos, motos, remolques" },
+  { key: "tiene_aguas", numeral: 1, anexo: 5, label: "Derechos de agua o concesiones", hint: "Aprovechamiento de aguas, concesiones mineras o marítimas" },
+  { key: "tiene_participaciones", numeral: 1, anexo: 6, label: "Sociedades, acciones o herencias", hint: "Participación en empresas, acciones, comunidades hereditarias" },
+  { key: "tiene_instrumentos", numeral: 1, anexo: 7, label: "Instrumentos financieros transables", hint: "Fondos mutuos, depósitos a plazo, bonos" },
+  { key: "tiene_bienes_muebles", numeral: 1, anexo: 8, label: "Otros bienes muebles o financieros", hint: "Anexo 8: muebles, electrodomésticos, ahorros, cuenta 2 AFP, efectivo" },
+  { key: "tiene_juicios", numeral: 4, label: "Juicios pendientes", hint: "Causas civiles, laborales o de familia en curso" },
 ];
 
 /** Qué falta para dar la ficha por completa: lo mínimo que piden la demanda y la Declaración 273-A. */
@@ -95,6 +98,9 @@ export function lvsProgress(f: LvsFicha | null, c: Pick<LegalClient, "full_name"
 /** Pestañas del expediente. Las de etapas posteriores ya tienen su lugar aunque todavía no tengan contenido. */
 export const LVS_TABS = ["Resumen", "Ficha maestra", "Bienes", "Acreedores", "Juicios", "Documentación", "Generados", "Historial"] as const;
 export type LvsTab = (typeof LVS_TABS)[number];
+
+export const PREGUNTAS_BIENES = PREGUNTAS_273A.filter((q) => q.numeral === 1);
+export const PREGUNTA_JUICIOS = PREGUNTAS_273A.find((q) => q.numeral === 4)!;
 
 /** Variables de plantilla que salen de la Ficha Maestra (se suman a las de la ficha del cliente). */
 export function lvsValues(f: LvsFicha | null): Record<string, string> {

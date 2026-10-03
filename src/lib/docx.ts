@@ -282,9 +282,16 @@ export function insertVariable(buf: Uint8Array, index: number, pos: number, name
 
 /** Sustituye todas las apariciones de {name} por `replacement` (texto llano o {otro_nombre}). Devuelve cuántas cambió. */
 export function replaceVariable(buf: Uint8Array, name: string, replacement: string): { buf: Buffer; count: number } {
+  return replaceText(buf, `{${name}}`, replacement);
+}
+
+/**
+ * Sustituye todas las apariciones exactas de un texto (aunque Word lo tenga partido en varios runs) conservando
+ * el formato del tramo. Sirve para convertir palabras fijas del modelo («don», «domiciliado») en marcadores.
+ */
+export function replaceText(buf: Uint8Array, tag: string, replacement: string): { buf: Buffer; count: number } {
   const { zip } = open(buf);
   let xml = open(buf).xml;
-  const tag = `{${name}}`;
   let count = 0;
   // Se recorre de atrás hacia adelante para que las posiciones anteriores no se muevan
   const paras: { index: number; text: string }[] = [];
