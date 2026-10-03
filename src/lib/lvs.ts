@@ -12,12 +12,8 @@ export type LvsFicha = {
   comuna: string | null;
   region: string | null;
   relacion_laboral: boolean | null;
-  situacion_laboral: string | null;
   empleador: string | null;
   rut_empleador: string | null;
-  fecha_inicio_contrato: string | null;
-  tipo_contrato: string | null;
-  ingreso_liquido: number | null;
   comuna_tribunal: string | null;
   sj_comuna: string | null;
   carta_original: string | null;
@@ -49,8 +45,6 @@ export const lvsEstadoTone = (e: LvsEstado): "" | "brand" | "warn" | "success" =
 
 export const GENEROS = { F: "Femenino", M: "Masculino" } as const;
 export const ESTADOS_CIVILES = ["Soltero/a", "Casado/a", "Divorciado/a", "Viudo/a", "Conviviente civil", "Separado/a"] as const;
-export const SITUACIONES_LABORALES = ["Dependiente", "Independiente", "Pensionado/a", "Cesante", "Otra"] as const;
-export const TIPOS_CONTRATO = ["Indefinido", "Plazo fijo", "Por obra o faena", "Honorarios", "Otro"] as const;
 
 export type Pregunta273A =
   | "tiene_bienes_raices"

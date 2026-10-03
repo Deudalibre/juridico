@@ -3,11 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import { cleanRut, isValidRut } from "@/lib/rut";
-import { ESTADOS_CIVILES, PREGUNTAS_273A, SITUACIONES_LABORALES, TIPOS_CONTRATO, lvsProgress, type LvsFicha } from "@/lib/lvs";
+import { ESTADOS_CIVILES, PREGUNTAS_273A, lvsProgress, type LvsFicha } from "@/lib/lvs";
 
 type Result = { error?: string };
 const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
-const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
 const text = (fd: FormData, k: string, max = 200) => String(fd.get(k) ?? "").trim().slice(0, max) || null;
 const yesNo = (fd: FormData, k: string): boolean | null => {
   const v = fd.get(k);
@@ -78,11 +77,6 @@ export async function saveLvs(clientId: string, fd: FormData): Promise<Result & 
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "El email no es válido." };
   const rutEmp = text(fd, "rut_empleador", 20);
   if (rutEmp && !isValidRut(rutEmp)) return { error: "El RUT del empleador no es válido." };
-  const fechaContrato = text(fd, "fecha_inicio_contrato", 10);
-  if (fechaContrato && !isDate(fechaContrato)) return { error: "La fecha de inicio del contrato no es válida." };
-  const ingresoRaw = text(fd, "ingreso_liquido", 20)?.replace(/[^\d]/g, "") ?? "";
-  const ingreso = ingresoRaw ? Number(ingresoRaw) : null;
-  if (ingreso !== null && !(Number.isInteger(ingreso) && ingreso >= 0 && ingreso < 1e12)) return { error: "El ingreso líquido no es válido." };
   const genero = text(fd, "genero", 1);
   if (genero && genero !== "F" && genero !== "M") return { error: "Género no válido." };
   const relacion = yesNo(fd, "relacion_laboral");
@@ -96,12 +90,8 @@ export async function saveLvs(clientId: string, fd: FormData): Promise<Result & 
     comuna: text(fd, "comuna", 80),
     region: text(fd, "region", 80),
     relacion_laboral: relacion,
-    situacion_laboral: oneOf(text(fd, "situacion_laboral", 40), SITUACIONES_LABORALES),
     empleador: relacion ? text(fd, "empleador") : null,
     rut_empleador: relacion && rutEmp ? cleanRut(rutEmp) : null,
-    fecha_inicio_contrato: relacion ? fechaContrato : null,
-    tipo_contrato: relacion ? oneOf(text(fd, "tipo_contrato", 40), TIPOS_CONTRATO) : null,
-    ingreso_liquido: ingreso,
     comuna_tribunal: text(fd, "comuna_tribunal", 80),
     sj_comuna: text(fd, "sj_comuna", 200),
     carta_original: text(fd, "carta_original", 20000),

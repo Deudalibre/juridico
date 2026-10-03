@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 import { Field, toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import type { LegalClient } from "@/lib/data";
-import { ESTADOS_CIVILES, GENEROS, PREGUNTAS_273A, PREGUNTAS_BIENES, PREGUNTA_JUICIOS, SITUACIONES_LABORALES, TIPOS_CONTRATO, type LvsFicha, type Pregunta273A } from "@/lib/lvs";
+import { ESTADOS_CIVILES, GENEROS, PREGUNTAS_273A, PREGUNTAS_BIENES, PREGUNTA_JUICIOS, type LvsFicha, type Pregunta273A } from "@/lib/lvs";
 import { formatRut } from "@/lib/rut";
 import { saveLvs } from "../actions";
 
@@ -177,46 +177,20 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress }: { client: 
           <Section
             n={3}
             title="Situación laboral"
-            hint="Con relación laboral vigente, la demanda acompaña el contrato y las tres últimas liquidaciones."
-            aside={<YesNo name="relacion_laboral" value={relacion} onChange={setRelacion} disabled={disabled} label="Relación laboral vigente" />}
+            hint="Si está trabajando, la demanda acompaña el contrato y las tres últimas liquidaciones; solo hace falta el empleador."
+            aside={<YesNo name="relacion_laboral" value={relacion} onChange={setRelacion} disabled={disabled} label="¿Está trabajando?" />}
           >
-            <Field label="Situación" className="sm:col-span-3">
-              <select name="situacion_laboral" className="input" defaultValue={f.situacion_laboral ?? ""}>
-                <option value="">Sin definir</option>
-                {SITUACIONES_LABORALES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Ingreso líquido mensual" className="sm:col-span-3">
-              <input name="ingreso_liquido" className="input tabnum" inputMode="numeric" defaultValue={f.ingreso_liquido ?? ""} placeholder="650000" autoComplete="off" />
-            </Field>
             {relacion === "si" ? (
               <>
-                <Field label="Empleador" className="sm:col-span-6">
+                <Field label="Empleador (nombre o razón social)" className="sm:col-span-8">
                   <input name="empleador" className="input" defaultValue={f.empleador ?? ""} autoComplete="off" />
                 </Field>
                 <Field label="RUT empleador" className="sm:col-span-4">
-                  <input name="rut_empleador" className="input tabnum" defaultValue={formatRut(f.rut_empleador)} autoComplete="off" />
-                </Field>
-                <Field label="Inicio del contrato" className="sm:col-span-4">
-                  <input name="fecha_inicio_contrato" type="date" className="input tabnum" defaultValue={f.fecha_inicio_contrato ?? ""} />
-                </Field>
-                <Field label="Tipo de contrato" className="sm:col-span-4">
-                  <select name="tipo_contrato" className="input" defaultValue={f.tipo_contrato ?? ""}>
-                    <option value="">Sin definir</option>
-                    {TIPOS_CONTRATO.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
+                  <input name="rut_empleador" className="input tabnum" defaultValue={formatRut(f.rut_empleador)} placeholder="76.123.456-0" autoComplete="off" />
                 </Field>
               </>
             ) : (
-              <div className="flex items-end pb-2 text-[12px] text-faint sm:col-span-6">{relacion === "no" ? "Sin relación laboral vigente: no se piden contrato ni liquidaciones." : "Responde Sí o No a la izquierda."}</div>
+              <div className="flex items-center text-[12.5px] text-faint sm:col-span-12">{relacion === "no" ? "No está trabajando: no se piden contrato ni liquidaciones." : "Responde Sí o No a la izquierda."}</div>
             )}
           </Section>
 
