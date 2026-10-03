@@ -5,27 +5,27 @@ import { getContext, type LegalClient } from "@/lib/data";
 import type { LvsFicha } from "@/lib/lvs";
 import type { BienRow } from "@/lib/lvs-bienes";
 import { GENERADOS, type GeneradoTipo } from "@/lib/lvs-generados";
-import { datosAnexo8, generarDocumento } from "@/lib/lvs-generar";
+import { datosAnexo8, datosDeclaracion, generarDocumento } from "@/lib/lvs-generar";
 
 type Result = { error?: string; advertencias?: string[] };
 const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
 
-/** Genera un documento de la LVS (hoy: Anexo 8). Con errores no genera; con advertencias genera y las guarda. */
+/** Genera un documento de la LVS (Anexo 8, Declaración 273-A). Con errores no genera; con advertencias genera y las guarda. */
 export async function generarLvs(clientId: string, tipo: GeneradoTipo): Promise<Result> {
   const { supabase, can, user } = await getContext();
   if (!can("documents.edit") || !can("legal.edit")) return { error: "No tienes permiso para generar documentos." };
   if (!isUuid(clientId) || !(tipo in GENERADOS)) return { error: "Datos no válidos." };
-  if (tipo !== "anexo8") return { error: `«${GENERADOS[tipo].nombre}» se genera en la etapa ${GENERADOS[tipo].etapa}.` };
+  if (tipo !== "anexo8" && tipo !== "declaracion_273a") return { error: `«${GENERADOS[tipo].nombre}» se genera en la etapa ${GENERADOS[tipo].etapa}.` };
   const [{ data: client }, { data: lvs }, { data: bienes }] = await Promise.all([
     supabase.from("legal_clients").select("*").eq("id", clientId).maybeSingle(),
     supabase.from("legal_lvs").select("*").eq("client_id", clientId).maybeSingle(),
-    supabase.from("legal_lvs_bienes_muebles").select("*").eq("client_id", clientId).order("orden"),
+    tipo === "anexo8" ? supabase.from("legal_lvs_bienes_muebles").select("*").eq("client_id", clientId).order("orden") : Promise.resolve({ data: [] as BienRow[] }),
   ]);
   if (!client || !lvs) return { error: "Expediente no encontrado." };
   const c = client as LegalClient;
   let lawyer: string | null = null;
   if (c.lawyer_id) lawyer = (await supabase.from("profiles").select("full_name").eq("id", c.lawyer_id).maybeSingle()).data?.full_name ?? null;
-  const { data, errores, advertencias } = datosAnexo8(c, lvs as LvsFicha, (bienes ?? []) as BienRow[], lawyer);
+  const { data, errores, advertencias } = tipo === "anexo8" ? datosAnexo8(c, lvs as LvsFicha, (bienes ?? []) as BienRow[], lawyer) : datosDeclaracion(c, lvs as LvsFicha, lawyer);
   if (errores.length) return { error: errores.join(" ") };
   const r = await generarDocumento(supabase, user.id, c, tipo, data, advertencias);
   if (r.error) return { error: r.error };

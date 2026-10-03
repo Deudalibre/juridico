@@ -274,6 +274,25 @@ function insertInXml(xml: string, index: number, pos: number, text: string): str
   return xml.slice(0, t.contentStart) + newContent + xml.slice(t.contentEnd);
 }
 
+/** Sustituye todo el texto del párrafo `index` por `text` (vacío = párrafo en blanco), conservando su formato. */
+export function setParagraphText(buf: Uint8Array, index: number, text: string): Buffer {
+  const { zip, xml } = open(buf);
+  const doc = readDocx(buf);
+  let target: Para | null = null;
+  const visit = (blocks: Block[]) => {
+    for (const b of blocks) {
+      if (b.kind === "p") {
+        if (b.i === index) target = b;
+      } else for (const row of b.rows) for (const cell of row) visit(cell);
+    }
+  };
+  visit(doc.blocks);
+  if (!target) throw new Error("Párrafo no encontrado.");
+  const len = (target as Para).text.length;
+  if (len === 0) return save(zip, xml);
+  return save(zip, replaceInXml(xml, index, 0, len, text));
+}
+
 /** Inserta un texto cualquiera (p. ej. marcas de bucle {#x}…{/x}) en la posición `pos` del párrafo `index`. */
 export function insertText(buf: Uint8Array, index: number, pos: number, text: string): Buffer {
   const { zip, xml } = open(buf);
