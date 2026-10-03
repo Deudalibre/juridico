@@ -55,7 +55,17 @@ function PreguntaConLista({ q, cat, rows, value, onChange, clientId, canEdit, di
           </span>
           <span className="truncate text-[11.5px] text-muted">{q.hint}</span>
         </span>
-        <YesNo name={q.key} value={value} onChange={onChange} disabled={disabled} label={q.label} />
+        <YesNo
+          name={q.key}
+          value={value}
+          onChange={(v) => {
+            onChange(v);
+            // Marcar «Sí» despliega la lista siempre (aunque se hubiera plegado); el chevrón la esconde cuando se quiera
+            if (v === "si") setAbierta(true);
+          }}
+          disabled={disabled}
+          label={q.label}
+        />
       </div>
       {activa && abierta && (
         <div className="pb-3 pl-8">
