@@ -88,6 +88,15 @@ const SECTIONS: {
     ],
   },
   {
+    match: (p) => starts(p, "/documentos"),
+    title: "Documentos",
+    items: [
+      { href: "/documentos/lvs", label: "Solicitudes LVS", icon: "report", group: "LVS", exact: true },
+      { href: "/documentos/lvs/nueva", label: "Nueva solicitud LVS", icon: "plus", group: "LVS", need: "legal.create" },
+      { href: "/documentos", label: "Documentos generados", icon: "folder", group: "Generados", exact: true },
+    ],
+  },
+  {
     match: (p) => starts(p, "/clientes"),
     title: "Clientes",
     items: [
@@ -133,7 +142,10 @@ const CRUMBS: [RegExp, string[]][] = [
   [/^\/plantillas\/variables/, ["Plantillas", "Variables del estudio"]],
   [/^\/plantillas\/.+/, ["Plantillas", "Editor de plantilla"]],
   [/^\/plantillas/, ["Plantillas"]],
-  [/^\/documentos/, ["Documentos"]],
+  [/^\/documentos\/lvs\/nueva/, ["Documentos", "Nueva solicitud LVS"]],
+  [/^\/documentos\/lvs\/.+/, ["Documentos", "Expediente LVS"]],
+  [/^\/documentos\/lvs/, ["Documentos", "Solicitudes LVS"]],
+  [/^\/documentos/, ["Documentos", "Generados"]],
   [/^\/configuracion/, ["Configuración"]],
 ];
 
