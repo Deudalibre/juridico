@@ -27,6 +27,27 @@ function fill(buf: Buffer, p: Para, text: string, replaceAll = false): Buffer {
   return insertText(buf, p.i, p.text.length, text);
 }
 
+const ROTULO_FIRMA = "NOMBRE, RUT Y FIRMA DEUDOR O REPRESENTANTE";
+
+/**
+ * Pie de firma de los modelos oficiales: el rótulo «NOMBRE, RUT Y FIRMA DEUDOR O REPRESENTANTE» se sustituye por el
+ * nombre del cliente y, en la línea siguiente, su RUT (mismo formato centrado). La línea de firma de arriba se conserva.
+ */
+function firmaDeudor(buf: Buffer): Buffer {
+  const todos: Para[] = [];
+  const visit = (blocks: Block[]) => {
+    for (const b of blocks) {
+      if (b.kind === "p") todos.push(b);
+      else for (const row of b.rows) for (const cell of row) visit(cell);
+    }
+  };
+  visit(readDocx(buf).blocks);
+  const hits = todos.filter((p) => p.text.trim() === ROTULO_FIRMA);
+  if (hits.length !== 1) throw new Error(`Se esperaba un pie «${ROTULO_FIRMA}» y hay ${hits.length}.`);
+  // Nombre y, con salto de línea, el RUT: un solo párrafo con el formato centrado del rótulo
+  return setParagraphText(buf, hits[0].i, "{nombre_completo}\nRUT {rut}");
+}
+
 /** Celdas del Anexo 8 en el orden del formulario oficial, con el marcador que recibe cada una. */
 export const ANEXO8_COLUMNAS = ["tipo", "datos", "marca_modelo", "cantidad", "monto", "estado_conservacion", "direccion", "excluido", "gravamen", "observaciones"] as const;
 
@@ -61,6 +82,7 @@ function filaBucle(buf: Buffer, tableIndex: number, filasEnBlanco: number[], lis
 export function prepararAnexo8(original: Buffer): Buffer {
   let buf = filaBucle(original, 1, [2, 3], "bienes", ANEXO8_COLUMNAS, "El Anexo 8");
   buf = fillDeudor(buf);
+  buf = firmaDeudor(buf);
   const err = templateError(buf);
   if (err) throw new Error(`El Anexo 8 preparado no compila: ${err}`);
   return buf;
@@ -82,6 +104,7 @@ export function prepararAnexo9(original: Buffer): Buffer {
   buf = fill(buf, totalRow[1], "{total}", totalRow[1].text.trim().length > 0);
   buf = filaBucle(buf, 1, [], "deudas", ANEXO9_COLUMNAS, "El Anexo 9");
   buf = fillDeudor(buf);
+  buf = firmaDeudor(buf);
   const err = templateError(buf);
   if (err) throw new Error(`El Anexo 9 preparado no compila: ${err}`);
   return buf;
@@ -108,6 +131,7 @@ export function prepararDeclaracion(original: Buffer): Buffer {
     if (r.count !== 1) throw new Error(`En el Anexo 11 no se encontró «${de}» (apariciones: ${r.count}).`);
     buf = r.buf;
   }
+  buf = firmaDeudor(buf);
   const err = templateError(buf);
   if (err) throw new Error(`La Declaración 273-A preparada no compila: ${err}`);
   return buf;
@@ -133,6 +157,7 @@ function prepararAnexoBienes(etiqueta: string, tablas: TablaBucle[]) {
     let buf = original;
     for (const t of [...tablas].sort((a, b) => b.index - a.index)) buf = filaBucle(buf, t.index, t.filasEnBlanco, t.lista, t.columnas, `${etiqueta} (tabla ${t.index + 1})`);
     buf = fillDeudor(buf);
+    buf = firmaDeudor(buf);
     const err = templateError(buf);
     if (err) throw new Error(`${etiqueta} preparado no compila: ${err}`);
     return buf;
