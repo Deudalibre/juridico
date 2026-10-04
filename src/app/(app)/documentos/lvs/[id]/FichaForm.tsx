@@ -80,9 +80,9 @@ function PreguntaConLista({ q, cat, rows, value, onChange, clientId, canEdit, di
 }
 
 /** Bloque encuadrado: número y título a la izquierda, campos a la derecha; todos alineados a la misma rejilla. */
-function Section({ n, title, hint, aside, children }: { n: number; title: string; hint: string; aside?: ReactNode; children: ReactNode }) {
+function Section({ id, n, title, hint, aside, children }: { id: string; n: number; title: string; hint: string; aside?: ReactNode; children: ReactNode }) {
   return (
-    <div className="grid gap-4 border-t border-line-soft px-5 py-5 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-8">
+    <div id={id} className="scroll-mt-3 grid gap-3 border-t border-line-soft px-5 py-4 lg:grid-cols-[176px_minmax(0,1fr)] lg:gap-6">
       <div className="flex items-start gap-3">
         <span className="tabnum flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11.5px] font-semibold text-accent" style={{ background: "var(--surface-active)" }}>
           {n}
@@ -150,23 +150,19 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
   };
 
   const disabled = !canEdit || pending;
-  const complete = progress.pct === 100;
   return (
     <form ref={formRef} onSubmit={save} className="flex flex-col gap-3">
       <fieldset disabled={disabled} className="contents">
         <div className="panel overflow-hidden">
-          {/* ---- Avance ---- */}
-          <div className="panel-head !py-3 flex-wrap gap-x-4 gap-y-2">
-            <span className="card-title">Ficha Maestra</span>
-            <span className="h-1.5 w-40 overflow-hidden rounded-full" style={{ background: "var(--border)" }} aria-hidden>
-              <span className="block h-full rounded-full bar-grow" style={{ width: `${progress.pct}%`, background: complete ? "var(--success)" : "var(--brand-dark)" }} />
-            </span>
-            <span className={`tabnum text-[12.5px] font-semibold ${complete ? "text-success" : "text-fg"}`}>{progress.pct}%</span>
-            <span className="min-w-0 flex-1 truncate text-[12px] text-muted">{complete ? "Completa: ya alimenta la demanda, la Declaración 273-A y los anexos." : `Falta: ${progress.missing.join(", ")}`}</span>
-          </div>
+          {progress.pct < 100 && (
+            <div className="flex flex-wrap items-center gap-2 px-5 py-2 text-[12px]" style={{ background: "var(--warning-bg)" }}>
+              <span className="font-semibold text-warning">Falta:</span>
+              <span className="text-soft">{progress.missing.join(", ")}</span>
+            </div>
+          )}
 
           {/* ---- 1 · Cliente ---- */}
-          <Section n={1} title="Cliente" hint="Los mismos datos de la causa: corregirlos aquí los corrige en todas partes.">
+          <Section id="cliente" n={1} title="Cliente" hint="Datos de la persona. Valen para todos los documentos.">
             <Field label="Nombre completo" className="sm:col-span-6">
               <input name="full_name" className="input" defaultValue={c.full_name} required autoComplete="off" />
             </Field>
@@ -217,7 +213,7 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
           </Section>
 
           {/* ---- 2 · Tribunal ---- */}
-          <Section n={2} title="Tribunal" hint="Basta la comuna: el encabezado se arma solo como «S.J.L. Civil de …» si se deja vacío, y se puede corregir.">
+          <Section id="tribunal" n={2} title="Tribunal" hint="Con la comuna basta: el S.J.L. se arma solo.">
             <Field label="Comuna del tribunal" className="sm:col-span-4">
               <input name="comuna_tribunal" className="input" defaultValue={f.comuna_tribunal ?? ""} autoComplete="off" />
             </Field>
@@ -228,9 +224,9 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
 
           {/* ---- 3 · Situación laboral ---- */}
           <Section
-            n={3}
+            id="laboral" n={3}
             title="Situación laboral"
-            hint="Si está trabajando, la demanda acompaña el contrato y las tres últimas liquidaciones; solo hace falta el empleador."
+            hint="Si trabaja: contrato y liquidaciones. Si no: 12 cotizaciones."
             aside={<YesNo name="relacion_laboral" value={relacion} onChange={setRelacion} disabled={disabled} label="¿Está trabajando?" />}
           >
             {relacion === "si" ? (
@@ -248,7 +244,7 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
           </Section>
 
           {/* ---- 4 · Art. 273 A, numeral 1: patrimonio ---- */}
-          <Section n={4} title="Patrimonio · art. 273 A n.º 1" hint="Seis categorías de bienes, una por anexo (3 a 8). Al marcar «Sí» se abre debajo su lista para cargar y editar; la exclusión se marca bien por bien. Agregar un bien marca el «Sí» solo.">
+          <Section id="patrimonio" n={4} title="Patrimonio · art. 273 A n.º 1" hint="Marca «Sí» y carga la lista debajo. Un anexo por categoría.">
             <div className="flex flex-col sm:col-span-12">
               {PREGUNTAS_BIENES.map((q) => {
                 const cat = CATEGORIAS.find((x) => x.pregunta === q.key)!;
@@ -258,14 +254,14 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
           </Section>
 
           {/* ---- 5 · Art. 273 A, numeral 4: juicios ---- */}
-          <Section n={5} title="Juicios pendientes · art. 273 A n.º 4" hint="Incluye causas en cumplimiento incidental o ejecutivo. Al marcar «Sí» se abre debajo la lista (rol, tribunal, corte, estado, calidad y monto) para el numeral 4 de la demanda.">
+          <Section id="juicios" n={5} title="Juicios pendientes · art. 273 A n.º 4" hint="Causas en curso, también en cumplimiento incidental o ejecutivo.">
             <div className="flex flex-col sm:col-span-12">
               <PreguntaConLista q={PREGUNTA_JUICIOS} cat={CATEGORIAS.find((x) => x.key === "juicios")!} rows={bienes.juicios} value={answers.tiene_juicios} onChange={(v) => setAnswers((a) => ({ ...a, tiene_juicios: v }))} clientId={c.id} canEdit={canEdit} disabled={disabled} />
             </div>
           </Section>
 
           {/* ---- 6 · Acreedores (Anexo 9) ---- */}
-          <Section n={6} title="Acreedores · Anexo N.º 9" hint="Escribe parte del nombre o el RUT y elige: el catálogo rellena RUT, correo y teléfono. Solo falta el monto y la naturaleza. El total se calcula solo.">
+          <Section id="acreedores" n={6} title="Acreedores · Anexo N.º 9" hint="Escribe el nombre o el RUT y elige. Solo pones monto y naturaleza.">
             <div className="sm:col-span-12">
               <DeudasInline clientId={c.id} deudas={deudas} catalogo={catalogo} canEdit={canEdit} />
             </div>
@@ -273,9 +269,9 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
 
           {/* ---- 7 · Carta de insolvencia ---- */}
           <Section
-            n={7}
+            id="carta" n={7}
             title="Carta de insolvencia"
-            hint="A la izquierda, lo que escribió el cliente (se conserva). A la derecha, la versión que va en «Hechos» de la demanda; los saltos de párrafo se respetan en el Word."
+            hint="Izquierda: lo que mandó el cliente. Derecha: lo que va en la demanda."
             aside={
               <button type="button" className="btn-outline btn-sm" onClick={copyCarta} disabled={disabled}>
                 <Icon name="chevron" size={13} /> Usar el original como base

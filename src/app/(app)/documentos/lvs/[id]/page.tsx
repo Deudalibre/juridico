@@ -1,27 +1,34 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ViewTransition } from "react";
 import { Icon } from "@/components/icons";
 import { getContext, type LegalClient } from "@/lib/data";
+import { clientDrive } from "@/lib/drive-client";
 import { dateTime, initials } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import { LVS_ESTADOS, LVS_TABS, PREGUNTAS_273A, PREGUNTAS_BIENES, lvsEstadoTone, lvsProgress, type LvsFicha, type LvsTab } from "@/lib/lvs";
-import { FichaForm } from "./FichaForm";
-import { DocumentacionTab } from "./DocumentacionTab";
-import { GeneradosTab } from "./GeneradosTab";
+import { LVS_ESTADOS, lvsEstadoTone, lvsProgress, type LvsFicha } from "@/lib/lvs";
 import { totalDeudas, type AcreedorLite, type Deuda } from "@/lib/lvs-acreedores";
-import type { LvsGenerado } from "@/lib/lvs-generados";
 import { CATEGORIAS, EMPTY_BIENES, type BienRow, type BienesPorCategoria } from "@/lib/lvs-bienes";
 import { cruzarConDrive, documentosCarpeta, sinPistas, type DriveMatch } from "@/lib/lvs-documentos";
-import { clientDrive } from "@/lib/drive-client";
+import type { LvsGenerado } from "@/lib/lvs-generados";
 import { AbrirExpediente } from "./AbrirExpediente";
+import { DocumentacionTab } from "./DocumentacionTab";
+import { ExpedienteIndex, type IndexItem } from "./ExpedienteIndex";
+import { FichaForm } from "./FichaForm";
+import { GeneradosTab } from "./GeneradosTab";
 
 export const metadata = { title: "Expediente LVS" };
 
 type History = { id: number; at: string; actor_name: string | null; kind: string; summary: string | null };
+type Chip = { label: string; value: string; tone: "ok" | "warn" | "" };
+const pesos = (n: number) => `$ ${n.toLocaleString("es-CL")}`;
 
-export default async function ExpedientePage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
-  const [{ id }, sp] = await Promise.all([props.params, props.searchParams]);
+/**
+ * Expediente LVS en una sola página: cabecera compacta con el estado de todo, índice fijo a la izquierda y los
+ * bloques uno tras otro (ficha con bienes, juicios y acreedores; documentación; generados; historial).
+ * Nada de pestañas: el operador carga lo que llega del cliente sin cambiar de pantalla.
+ */
+export default async function ExpedientePage(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const { supabase, can, tz } = await getContext();
   if (!can("legal.view")) notFound();
@@ -29,195 +36,152 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
     supabase.from("legal_clients").select("*").eq("id", id).maybeSingle(),
     supabase.from("legal_lvs").select("*").eq("client_id", id).maybeSingle(),
   ]);
-  // Bienes y juicios de todas las categorías (se despliegan en la ficha bajo cada «Sí»)
-  const bienes: BienesPorCategoria = { ...EMPTY_BIENES };
-  if (lvs && (!sp.tab || sp.tab === "Resumen" || sp.tab === "Ficha maestra" || sp.tab === "Documentación")) {
-    const res = await Promise.all(CATEGORIAS.map((cat) => supabase.from(cat.table).select("*").eq("client_id", id).order("orden")));
-    CATEGORIAS.forEach((cat, i) => {
-      bienes[cat.key] = (res[i].data ?? []) as BienRow[];
-    });
-  }
-  const totalBienes = CATEGORIAS.filter((cat) => cat.key !== "juicios").reduce((n, cat) => n + bienes[cat.key].length, 0);
-  // Deudas del expediente y catálogo de acreedores (lo justo para buscar y rellenar)
-  let deudas: Deuda[] = [];
-  let catalogo: AcreedorLite[] = [];
-  if (lvs && (!sp.tab || sp.tab === "Resumen" || sp.tab === "Ficha maestra")) {
-    const [d, a] = await Promise.all([
-      supabase.from("legal_lvs_deudas").select("*").eq("client_id", id).order("orden"),
-      sp.tab === "Ficha maestra" ? supabase.from("legal_acreedores").select("id, nombre, rut, alias, email, telefono, naturaleza").eq("activo", true).order("nombre").limit(2000) : Promise.resolve({ data: [] as AcreedorLite[] }),
-    ]);
-    deudas = (d.data ?? []) as Deuda[];
-    catalogo = (a.data ?? []) as AcreedorLite[];
-  }
-  // Documentación: lista recordatorio desde la ficha, cruzada con la carpeta del Drive si está vinculada
-  const docs = lvs ? documentosCarpeta(lvs as LvsFicha, bienes) : [];
-  let driveMatch: Record<number, DriveMatch> = {};
-  let driveFolder: { name: string; link: string } | null = null;
-  let driveConnected = false;
-  if (lvs && sp.tab === "Documentación") {
-    const d = await clientDrive(supabase, client as LegalClient);
-    driveConnected = d.connected;
-    if (d.folder) {
-      driveFolder = { name: d.folder.name, link: d.folder.webViewLink };
-      driveMatch = Object.fromEntries(cruzarConDrive(docs, d.files));
-    }
-  }
-  // Generados y plantillas con slot (solo cuando se mira esa pestaña o el resumen)
-  let generados: LvsGenerado[] = [];
-  const plantillas: Record<string, { version: number } | null> = {};
-  if (lvs && (!sp.tab || sp.tab === "Resumen" || sp.tab === "Generados")) {
-    const [g, t] = await Promise.all([
-      supabase.from("legal_lvs_generados").select("*").eq("client_id", id).order("generado_at", { ascending: false }),
-      supabase.from("legal_templates").select("slot, version").not("slot", "is", null).eq("active", true),
-    ]);
-    generados = (g.data ?? []) as LvsGenerado[];
-    for (const row of t.data ?? []) plantillas[row.slot as string] = { version: row.version as number };
-  }
   if (!client) notFound();
   const c = client as LegalClient;
   const f = (lvs as LvsFicha | null) ?? null;
   const canEdit = can("legal.edit") && !c.archived_at;
-  const tab: LvsTab = (LVS_TABS as readonly string[]).includes(sp.tab ?? "") ? (sp.tab as LvsTab) : f ? "Resumen" : "Ficha maestra";
   const p = lvsProgress(f, c);
 
-  const history =
-    f && tab === "Historial"
-      ? (((await supabase.from("legal_case_history").select("id, at, actor_name, kind, summary").eq("client_id", id).eq("kind", "lvs").order("at", { ascending: false }).limit(200)).data ?? []) as History[])
-      : [];
+  if (!f) {
+    return (
+      <>
+        <Cabecera c={c} f={null} chips={[]} />
+        <AbrirExpediente clientId={c.id} canCreate={can("legal.create") && !c.archived_at} />
+      </>
+    );
+  }
+
+  // Todo lo del expediente en paralelo: bienes por categoría, deudas, catálogo, generados, plantillas, historial y Drive
+  const [bienesRes, deudasRes, catRes, genRes, tplRes, histRes, drive] = await Promise.all([
+    Promise.all(CATEGORIAS.map((cat) => supabase.from(cat.table).select("*").eq("client_id", id).order("orden"))),
+    supabase.from("legal_lvs_deudas").select("*").eq("client_id", id).order("orden"),
+    supabase.from("legal_acreedores").select("id, nombre, rut, alias, email, telefono, naturaleza").eq("activo", true).order("nombre").limit(2000),
+    supabase.from("legal_lvs_generados").select("*").eq("client_id", id).order("generado_at", { ascending: false }),
+    supabase.from("legal_templates").select("slot, version").not("slot", "is", null).eq("active", true),
+    supabase.from("legal_case_history").select("id, at, actor_name, kind, summary").eq("client_id", id).eq("kind", "lvs").order("at", { ascending: false }).limit(100),
+    clientDrive(supabase, c),
+  ]);
+  const bienes: BienesPorCategoria = { ...EMPTY_BIENES };
+  CATEGORIAS.forEach((cat, i) => {
+    bienes[cat.key] = (bienesRes[i].data ?? []) as BienRow[];
+  });
+  const totalBienes = CATEGORIAS.filter((cat) => cat.key !== "juicios").reduce((n, cat) => n + bienes[cat.key].length, 0);
+  const deudas = (deudasRes.data ?? []) as Deuda[];
+  const catalogo = (catRes.data ?? []) as AcreedorLite[];
+  const generados = (genRes.data ?? []) as LvsGenerado[];
+  const vigentes = generados.filter((g) => g.estado !== "reemplazado");
+  const plantillas: Record<string, { version: number } | null> = {};
+  for (const row of tplRes.data ?? []) plantillas[row.slot as string] = { version: row.version as number };
+  const history = (histRes.data ?? []) as History[];
+  const docs = documentosCarpeta(f, bienes, deudas.length);
+  const driveFolder = drive.folder ? { name: drive.folder.name, link: drive.folder.webViewLink } : null;
+  const driveMatch: Record<number, DriveMatch> = drive.folder ? Object.fromEntries(cruzarConDrive(docs, drive.files)) : {};
+  const pedir = docs.filter((d) => !d.generado);
+  const enDrive = pedir.filter((d) => driveMatch[d.n]).length;
+  const catsSi = CATEGORIAS.filter((cat) => cat.key !== "juicios" && f[cat.pregunta] === true).length;
+
+  const chips: Chip[] = [
+    { label: "Ficha", value: `${p.pct}%`, tone: p.pct === 100 ? "ok" : "warn" },
+    { label: "Bienes", value: totalBienes.toString(), tone: catsSi > 0 && totalBienes === 0 ? "warn" : "" },
+    { label: "Deudas", value: deudas.length ? `${deudas.length} · ${pesos(totalDeudas(deudas))}` : "0", tone: deudas.length ? "" : "warn" },
+    { label: "Carpeta", value: driveFolder ? `${enDrive}/${pedir.length} en Drive` : `${pedir.length} documentos`, tone: driveFolder && enDrive === pedir.length ? "ok" : "" },
+    { label: "Generados", value: `${vigentes.length}`, tone: vigentes.length ? "ok" : "" },
+  ];
+
+  const personales = ["nombre", "RUT", "género", "estado civil", "profesión u oficio", "domicilio", "comuna", "región"];
+  const index: IndexItem[] = [
+    { id: "cliente", label: "Cliente", estado: p.missing.some((m) => personales.includes(m)) ? "warn" : "ok" },
+    { id: "tribunal", label: "Tribunal", estado: f.sj_comuna ? "ok" : "warn" },
+    { id: "laboral", label: "Trabajo", estado: f.relacion_laboral == null ? "warn" : "ok" },
+    { id: "patrimonio", label: "Patrimonio", estado: catsSi > 0 && totalBienes === 0 ? "warn" : "ok", detalle: totalBienes ? `${totalBienes}` : undefined },
+    { id: "juicios", label: "Juicios", estado: f.tiene_juicios == null ? "warn" : "ok", detalle: bienes.juicios.length ? `${bienes.juicios.length}` : undefined },
+    { id: "acreedores", label: "Acreedores", estado: deudas.length ? "ok" : "warn", detalle: deudas.length ? `${deudas.length}` : undefined },
+    { id: "carta", label: "Carta", estado: f.carta_demanda?.trim() ? "ok" : "warn" },
+    { id: "documentacion", label: "Documentación", estado: driveFolder ? (enDrive === pedir.length ? "ok" : "") : "", detalle: `${pedir.length}` },
+    { id: "generados", label: "Generados", estado: vigentes.length ? "ok" : "", detalle: vigentes.length ? `${vigentes.length}` : undefined },
+    { id: "historial", label: "Historial", estado: "" },
+  ];
 
   return (
     <>
-      <div className="page-head !flex-col !items-stretch gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="avatar solid h-10 w-10 text-[13px]">{initials(c.full_name) || "?"}</span>
-            <div className="flex min-w-0 flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="page-title">{c.full_name}</h1>
-                {f && <span className={`tag ${lvsEstadoTone(f.estado)}`}>{LVS_ESTADOS[f.estado]}</span>}
-                {c.archived_at && <span className="tag danger">Causa cerrada</span>}
-              </div>
-              <span className="text-[13px] text-soft">
-                {c.rut ? <span className="tabnum">RUT {formatRut(c.rut)}</span> : <span className="text-warning">RUT pendiente</span>}
-                {c.internal_number && <span className="tabnum"> · N° {c.internal_number}</span>}
-                {" · Liquidación voluntaria simplificada"}
-                {f && ` · ficha ${p.pct}%`}
-              </span>
-              {f && p.missing.length > 0 && (
-                <span className="text-[12.5px] text-warning">
-                  Falta: {p.missing.slice(0, 6).join(", ")}
-                  {p.missing.length > 6 ? ` y ${p.missing.length - 6} más` : ""}
-                </span>
+      <Cabecera c={c} f={f} chips={chips} />
+      <div className="grid gap-4 lg:grid-cols-[168px_minmax(0,1fr)] lg:items-start">
+        <ExpedienteIndex items={index} />
+        <div className="flex min-w-0 flex-col gap-3">
+          <FichaForm client={c} ficha={f} canEdit={canEdit} progress={p} bienes={bienes} deudas={deudas} catalogo={catalogo} />
+
+          <section id="documentacion" className="flex scroll-mt-3 flex-col gap-3">
+            <DocumentacionTab clientId={c.id} docs={sinPistas(docs)} drive={driveMatch} driveFolder={driveFolder} driveConnected={drive.connected} />
+          </section>
+
+          <section id="generados" className="flex scroll-mt-3 flex-col gap-3">
+            <GeneradosTab clientId={c.id} ficha={f} generados={generados} totalMuebles={bienes.muebles.length} totalDeudas={deudas.length} plantillas={plantillas} canEdit={canEdit && can("documents.edit")} />
+          </section>
+
+          <details id="historial" className="panel scroll-mt-3 px-5 py-3">
+            <summary className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-fg">
+              <Icon name="history" size={14} /> Historial del expediente
+              <span className="text-[12px] font-normal text-muted">· {history.length} {history.length === 1 ? "movimiento" : "movimientos"}</span>
+            </summary>
+            <div className="mt-2 flex flex-col">
+              {history.length === 0 ? (
+                <span className="py-2 text-[12.5px] text-faint">Sin movimientos todavía.</span>
+              ) : (
+                history.map((h) => (
+                  <div key={h.id} className="flex items-start gap-3 border-t border-line-soft py-2 first:border-0">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-[12.5px] text-fg">{h.summary}</span>
+                      <span className="text-[11px] text-muted">
+                        {dateTime(h.at, tz)}
+                        {h.actor_name ? ` · ${h.actor_name}` : ""}
+                      </span>
+                    </span>
+                  </div>
+                ))
               )}
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/clientes/${c.id}`} className="btn-outline btn-sm">
-              <Icon name="user" size={13} /> Ficha de la causa
-            </Link>
-            <Link href="/documentos/lvs" className="btn-ghost btn-sm">
-              Todas las solicitudes
-            </Link>
-          </div>
+          </details>
         </div>
-        {f && (
-          <nav className="seg self-start" aria-label="Secciones del expediente">
-            {LVS_TABS.map((t) => (
-              <Link key={t} href={`/documentos/lvs/${c.id}?tab=${encodeURIComponent(t)}`} aria-current={tab === t ? "true" : undefined}>
-                {tab === t && (
-                  <ViewTransition name="seg-active" share="nav-marker">
-                    <span className="seg-marker" aria-hidden />
-                  </ViewTransition>
-                )}
-                {t}
-              </Link>
-            ))}
-          </nav>
-        )}
       </div>
-
-      {!f ? (
-        <AbrirExpediente clientId={c.id} canCreate={can("legal.create") && !c.archived_at} />
-      ) : tab === "Resumen" ? (
-        <Resumen f={f} c={c} pct={p.pct} missing={p.missing} docs={docs.filter((d) => !d.generado).length} totalBienes={totalBienes} generados={generados.filter((g) => g.estado !== "reemplazado").length} bienes={bienes} deudas={deudas} />
-      ) : tab === "Ficha maestra" ? (
-        <FichaForm client={c} ficha={f} canEdit={canEdit} progress={p} bienes={bienes} deudas={deudas} catalogo={catalogo} />
-      ) : tab === "Generados" ? (
-        <GeneradosTab clientId={c.id} ficha={f} generados={generados} totalMuebles={bienes.muebles.length} plantillas={plantillas} canEdit={canEdit && can("documents.edit")} />
-      ) : tab === "Documentación" ? (
-        <DocumentacionTab clientId={c.id} docs={sinPistas(docs)} drive={driveMatch} driveFolder={driveFolder} driveConnected={driveConnected} />
-      ) : tab === "Historial" ? (
-        <section className="panel overflow-hidden">
-          <div className="panel-head !py-3">
-            <span className="card-title">Historial del expediente</span>
-            <span className="text-[12px] text-muted">Cada guardado deja qué campos cambiaron, quién y cuándo</span>
-          </div>
-          {history.length === 0 ? (
-            <div className="px-5 py-8 text-center text-[12.5px] text-faint">Sin movimientos todavía.</div>
-          ) : (
-            history.map((h) => (
-              <div key={h.id} className="row flex items-start gap-3 px-4 py-2.5">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand" aria-hidden />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-[13px] text-fg">{h.summary}</span>
-                  <span className="text-[11.5px] text-muted">
-                    {dateTime(h.at, tz)}
-                    {h.actor_name ? ` · ${h.actor_name}` : ""}
-                  </span>
-                </span>
-              </div>
-            ))
-          )}
-        </section>
-      ) : null}
     </>
   );
 }
 
-/** Portada del expediente: avance de cada bloque de un vistazo, sin repetir los datos de la ficha. */
-function Resumen({ f, c, pct, missing, docs, totalBienes, generados, bienes, deudas }: { f: LvsFicha; c: LegalClient; pct: number; missing: string[]; docs: number; totalBienes: number; generados: number; bienes: BienesPorCategoria; deudas: Deuda[] }) {
-  const si = PREGUNTAS_273A.filter((q) => f[q.key] === true);
-  const sinResponder = PREGUNTAS_273A.filter((q) => f[q.key] == null);
-  const card = (title: string, value: string, detail: string, href: string, tone: "" | "warn" | "success" = "") => (
-    <Link href={`/documentos/lvs/${c.id}?tab=${encodeURIComponent(href)}`} className="card lift flex flex-col gap-1.5 px-5 py-4 text-fg">
-      <span className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted">{title}</span>
-      <span className={`text-[22px] font-semibold leading-none tabnum ${tone === "warn" ? "text-warning" : tone === "success" ? "text-success" : ""}`}>{value}</span>
-      <span className="text-[12px] text-muted">{detail}</span>
-    </Link>
-  );
+/** Cabecera compacta: quién es, en qué estado está y cinco cifras que resumen todo el expediente. */
+function Cabecera({ c, f, chips }: { c: LegalClient; f: LvsFicha | null; chips: Chip[] }) {
   return (
-    <>
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-        {card("Ficha maestra", `${pct}%`, missing.length ? `Falta: ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "…" : ""}` : "Completa", "Ficha maestra", pct === 100 ? "success" : "warn")}
-        {card("Bienes", totalBienes.toString(), (() => { const cats = si.filter((q) => q.numeral === 1).length; return cats === 0 ? (sinResponder.length ? `${sinResponder.length} preguntas sin responder` : "sin categorías con «sí»") : totalBienes === 0 ? `${cats} ${cats === 1 ? "categoría" : "categorías"} con «sí» · falta cargar los bienes` : `en ${cats} ${cats === 1 ? "categoría" : "categorías"}`; })(), "Ficha maestra", si.filter((q) => q.numeral === 1).length > 0 && totalBienes === 0 ? "warn" : "")}
-        {card("Acreedores", deudas.length.toString(), deudas.length ? `total $ ${totalDeudas(deudas).toLocaleString("es-CL")}` : "sin deudas cargadas en la ficha", "Ficha maestra", deudas.length === 0 ? "warn" : "")}
-        {card("Generados", generados.toString(), generados ? "documentos vigentes" : "Anexo 8 listo cuando haya bienes muebles", "Generados")}
-        {card("Documentación", docs.toString(), "documentos que lleva la carpeta · lista para el cliente", "Documentación")}
+    <div className="page-head !items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="avatar solid h-9 w-9 text-[12px]">{initials(c.full_name) || "?"}</span>
+        <div className="flex min-w-0 flex-col">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="page-title !text-[17px]">{c.full_name}</h1>
+            {f && <span className={`tag ${lvsEstadoTone(f.estado)}`}>{LVS_ESTADOS[f.estado]}</span>}
+            {c.archived_at && <span className="tag danger">Causa cerrada</span>}
+          </div>
+          <span className="text-[12.5px] text-soft">
+            {c.rut ? <span className="tabnum">RUT {formatRut(c.rut)}</span> : <span className="text-warning">RUT pendiente</span>}
+            {c.internal_number && <span className="tabnum"> · N° {c.internal_number}</span>}
+            {" · Liquidación voluntaria simplificada"}
+          </span>
+        </div>
       </div>
-      <section className="panel gap-3 px-5 py-4">
-        <span className="card-title">Patrimonio · art. 273 A n.º 1</span>
-        <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-          {PREGUNTAS_BIENES.map((q) => {
-            const v = f[q.key];
-            return (
-              <div key={q.key} className="flex items-center justify-between gap-3 border-b border-line-soft py-1.5 text-[13px] last:border-0">
-                <span className="text-soft">
-                  {q.label}
-                  {q.anexo ? <span className="text-faint"> · Anexo {q.anexo}</span> : null}
-                </span>
-                <span className={`tag ${v === true ? "brand" : v === false ? "" : "warn"}`}>{v === true ? "Sí" : v === false ? "No" : "Sin responder"}</span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-      <section className="panel gap-2 px-5 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <span className="card-title">Juicios pendientes · art. 273 A n.º 4</span>
-          <span className={`tag ${f.tiene_juicios === true ? "brand" : f.tiene_juicios === false ? "" : "warn"}`}>{f.tiene_juicios === true ? "Sí" : f.tiene_juicios === false ? "No" : "Sin responder"}</span>
-        </div>
-        <span className="text-[12px] text-muted">{f.tiene_juicios ? `${bienes.juicios.length} ${bienes.juicios.length === 1 ? "juicio cargado" : "juicios cargados"} en la Ficha Maestra para el numeral 4.` : "Sin juicios: la demanda usa el texto «La parte deudora declara que no tiene juicios pendientes»."}</span>
-      </section>
-    </>
+      <div className="flex flex-wrap items-center gap-2">
+        {chips.map((ch) => (
+          <span key={ch.label} className="flex items-center gap-1.5 rounded-md border border-line-soft px-2 py-1 text-[12px]" style={{ background: "var(--band)" }}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: ch.tone === "ok" ? "var(--success)" : ch.tone === "warn" ? "var(--warning)" : "var(--border-strong)" }} aria-hidden />
+            <span className="text-muted">{ch.label}</span>
+            <span className="tabnum font-semibold text-fg">{ch.value}</span>
+          </span>
+        ))}
+        <Link href={`/clientes/${c.id}`} className="btn-outline btn-sm" title="Ficha de la causa (pasos, tareas, Drive)">
+          <Icon name="user" size={13} /> Causa
+        </Link>
+        <Link href="/documentos/lvs" className="btn-ghost btn-sm">
+          Todas
+        </Link>
+      </div>
+    </div>
   );
 }

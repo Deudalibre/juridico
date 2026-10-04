@@ -9,7 +9,7 @@ import type { LvsFicha } from "@/lib/lvs";
 import { GENERADOS, type GeneradoTipo, type LvsGenerado } from "@/lib/lvs-generados";
 import { generadoUrl, generarLvs, setGeneradoEstado } from "../generar-actions";
 
-type Props = { clientId: string; ficha: LvsFicha; generados: LvsGenerado[]; totalMuebles: number; plantillas: Record<string, { version: number } | null>; canEdit: boolean };
+type Props = { clientId: string; ficha: LvsFicha; generados: LvsGenerado[]; totalMuebles: number; totalDeudas: number; plantillas: Record<string, { version: number } | null>; canEdit: boolean };
 
 const ORDEN: GeneradoTipo[] = ["anexo8", "anexo9", "declaracion_273a", "demanda_lvs"];
 
@@ -17,7 +17,7 @@ const ORDEN: GeneradoTipo[] = ["anexo8", "anexo9", "declaracion_273a", "demanda_
  * Documentos que produce la app desde las plantillas Word: un botón por documento (cada uno por separado),
  * la versión vigente con descarga y estado borrador/final, y las versiones reemplazadas plegadas.
  */
-export function GeneradosTab({ clientId, ficha, generados, totalMuebles, plantillas, canEdit }: Props) {
+export function GeneradosTab({ clientId, ficha, generados, totalMuebles, totalDeudas, plantillas, canEdit }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const vigentes = generados.filter((g) => g.estado !== "reemplazado");
@@ -48,8 +48,9 @@ export function GeneradosTab({ clientId, ficha, generados, totalMuebles, plantil
   /** Por qué no se puede generar todavía (texto corto) o null si se puede. */
   const bloqueo = (tipo: GeneradoTipo): string | null => {
     const def = GENERADOS[tipo];
-    if (tipo !== "anexo8" && tipo !== "declaracion_273a") return `Etapa ${def.etapa}`;
+    if (tipo === "demanda_lvs") return `Etapa ${def.etapa}`;
     if (!plantillas[tipo]) return "Sin plantilla cargada";
+    if (tipo === "anexo9") return totalDeudas === 0 ? "Sin deudas en el bloque Acreedores" : null;
     if (tipo === "anexo8") {
       if (ficha.tiene_bienes_muebles !== true) return "La ficha no declara bienes muebles";
       if (totalMuebles === 0) return "Sin bienes cargados en la ficha";

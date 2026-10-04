@@ -71,7 +71,40 @@ export function prepararDeclaracion(original: Buffer): Buffer {
   return buf;
 }
 
+/** Celdas de la fila de acreedores del Anexo 9, en el orden del formulario oficial. */
+export const ANEXO9_COLUMNAS = ["rut", "acreedor", "monto", "correo", "telefono", "naturaleza"] as const;
+
+/**
+ * Anexo 9: tabla 1 = deudor; tabla 2 = cabecera, una fila de datos y la fila «Total» (4 celdas: «Total» ocupa
+ * RUT y Acreedor, la siguiente es el monto). La fila de datos pasa a ser el bucle {#deudas}…{/deudas} y el
+ * total calculado va en la celda del monto de la última fila.
+ */
+export function prepararAnexo9(original: Buffer): Buffer {
+  let buf = original;
+  const doc = readDocx(buf);
+  const datos = cellParagraphs(doc.blocks, 1, 1);
+  if (datos.length !== ANEXO9_COLUMNAS.length) throw new Error(`El Anexo 9 debería tener ${ANEXO9_COLUMNAS.length} columnas y tiene ${datos.length}.`);
+  const totalRow = cellParagraphs(doc.blocks, 1, 2);
+  if (totalRow.length < 2) throw new Error("La fila Total del Anexo 9 no tiene la forma esperada.");
+  // De atrás hacia adelante: primero la fila Total (párrafos posteriores), luego la fila de datos
+  buf = fill(buf, totalRow[1], "{total}", totalRow[1].text.trim().length > 0);
+  for (let i = datos.length - 1; i >= 0; i--) {
+    const col = ANEXO9_COLUMNAS[i];
+    const marker = (i === 0 ? "{#deudas}" : "") + `{${col}}` + (i === datos.length - 1 ? "{/deudas}" : "");
+    buf = fill(buf, datos[i], marker, datos[i].text.trim().length > 0);
+  }
+  const err = templateError(buf);
+  if (err) throw new Error(`El Anexo 9 preparado no compila: ${err}`);
+  return buf;
+}
+
 export const PREPARADORES: Record<string, { nombre: string; archivo: string; preparar: (buf: Buffer) => Buffer; variables: string[] }> = {
+  anexo9: {
+    nombre: "Anexo N.º 9 · Nómina de acreedores",
+    archivo: "10.- ANEXO 9.docx",
+    preparar: prepararAnexo9,
+    variables: ["nombre_completo", "rut", "deudas", "total"],
+  },
   declaracion_273a: {
     nombre: "Declaración jurada 273 A · antecedentes completos y fehacientes (Anexo N.º 11)",
     archivo: "11.- Declaracion 273-A.docx",
