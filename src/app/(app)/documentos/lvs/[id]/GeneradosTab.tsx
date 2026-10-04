@@ -94,10 +94,9 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-[13px] font-medium text-fg">{def.nombre}</span>
                   {g && <span className={`tag ${g.estado === "final" ? "success" : "brand"}`}>{g.estado === "final" ? "Final" : "Borrador"}</span>}
-                  {plantillas[tipo] && <span className="tag">plantilla v{plantillas[tipo]!.version}</span>}
                 </span>
                 <span className="truncate text-[11.5px] text-muted">
-                  {g ? `Generado ${dateTime(g.generado_at, "America/Santiago")}${g.template_version ? ` · con plantilla v${g.template_version}` : ""}${g.advertencias?.length ? ` · ${g.advertencias.length} ${g.advertencias.length === 1 ? "advertencia" : "advertencias"}` : ""}` : why ? why : "Listo para generar"}
+                  {g ? `Generado ${dateTime(g.generado_at, "America/Santiago")}${g.template_version ? ` · plantilla v${g.template_version}` : ""}${g.advertencias?.length ? ` · ${g.advertencias.length} ${g.advertencias.length === 1 ? "advertencia" : "advertencias"}` : ""}` : why ? why : "Listo para generar"}
                 </span>
                 {g?.advertencias?.length ? <span className="text-[11.5px] text-warning">{g.advertencias.join(" · ")}</span> : null}
               </span>
@@ -108,21 +107,27 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
                       <Icon name="download" size={13} /> Descargar
                     </button>
                     {canEdit && (g.estado === "final" ? (
-                      <button className="btn-ghost btn-sm" disabled={pending} onClick={() => estado(g, "borrador")}>
+                      <button className="btn-ghost btn-sm" disabled={pending} onClick={() => estado(g, "borrador")} title="Vuelve a borrador para poder regenerarlo">
                         Volver a borrador
                       </button>
                     ) : (
-                      <button className="btn-ghost btn-sm" disabled={pending} onClick={() => estado(g, "final")}>
-                        <Icon name="check" size={13} /> Marcar final
+                      <button className="btn-ghost btn-sm" disabled={pending} onClick={() => estado(g, "final")} title="Deja esta versión como la definitiva">
+                        <Icon name="check" size={13} /> Final
                       </button>
                     ))}
                   </>
                 )}
-                {canEdit && (
-                  <button className={g ? "btn-outline btn-sm" : "btn-primary btn-sm"} disabled={pending || Boolean(why)} title={why ?? undefined} onClick={() => generar(tipo)}>
-                    {pending ? "Generando…" : g ? "Generar de nuevo" : "Generar"}
+                {canEdit && (g ? (
+                  g.estado !== "final" && (
+                    <button className="btn-ghost btn-sm" disabled={pending || Boolean(why)} title={why ?? "Vuelve a generar con los datos actuales de la ficha; la versión anterior queda como reemplazada"} onClick={() => generar(tipo)}>
+                      {pending ? "Generando…" : "Regenerar"}
+                    </button>
+                  )
+                ) : (
+                  <button className="btn-primary btn-sm" disabled={pending || Boolean(why)} title={why ?? undefined} onClick={() => generar(tipo)}>
+                    {pending ? "Generando…" : "Generar"}
                   </button>
-                )}
+                ))}
               </span>
             </div>
           );

@@ -55,21 +55,43 @@ export function BienesInline({ clientId, cat, rows, canEdit }: { clientId: strin
   };
 
   return (
-    <div className="rounded-lg border border-line-soft" style={{ background: "var(--band)" }}>
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-        <span className="text-[12px] font-semibold text-soft">
-          {cat.titulo}
-          {cat.anexo ? <span className="text-faint"> · Anexo N.º {cat.anexo}</span> : null}
-        </span>
-        <span className="text-[11.5px] text-muted">· {rows.length === 0 ? `sin ${cat.singular}s cargados` : `${rows.length} ${rows.length === 1 ? cat.singular : cat.singular + "s"}`}</span>
-        {canEdit && (
-          <button type="button" className="btn-outline btn-sm ml-auto" onClick={() => setEditing({ row: null })} disabled={pending}>
-            + Agregar {cat.singular}
+    <div className="overflow-hidden rounded-lg border border-line-soft bg-surface">
+      {rows.length === 0 && <div className="px-3 py-2 text-[12px] text-faint">Sin {cat.singular}s cargados todavía.</div>}
+      {rows.map((row, i) => {
+        const s = cat.resumen(row);
+        return (
+          <div key={row.id} className="row flex min-h-[40px] items-center gap-3 border-b border-line-soft px-3 py-1.5">
+            <span className="tabnum w-5 text-[12px] text-faint">{i + 1}</span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-[13px] font-medium text-fg">{s.titulo}</span>
+                {row.excluido && <span className="tag warn shrink-0">Excluido</span>}
+                {(row.gravamen || row.hipoteca) && <span className="tag shrink-0">Con gravamen</span>}
+              </span>
+              {s.detalle && <span className="truncate text-[11.5px] text-muted">{s.detalle}</span>}
+            </span>
+            {canEdit && (
+              <span className="flex items-center gap-0.5">
+                <button type="button" className="icon-btn plain" onClick={() => setEditing({ row })} disabled={pending} title="Editar" aria-label={`Editar ${cat.singular}`}>
+                  <Icon name="edit" size={14} />
+                </button>
+                <button type="button" className="icon-btn plain text-danger" onClick={() => remove(row)} disabled={pending} title="Quitar" aria-label={`Quitar ${cat.singular}`}>
+                  <Icon name="trash" size={14} />
+                </button>
+              </span>
+            )}
+          </div>
+        );
+      })}
+      {cat.key !== "muebles" && canEdit && (
+        <div className="px-2 py-1.5" style={{ background: "var(--band)" }}>
+          <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing({ row: null })} disabled={pending}>
+            <Icon name="plus" size={13} /> Agregar {cat.singular}
           </button>
-        )}
-      </div>
+        </div>
+      )}
       {cat.key === "muebles" && canEdit && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-line-soft bg-surface px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2" style={{ background: "var(--band)" }}>
           <input
             className="input !min-h-[30px] min-w-[200px] flex-1 text-[12.5px]"
             placeholder="Escribe el bien y Enter: cafetera, notebook, plancha de pelo…"
@@ -95,35 +117,9 @@ export function BienesInline({ clientId, cat, rows, canEdit }: { clientId: strin
           <button type="button" className="btn-primary btn-sm" disabled={pending || !rapido.datos.trim()} onClick={agregarRapido}>
             Agregar
           </button>
-          <span className="w-full text-[11px] text-muted">Marca/modelo SIN INFORMAR · cantidad 1 · estado REGULAR · excluido NO · gravamen NO · SIN OBSERVACIONES · dirección del domicilio. Para cambiar algo, «Editar».</span>
+          <span className="w-full text-[11px] text-faint">Se agrega con los valores por defecto (SIN INFORMAR · 1 · REGULAR · NO · NO · dirección del domicilio). Para cambiar algo, el lápiz.</span>
         </div>
       )}
-      {rows.map((row, i) => {
-        const s = cat.resumen(row);
-        return (
-          <div key={row.id} className="flex min-h-[40px] items-center gap-3 border-t border-line-soft bg-surface px-3 py-1.5">
-            <span className="tabnum w-5 text-[12px] font-semibold text-muted">{i + 1}</span>
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-[13px] font-medium text-fg">{s.titulo}</span>
-                {row.excluido && <span className="tag warn shrink-0">Excluido</span>}
-                {(row.gravamen || row.hipoteca) && <span className="tag shrink-0">Con gravamen</span>}
-              </span>
-              {s.detalle && <span className="truncate text-[11.5px] text-muted">{s.detalle}</span>}
-            </span>
-            {canEdit && (
-              <span className="flex items-center gap-1">
-                <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing({ row })} disabled={pending}>
-                  <Icon name="edit" size={13} /> Editar
-                </button>
-                <button type="button" className="btn-ghost btn-sm text-danger" onClick={() => remove(row)} disabled={pending} aria-label={`Quitar ${cat.singular}`}>
-                  <Icon name="trash" size={13} />
-                </button>
-              </span>
-            )}
-          </div>
-        );
-      })}
       {editing && (
         <BienModal
           clientId={clientId}
