@@ -53,7 +53,7 @@ try {
   const nueva = await page(jur, "/documentos/lvs/nueva?q=LVS%20Cliente");
   ok("/documentos/lvs/nueva encuentra al cliente y avisa que ya tiene expediente", nueva.status === 200 && /Ya tiene expediente/.test(nueva.text), String(nueva.status));
   const exp = await page(jur, `/documentos/lvs/${id}?tab=Ficha%20maestra`);
-  ok("Expediente · una sola página con índice y todos los bloques", exp.status === 200 && /Cliente.*Tribunal.*Trabajo.*Patrimonio.*Juicios.*Acreedores.*Carta.*Documentación.*Generados.*Historial/.test(exp.text) && /Patrimonio · art. 273 A/.test(exp.text) && /Lo que lleva la carpeta/.test(exp.text) && /Documentos generados/.test(exp.text), String(exp.status));
+  ok("Expediente · una sola página con índice y todos los bloques", exp.status === 200 && /Cliente.*Tribunal.*Trabajo.*Patrimonio.*Juicios.*Acreedores.*Carta.*Documentación.*Generados.*Historial/.test(exp.text) && /Patrimonio · art. 273 A/.test(exp.text) && /Carpeta del cliente/.test(exp.text) && /Documentos generados/.test(exp.text), String(exp.status));
   ok("Expediente · avance inicial parcial (nombre y RUT ya cuentan)", /Ficha\s*11%/.test(exp.text));
   const ejeExp = await page(eje, `/documentos/lvs/${id}`);
   ok("Ejecutivo · el expediente no se le muestra", ejeExp.status !== 200 || /Sin acceso/.test(ejeExp.text), String(ejeExp.status));
@@ -103,8 +103,8 @@ try {
 
   // Documentación: lista recordatorio desde la ficha (sin marcar nada)
   const docsPage = await page(jur, `/documentos/lvs/${id}?tab=Documentación`);
-  ok("Documentación · lista con los fijos, contrato y liquidaciones (trabaja), no matrimonio (soltera), Anexo 4 y CAV del vehículo", docsPage.status === 200 && /Lo que lleva la carpeta/.test(docsPage.text) && /Carnet de identidad/.test(docsPage.text) && /Contrato de trabajo/.test(docsPage.text) && /no matrimonio/.test(docsPage.text) && /Anexo N\.º 4/.test(docsPage.text) && /anotaciones vigentes · ABCD12/.test(docsPage.text), String(docsPage.status));
-  const soloDocs = docsPage.text.slice(docsPage.text.indexOf("Lo que lleva la carpeta"), docsPage.text.indexOf("Documentos generados"));
+  ok("Documentación · lista con los fijos, contrato y liquidaciones (trabaja), no matrimonio (soltera), Anexo 4 y CAV del vehículo", docsPage.status === 200 && /Carpeta del cliente/.test(docsPage.text) && /Carnet de identidad/.test(docsPage.text) && /Contrato de trabajo/.test(docsPage.text) && /no matrimonio/.test(docsPage.text) && /Anexo N\.º 4/.test(docsPage.text) && /anotaciones vigentes · ABCD12/.test(docsPage.text), String(docsPage.status));
+  const soloDocs = docsPage.text.slice(docsPage.text.indexOf("Carpeta del cliente"), docsPage.text.indexOf("Documentos generados"));
   ok("Documentación · sin Anexo 3 ni dominio vigente (no tiene bienes raíces)", !/Anexo N\.º 3/.test(soloDocs) && !/dominio vigente/i.test(soloDocs));
   await jur.c.from("legal_lvs").update({ estado_civil: "Casado/a", relacion_laboral: false, empleador: null, rut_empleador: null }).eq("client_id", id);
   const docsPage2 = await page(jur, `/documentos/lvs/${id}?tab=Documentación`);
