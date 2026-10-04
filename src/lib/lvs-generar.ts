@@ -5,6 +5,7 @@ import type { LegalClient } from "./data";
 import { renderDocx } from "./docx";
 import type { LvsFicha } from "./lvs";
 import { TIPOS_BIEN_MUEBLE, type BienRow } from "./lvs-bienes";
+import { totalDeudas, type Deuda } from "./lvs-acreedores";
 import { lvsValues } from "./lvs";
 import { clientValues } from "./templates";
 import { DOCX_MIME, TEMPLATE_BUCKET } from "./templates";
@@ -48,6 +49,53 @@ export function datosAnexo8(c: LegalClient, f: LvsFicha, bienes: BienRow[], lawy
     })),
   };
   return { data, errores, advertencias };
+}
+
+/** Datos del Anexo 9: una fila por deuda con lo que pide el formulario y el total calculado. */
+export function datosAnexo9(c: LegalClient, f: LvsFicha, deudas: Deuda[], lawyer: string | null) {
+  const errores: string[] = [];
+  const advertencias: string[] = [];
+  if (!c.full_name?.trim()) errores.push("Falta el nombre del cliente.");
+  if (!c.rut) errores.push("Falta el RUT del cliente.");
+  if (deudas.length === 0) errores.push("No hay deudas cargadas en la ficha (bloque Acreedores).");
+  deudas.forEach((d, i) => {
+    if (d.monto == null) errores.push(`Deuda ${i + 1} (${d.nombre}): falta el monto.`);
+    if (!d.rut) advertencias.push(`${d.nombre}: sin RUT.`);
+    if (!d.email && !d.telefono) advertencias.push(`${d.nombre}: sin correo ni teléfono.`);
+  });
+  const data = {
+    ...clientValues(c, lawyer),
+    ...lvsValues(f),
+    deudas: deudas.map((d) => ({
+      rut: d.rut ? formatRut(d.rut) : "",
+      acreedor: d.nombre,
+      monto: pesos(d.monto),
+      correo: d.email ?? "",
+      telefono: d.telefono ?? "",
+      naturaleza: d.naturaleza,
+    })),
+    total: pesos(totalDeudas(deudas)),
+  };
+  return { data, errores, advertencias };
+}
+
+/** Datos de la Declaración 273-A: todo sale de la ficha; sin alguno de estos no se genera. */
+export function datosDeclaracion(c: LegalClient, f: LvsFicha, lawyer: string | null) {
+  const errores: string[] = [];
+  const falta = (ok: unknown, que: string) => {
+    if (!ok) errores.push(`Falta ${que} en la ficha.`);
+  };
+  falta(c.full_name?.trim(), "el nombre");
+  falta(c.rut, "el RUT");
+  falta(f.genero, "el género (don/doña, domiciliado/a)");
+  falta(f.profesion_oficio, "la profesión u oficio");
+  falta(f.nacionalidad, "la nacionalidad");
+  falta(f.estado_civil, "el estado civil");
+  falta(f.domicilio, "el domicilio");
+  falta(f.comuna, "la comuna");
+  falta(f.region, "la región");
+  const data = { ...clientValues(c, lawyer), ...lvsValues(f) };
+  return { data, errores, advertencias: [] as string[] };
 }
 
 /**

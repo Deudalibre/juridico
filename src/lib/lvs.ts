@@ -90,7 +90,7 @@ export function lvsProgress(f: LvsFicha | null, c: Pick<LegalClient, "full_name"
 }
 
 /** Pestañas del expediente. Las de etapas posteriores ya tienen su lugar aunque todavía no tengan contenido. */
-export const LVS_TABS = ["Resumen", "Ficha maestra", "Acreedores", "Documentación", "Generados", "Historial"] as const;
+export const LVS_TABS = ["Resumen", "Ficha maestra", "Documentación", "Generados", "Historial"] as const;
 export type LvsTab = (typeof LVS_TABS)[number];
 
 export const PREGUNTAS_BIENES = PREGUNTAS_273A.filter((q) => q.numeral === 1);
@@ -101,7 +101,8 @@ export function lvsValues(f: LvsFicha | null): Record<string, string> {
   const fem = f?.genero === "F";
   return {
     nacionalidad: f?.nacionalidad ?? "",
-    estado_civil: f?.estado_civil ? f.estado_civil.replace("/a", fem ? "a" : "") : "",
+    // «Soltero/a» → «Soltera» o «Soltero» según el género (Conviviente civil no cambia)
+    estado_civil: f?.estado_civil ? (f.estado_civil.endsWith("o/a") ? f.estado_civil.slice(0, -3) + (fem ? "a" : "o") : f.estado_civil) : "",
     profesion_oficio: f?.profesion_oficio ?? "",
     domicilio: f?.domicilio ?? "",
     comuna: f?.comuna ?? "",

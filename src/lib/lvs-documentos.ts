@@ -20,7 +20,7 @@ const doc = (nombre: string, pistas: RegExp, nota = "", generado = false): Omit<
 const str = (v: unknown) => (v == null || v === "" ? "" : String(v));
 
 /** Lista ordenada de documentos de la carpeta, según la ficha y los bienes. */
-export function documentosCarpeta(f: LvsFicha, bienes: BienesPorCategoria): DocumentoCarpeta[] {
+export function documentosCarpeta(f: LvsFicha, bienes: BienesPorCategoria, deudas = 0): DocumentoCarpeta[] {
   const out: Omit<DocumentoCarpeta, "n">[] = [doc("Carnet de identidad (ambos lados)", /carnet|c[eé]dula|\bci\b|identidad/i)];
   if (f.relacion_laboral === true) {
     out.push(doc("Contrato de trabajo", /contrato/i, f.empleador ? `Empleador: ${f.empleador}` : "Está trabajando"));
@@ -65,8 +65,8 @@ export function documentosCarpeta(f: LvsFicha, bienes: BienesPorCategoria): Docu
     out.push(doc("Documento de cada instrumento con saldo actualizado", /dep[oó]sito|fondo|cartola|saldo/i));
   }
   out.push(doc("Anexo N.º 8 · Otros bienes muebles y financieros", /anexo ?0?8\b/i, por("muebles").length ? `${por("muebles").length} bienes cargados` : f.tiene_bienes_muebles ? "Falta cargar los bienes en la ficha" : "Toda carpeta lo lleva", true));
-  out.push(doc("Anexo N.º 9 · Nómina de acreedores", /anexo ?0?9\b/i, "Etapa 7", true));
-  out.push(doc("Anexo N.º 11 · Declaración jurada de antecedentes completos", /anexo ?11\b|declaraci[oó]n/i, "Etapa 8", true));
+  out.push(doc("Anexo N.º 9 · Nómina de acreedores", /anexo ?0?9\b/i, deudas ? `${deudas} ${deudas === 1 ? "acreedor cargado" : "acreedores cargados"}` : "Falta cargar las deudas en la ficha", true));
+  out.push(doc("Anexo N.º 11 · Declaración jurada de antecedentes completos", /anexo ?11\b|declaraci[oó]n/i, "Se genera desde la ficha", true));
   if (f.tiene_juicios) {
     const rows = por("juicios");
     if (rows.length === 0) out.push(doc("Expediente electrónico (e-book) de cada juicio pendiente", /e-?book|expediente/i, "Falta cargar los juicios en la ficha"));

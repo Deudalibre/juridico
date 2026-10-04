@@ -21,7 +21,7 @@ export function NuevaLvs({ q, candidates }: { q: string; candidates: Candidate[]
       if (r.error || !r.id) {
         toast(r.error ?? "No se pudo abrir el expediente", true);
         setBusy(null);
-      } else router.push(`/documentos/lvs/${r.id}?tab=Ficha%20maestra`);
+      } else router.push(`/documentos/lvs/${r.id}`);
     });
   };
   const create = (fd: FormData) =>
@@ -30,7 +30,7 @@ export function NuevaLvs({ q, candidates }: { q: string; candidates: Candidate[]
       if (r.error || !r.id) toast(r.error ?? "No se pudo crear el cliente", true);
       else {
         toast("Expediente LVS abierto");
-        router.push(`/documentos/lvs/${r.id}?tab=Ficha%20maestra`);
+        router.push(`/documentos/lvs/${r.id}`);
       }
     });
 
