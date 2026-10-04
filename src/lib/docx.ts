@@ -474,3 +474,26 @@ export function removeTableRows(buf: Uint8Array, tableIndex: number, rows: numbe
   for (const [a, b] of cortes.reverse()) out = out.slice(0, a) + out.slice(b);
   return save(zip, out);
 }
+
+/**
+ * Inserta párrafos nuevos justo después del párrafo `index`, copiando su formato (estilo, numeración, alineación y
+ * la letra de su primer run). Sirve para desdoblar un párrafo del modelo en variantes {#x}…{/x}{^x}…{/x}: las marcas
+ * van en párrafos propios para que docxtemplater (paragraphLoop) quite el párrafo entero cuando no corresponde.
+ */
+export function cloneParagraphAfter(buf: Uint8Array, index: number, texts: string[]): Buffer {
+  const { zip, xml } = open(buf);
+  let target: RawPara | null = null;
+  let n = 0;
+  walk(xml, (raw) => {
+    if (n++ === index) target = raw;
+  });
+  if (!target) throw new Error("Párrafo no encontrado.");
+  const t = target as RawPara;
+  const end = t.selfClosing ? t.contentEnd : xml.indexOf("</w:p>", t.contentEnd) + "</w:p>".length;
+  const openTag = xml.slice(t.open, t.contentStart).replace(/\/>$/, ">");
+  const content = t.selfClosing ? "" : xml.slice(t.contentStart, t.contentEnd);
+  const pPr = content.match(/^\s*<w:pPr>[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
+  const rPr = runsOf(content).find((r) => r.e > r.s)?.rPr ?? pPr.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)?.[0] ?? "";
+  const clones = texts.map((text) => openTag + pPr + runXml(rPr, text) + "</w:p>").join("");
+  return save(zip, xml.slice(0, end) + clones + xml.slice(end));
+}

@@ -48,9 +48,24 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
 
   /** Por qué no se puede generar todavía (texto corto) o null si se puede. */
   const bloqueo = (tipo: GeneradoTipo): string | null => {
-    const def = GENERADOS[tipo];
-    if (tipo === "demanda_lvs") return `Etapa ${def.etapa}`;
+    const def = GENERADOS[tipo]; // eslint-disable-line @typescript-eslint/no-unused-vars -- nombre en pantalla
     if (!plantillas[tipo]) return "Sin plantilla cargada";
+    if (tipo === "demanda_lvs") {
+      const faltan = [
+        [ficha.genero, "género"],
+        [ficha.nacionalidad, "nacionalidad"],
+        [ficha.estado_civil, "estado civil"],
+        [ficha.profesion_oficio, "profesión"],
+        [ficha.domicilio, "domicilio"],
+        [ficha.comuna, "comuna"],
+        [ficha.region, "región"],
+        [ficha.sj_comuna, "tribunal"],
+        [ficha.carta_demanda?.trim(), "carta para la demanda"],
+        [ficha.relacion_laboral != null, "situación laboral"],
+        ...CATEGORIAS.map((cat) => [ficha[cat.pregunta] != null, cat.titulo.toLowerCase()] as const),
+      ].filter(([v]) => !v).map(([, k]) => k as string);
+      return faltan.length ? `Falta en la ficha: ${faltan.join(", ")}` : null;
+    }
     if (tipo === "anexo9") return totalDeudas === 0 ? "Sin deudas en el bloque Acreedores" : null;
     if (tipo === "anexo8") {
       if (ficha.tiene_bienes_muebles !== true) return "La ficha no declara bienes muebles";
