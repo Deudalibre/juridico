@@ -6,18 +6,19 @@ import { Icon } from "@/components/icons";
 import { toast } from "@/components/ui";
 import { dateTime } from "@/lib/format";
 import type { LvsFicha } from "@/lib/lvs";
-import { GENERADOS, type GeneradoTipo, type LvsGenerado } from "@/lib/lvs-generados";
+import { CATEGORIAS } from "@/lib/lvs-bienes";
+import { ANEXO_CATEGORIA, GENERADOS, type GeneradoTipo, type LvsGenerado } from "@/lib/lvs-generados";
 import { generadoUrl, generarLvs, setGeneradoEstado } from "../generar-actions";
 
-type Props = { clientId: string; ficha: LvsFicha; generados: LvsGenerado[]; totalMuebles: number; totalDeudas: number; plantillas: Record<string, { version: number } | null>; canEdit: boolean };
+type Props = { clientId: string; ficha: LvsFicha; generados: LvsGenerado[]; bienes: Record<string, number>; totalDeudas: number; plantillas: Record<string, { version: number } | null>; canEdit: boolean };
 
-const ORDEN: GeneradoTipo[] = ["anexo8", "anexo9", "declaracion_273a", "demanda_lvs"];
+const ORDEN: GeneradoTipo[] = ["anexo3", "anexo4", "anexo5", "anexo6", "anexo7", "anexo8", "anexo9", "declaracion_273a", "demanda_lvs"];
 
 /**
  * Documentos que produce la app desde las plantillas Word: un botón por documento (cada uno por separado),
  * la versión vigente con descarga y estado borrador/final, y las versiones reemplazadas plegadas.
  */
-export function GeneradosTab({ clientId, ficha, generados, totalMuebles, totalDeudas, plantillas, canEdit }: Props) {
+export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, plantillas, canEdit }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const vigentes = generados.filter((g) => g.estado !== "reemplazado");
@@ -53,9 +54,11 @@ export function GeneradosTab({ clientId, ficha, generados, totalMuebles, totalDe
     if (tipo === "anexo9") return totalDeudas === 0 ? "Sin deudas en el bloque Acreedores" : null;
     if (tipo === "anexo8") {
       if (ficha.tiene_bienes_muebles !== true) return "La ficha no declara bienes muebles";
-      if (totalMuebles === 0) return "Sin bienes cargados en la ficha";
+      if (!bienes.muebles) return "Sin bienes cargados en la ficha";
       return null;
     }
+    const cat = ANEXO_CATEGORIA[tipo];
+    if (cat) return bienes[cat] ? null : "Sin bienes cargados en la ficha";
     const faltan = [
       [ficha.genero, "género"],
       [ficha.profesion_oficio, "profesión"],
@@ -74,10 +77,14 @@ export function GeneradosTab({ clientId, ficha, generados, totalMuebles, totalDe
         <div className="panel-head !py-3">
           <div className="flex flex-col">
             <span className="card-title">Documentos generados</span>
-            <span className="text-[12px] text-muted">Cada documento se genera por separado desde su plantilla Word; la versión anterior queda como reemplazada.</span>
+            <span className="text-[12px] text-muted">Cada documento se genera por separado desde su plantilla Word; la anterior queda como reemplazada. Los anexos 3 a 7 aparecen al marcar «Sí» en su categoría de bienes.</span>
           </div>
         </div>
-        {ORDEN.map((tipo) => {
+        {ORDEN.filter((tipo) => {
+          // Los anexos 3 a 7 solo aparecen cuando la ficha marca «Sí» en su categoría
+          const cat = ANEXO_CATEGORIA[tipo];
+          return !cat || ficha[CATEGORIAS.find((x) => x.key === cat)!.pregunta] === true;
+        }).map((tipo) => {
           const def = GENERADOS[tipo];
           const g = vigentes.find((x) => x.tipo === tipo) ?? null;
           const why = bloqueo(tipo);

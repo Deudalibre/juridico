@@ -2,7 +2,7 @@
 // original (en blanco, con «SI/NO» en las celdas) se escriben en la fila de datos los marcadores de
 // docxtemplater, conservando tablas, estilos, pie y numeración. El Word preparado se sube como plantilla
 // con su «slot». Solo servidor (usa pizzip/docxtemplater a través de docx.ts).
-import { insertText, readDocx, removeTableRows, replaceText, templateError, type Block, type Para, type Table } from "./docx";
+import { insertText, readDocx, removeTableRows, replaceText, setParagraphText, templateError, type Block, type Para, type Table } from "./docx";
 
 /** Primer párrafo de cada celda de la fila `row` de la tabla número `tableIndex` (0 = primera tabla del documento). */
 function cellParagraphs(blocks: Block[], tableIndex: number, row: number): Para[] {
@@ -18,9 +18,12 @@ function cellParagraphs(blocks: Block[], tableIndex: number, row: number): Para[
   });
 }
 
-/** Escribe `text` al final del párrafo (o lo sustituye entero si `replaceAll`). */
+/**
+ * Escribe `text` al final del párrafo o, si `replaceAll`, sustituye solo ese párrafo (nunca por texto en todo el
+ * documento: los modelos repiten «SI/NO» en varias celdas de la misma fila y cada una lleva su marcador).
+ */
 function fill(buf: Buffer, p: Para, text: string, replaceAll = false): Buffer {
-  if (replaceAll && p.text.length > 0) return replaceText(buf, p.text, text).buf;
+  if (replaceAll && p.text.length > 0) return setParagraphText(buf, p.i, text);
   return insertText(buf, p.i, p.text.length, text);
 }
 
@@ -110,7 +113,50 @@ export function prepararDeclaracion(original: Buffer): Buffer {
   return buf;
 }
 
+/* ---------- Anexos de bienes 3 a 7: mismas reglas, una lista por tabla ---------- */
+export const ANEXO3_COLUMNAS = ["id", "descripcion", "direccion", "rol_avaluo", "numero_inscripcion", "fojas", "anio", "conservador", "avaluo_fiscal", "tipo", "hipoteca", "valor_comercial", "clase_propiedad", "excluido", "observaciones"] as const;
+export const ANEXO4_COLUMNAS = ["id", "tipo", "descripcion", "patente", "numero_inscripcion", "marca", "modelo", "anio", "avaluo_fiscal", "tasacion", "estado", "gravamen", "excluido", "observaciones"] as const;
+export const ANEXO5_AGUAS = ["numero_resolucion", "anio_resolucion", "entidad_emisora", "tipo_derecho", "naturaleza", "alveo", "rol_expediente", "conservador", "fojas", "anio", "gravamen", "excluido", "observaciones"] as const;
+export const ANEXO5_CONCESIONES = ["acto", "numero", "anio", "servicio_emisor", "tipo", "numero_registro", "anio_registro", "gravamen", "excluido", "observaciones"] as const;
+export const ANEXO6_ENTIDADES = ["titulo", "cantidad_porcentaje", "razon_social", "rut", "giro", "fecha_adquisicion", "valor", "gravamen", "excluido", "observaciones"] as const;
+export const ANEXO6_HERENCIAS = ["titulo", "cantidad_porcentaje", "causante", "resolucion_exenta", "inscripcion_rnt", "fecha_adquisicion", "valorizacion", "gravamen", "excluido", "observaciones"] as const;
+export const ANEXO7_COLUMNAS = ["titulo", "emisor", "fecha_adquisicion", "cantidad", "moneda", "valor", "excluido", "gravamen", "observaciones"] as const;
+
+type TablaBucle = { index: number; filasEnBlanco: number[]; lista: string; columnas: readonly string[] };
+
+/**
+ * Anexos oficiales de bienes: tabla 1 = deudor; después una tabla por lista (el 5 y el 6 traen dos). Cada tabla
+ * queda con cabecera y una fila que es el bucle de su lista. Se procesan de la última tabla a la primera.
+ */
+function prepararAnexoBienes(etiqueta: string, tablas: TablaBucle[]) {
+  return (original: Buffer): Buffer => {
+    let buf = original;
+    for (const t of [...tablas].sort((a, b) => b.index - a.index)) buf = filaBucle(buf, t.index, t.filasEnBlanco, t.lista, t.columnas, `${etiqueta} (tabla ${t.index + 1})`);
+    buf = fillDeudor(buf);
+    const err = templateError(buf);
+    if (err) throw new Error(`${etiqueta} preparado no compila: ${err}`);
+    return buf;
+  };
+}
+
+export const prepararAnexo3 = prepararAnexoBienes("El Anexo 3", [{ index: 1, filasEnBlanco: [2, 3, 4], lista: "raices", columnas: ANEXO3_COLUMNAS }]);
+export const prepararAnexo4 = prepararAnexoBienes("El Anexo 4", [{ index: 1, filasEnBlanco: [2, 3], lista: "vehiculos", columnas: ANEXO4_COLUMNAS }]);
+export const prepararAnexo5 = prepararAnexoBienes("El Anexo 5", [
+  { index: 1, filasEnBlanco: [2, 3, 4, 5], lista: "aguas", columnas: ANEXO5_AGUAS },
+  { index: 2, filasEnBlanco: [2, 3, 4, 5], lista: "concesiones", columnas: ANEXO5_CONCESIONES },
+]);
+export const prepararAnexo6 = prepararAnexoBienes("El Anexo 6", [
+  { index: 1, filasEnBlanco: [2, 3], lista: "entidades", columnas: ANEXO6_ENTIDADES },
+  { index: 2, filasEnBlanco: [2, 3, 4], lista: "herencias", columnas: ANEXO6_HERENCIAS },
+]);
+export const prepararAnexo7 = prepararAnexoBienes("El Anexo 7", [{ index: 1, filasEnBlanco: [2, 3, 4], lista: "valores", columnas: ANEXO7_COLUMNAS }]);
+
 export const PREPARADORES: Record<string, { nombre: string; archivo: string; preparar: (buf: Buffer) => Buffer; variables: string[] }> = {
+  anexo3: { nombre: "Anexo N.º 3 · Nómina de bienes raíces", archivo: "Anexo3.docx", preparar: prepararAnexo3, variables: ["nombre_completo", "rut", "raices"] },
+  anexo4: { nombre: "Anexo N.º 4 · Nómina de vehículos motorizados y otros bienes registrables", archivo: "Anexo4.docx", preparar: prepararAnexo4, variables: ["nombre_completo", "rut", "vehiculos"] },
+  anexo5: { nombre: "Anexo N.º 5 · Nómina de derechos de aprovechamiento de aguas y concesiones", archivo: "Anexo5.docx", preparar: prepararAnexo5, variables: ["nombre_completo", "rut", "aguas", "concesiones"] },
+  anexo6: { nombre: "Anexo N.º 6 · Nómina de derechos o acciones en entidades y comunidades hereditarias", archivo: "Anexo6.docx", preparar: prepararAnexo6, variables: ["nombre_completo", "rut", "entidades", "herencias"] },
+  anexo7: { nombre: "Anexo N.º 7 · Nómina de valores (instrumentos financieros transables)", archivo: "Anexo7.docx", preparar: prepararAnexo7, variables: ["nombre_completo", "rut", "valores"] },
   anexo8: {
     nombre: "Anexo N.º 8 · Nómina de otros bienes muebles y financieros",
     archivo: "Anexo8.docx",
