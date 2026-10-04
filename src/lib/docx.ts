@@ -348,9 +348,90 @@ export function templateError(buf: Uint8Array): string | null {
   }
 }
 
-/** Genera el documento final con los valores dados (las variables sin valor quedan vacías). */
+/* ============================================================
+   Datos uniformes: todo lo que la app rellena sale con la misma letra (Verdana) y en MAYÚSCULAS, en todos los
+   documentos, sin tocar el texto fijo de la plantilla. Se hace al generar, así vale también para las plantillas
+   que el usuario escribió a mano en Word.
+   ============================================================ */
+export const FUENTE_DATOS = "Verdana";
+
+/** Mayúsculas en todos los textos del dato (también dentro de listas y objetos: las filas de los anexos). */
+export function enMayusculas<T>(v: T): T {
+  if (typeof v === "string") return v.toLocaleUpperCase("es-CL") as T;
+  if (Array.isArray(v)) return v.map(enMayusculas) as T;
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, enMayusculas(x)])) as T;
+  return v;
+}
+
+/** rPr con la fuente de datos en los cuatro huecos (y sin fuentes de tema, que mandarían sobre la explícita). */
+function conFuente(rPr: string, font: string): string {
+  const fonts = `<w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:cs="${font}" w:eastAsia="${font}"/>`;
+  if (!rPr) return `<w:rPr>${fonts}</w:rPr>`;
+  const sin = rPr.replace(/<w:rFonts[^>]*\/>/g, "").replace(/<w:rFonts[^>]*>[\s\S]*?<\/w:rFonts>/g, "");
+  const style = sin.match(/<w:rStyle[^>]*\/>/)?.[0];
+  return style ? sin.replace(style, style + fonts) : sin.replace("<w:rPr>", `<w:rPr>${fonts}`);
+}
+
+/** Trozos de un run: los que son (parte de) una variable {…} llevan la fuente de datos; el resto queda igual. */
+function trozos(text: string): { t: string; tag: boolean }[] {
+  const out: { t: string; tag: boolean }[] = [];
+  let i = 0;
+  // Un «}» antes de cualquier «{» cierra una variable que empezó en el run anterior
+  const close = text.indexOf("}");
+  const open = text.indexOf("{");
+  if (close >= 0 && (open < 0 || close < open)) {
+    out.push({ t: text.slice(0, close + 1), tag: true });
+    i = close + 1;
+  }
+  while (i < text.length) {
+    const a = text.indexOf("{", i);
+    if (a < 0) {
+      out.push({ t: text.slice(i), tag: false });
+      break;
+    }
+    if (a > i) out.push({ t: text.slice(i, a), tag: false });
+    const b = text.indexOf("}", a);
+    const end = b < 0 ? text.length : b + 1;
+    out.push({ t: text.slice(a, end), tag: true });
+    i = end;
+  }
+  return out;
+}
+
+const SOLO_TEXTO = /^(?:<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>|<w:t(?:\s[^>]*)?\/>)+$/;
+
+/**
+ * Separa cada variable en su propio run con la fuente de datos. Solo se tocan runs de texto llano (sin campos,
+ * notas ni dibujos); una variable partida entre runs también queda cubierta (docxtemplater la arma en el primero).
+ */
+export function uniformarVariables(xml: string, font = FUENTE_DATOS): string {
+  const masked = xml.replace(OPAQUE_BLOCKS, (b) => " ".repeat(b.length));
+  let out = "";
+  let last = 0;
+  for (const m of masked.matchAll(RUN)) {
+    const inner = m[1];
+    const rPr = inner.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)?.[0] ?? "";
+    const body = inner.replace(rPr, "");
+    if (!SOLO_TEXTO.test(body) || !/[{}]/.test(body)) continue;
+    const text = Array.from(body.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g), (t) => unescapeXml(t[1])).join("");
+    const nuevo = trozos(text)
+      .map((p) => runXml(p.tag ? conFuente(rPr, font) : rPr, p.t))
+      .join("");
+    out += xml.slice(last, m.index!) + nuevo;
+    last = m.index! + m[0].length;
+  }
+  return out + xml.slice(last);
+}
+
+/**
+ * Genera el documento final con los valores dados (las variables sin valor quedan vacías).
+ * Los datos salen uniformes: fuente de datos y mayúsculas, en todos los documentos.
+ */
 export function renderDocx(buf: Uint8Array, data: Record<string, unknown>): Buffer {
-  const doc = new Docxtemplater(new PizZip(buf), { paragraphLoop: true, linebreaks: true, nullGetter: () => "" });
-  doc.render(data);
+  const zip = new PizZip(buf);
+  const file = zip.file(DOC_PATH);
+  if (file) zip.file(DOC_PATH, uniformarVariables(file.asText()));
+  const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, nullGetter: () => "" });
+  doc.render(enMayusculas(data));
   return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
 }
