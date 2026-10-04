@@ -124,7 +124,7 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
           </section>
 
           <section id="generados" className="flex scroll-mt-3 flex-col gap-3">
-            <GeneradosTab clientId={c.id} ficha={f} generados={generados} totalMuebles={bienes.muebles.length} totalDeudas={deudas.length} plantillas={plantillas} canEdit={canEdit && can("documents.edit")} />
+            <GeneradosTab clientId={c.id} ficha={f} generados={generados} bienes={Object.fromEntries(CATEGORIAS.map((cat) => [cat.key, bienes[cat.key].length]))} totalDeudas={deudas.length} plantillas={plantillas} canEdit={canEdit && can("documents.edit")} />
           </section>
 
           <details id="historial" className="fold scroll-mt-3 border border-line-soft">

@@ -5,14 +5,14 @@ import type { LegalClient } from "./data";
 import { renderDocx } from "./docx";
 import { TEXTO_SEGUN_GENERO } from "./lvs";
 import type { LvsFicha } from "./lvs";
-import { TIPOS_BIEN_MUEBLE, type BienRow } from "./lvs-bienes";
+import { CATEGORIAS, TIPOS_BIEN_MUEBLE, type BienRow } from "./lvs-bienes";
 import { totalDeudas, type Deuda } from "./lvs-acreedores";
 import { lvsValues } from "./lvs";
 import { clientValues } from "./templates";
 import { DOCX_MIME, TEMPLATE_BUCKET } from "./templates";
 import { formatRut } from "./rut";
 
-import { GENERADOS, type GeneradoTipo } from "./lvs-generados";
+import { ANEXO_CATEGORIA, GENERADOS, type GeneradoTipo } from "./lvs-generados";
 export { GENERADOS, type GeneradoTipo, type LvsGenerado } from "./lvs-generados";
 
 const pesos = (v: unknown) => (typeof v === "number" ? `$ ${v.toLocaleString("es-CL")}` : "");
@@ -49,6 +49,175 @@ export function datosAnexo8(c: LegalClient, f: LvsFicha, bienes: BienRow[], lawy
       observaciones: String(b.observaciones ?? ""),
     })),
   };
+  return { data, errores, advertencias };
+}
+
+/* ---------- Anexos de bienes 3 a 7 ---------- */
+const str = (v: unknown) => (v == null ? "" : String(v));
+const num = (v: unknown) => (typeof v === "number" ? v.toLocaleString("es-CL") : "");
+const fecha = (v: unknown) => {
+  if (!v) return "";
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleDateString("es-CL", { timeZone: "UTC" });
+};
+/** «SI · detalle» o «NO»: así piden los anexos los gravámenes y la exclusión. */
+const siNoDetalle = (v: unknown, detalle: unknown) => siNo(v) + (v && detalle ? ` · ${String(detalle)}` : "");
+const excl = (r: BienRow) => siNoDetalle(r.excluido, r.motivo_exclusion);
+const grav = (r: BienRow) => siNoDetalle(r.gravamen, r.gravamen_detalle);
+
+type Fila = (r: BienRow, i: number) => Record<string, string>;
+type Lista = { nombre: string; filtro?: (r: BienRow) => boolean; fila: Fila };
+
+/** Para cada anexo de bienes: qué listas lleva (una por tabla del Word) y cómo se arma cada fila desde la ficha. */
+const LISTAS_ANEXOS: Record<"anexo3" | "anexo4" | "anexo5" | "anexo6" | "anexo7", Lista[]> = {
+  anexo3: [
+    {
+      nombre: "raices",
+      fila: (r, i) => ({
+        id: String(i + 1),
+        descripcion: str(r.descripcion),
+        direccion: [r.direccion, r.comuna, r.region].map(str).filter(Boolean).join(", "),
+        rol_avaluo: str(r.rol_avaluo),
+        numero_inscripcion: str(r.numero_inscripcion),
+        fojas: str(r.fojas),
+        anio: str(r.anio),
+        conservador: str(r.conservador),
+        avaluo_fiscal: pesos(r.avaluo_fiscal),
+        tipo: str(r.tipo),
+        hipoteca: siNoDetalle(r.hipoteca, r.hipoteca_detalle),
+        valor_comercial: pesos(r.valor_comercial),
+        clase_propiedad: str(r.clase_propiedad),
+        excluido: excl(r),
+        observaciones: str(r.observaciones),
+      }),
+    },
+  ],
+  anexo4: [
+    {
+      nombre: "vehiculos",
+      fila: (r, i) => ({
+        id: String(i + 1),
+        tipo: str(r.tipo_codigo),
+        descripcion: str(r.descripcion),
+        patente: str(r.patente),
+        numero_inscripcion: str(r.numero_inscripcion),
+        marca: str(r.marca),
+        modelo: str(r.modelo),
+        anio: str(r.anio),
+        avaluo_fiscal: pesos(r.avaluo_fiscal),
+        tasacion: pesos(r.tasacion),
+        estado: str(r.estado),
+        gravamen: grav(r),
+        excluido: excl(r),
+        observaciones: str(r.observaciones),
+      }),
+    },
+  ],
+  anexo5: [
+    {
+      nombre: "aguas",
+      filtro: (r) => r.clase !== "concesion",
+      fila: (r) => ({
+        numero_resolucion: str(r.numero_resolucion),
+        anio_resolucion: str(r.anio_resolucion),
+        entidad_emisora: str(r.entidad_emisora),
+        tipo_derecho: str(r.tipo_derecho),
+        naturaleza: str(r.naturaleza),
+        alveo: str(r.alveo),
+        rol_expediente: str(r.rol_expediente),
+        conservador: str(r.conservador),
+        fojas: str(r.fojas),
+        anio: str(r.anio),
+        gravamen: grav(r),
+        excluido: excl(r),
+        observaciones: str(r.observaciones),
+      }),
+    },
+    {
+      nombre: "concesiones",
+      filtro: (r) => r.clase === "concesion",
+      fila: (r) => ({
+        acto: str(r.acto),
+        numero: str(r.numero),
+        anio: str(r.anio),
+        servicio_emisor: str(r.servicio_emisor),
+        tipo: str(r.tipo),
+        numero_registro: str(r.numero_registro),
+        anio_registro: str(r.anio_registro),
+        gravamen: grav(r),
+        excluido: excl(r),
+        observaciones: str(r.observaciones),
+      }),
+    },
+  ],
+  anexo6: [
+    {
+      nombre: "entidades",
+      filtro: (r) => r.clase !== "herencia",
+      fila: (r) => ({
+        titulo: str(r.titulo),
+        cantidad_porcentaje: str(r.cantidad_porcentaje),
+        razon_social: str(r.razon_social),
+        rut: r.rut ? formatRut(String(r.rut)) : "",
+        giro: str(r.giro),
+        fecha_adquisicion: fecha(r.fecha_adquisicion),
+        valor: pesos(r.valor),
+        gravamen: grav(r),
+        excluido: excl(r),
+        observaciones: str(r.observaciones),
+      }),
+    },
+    {
+      nombre: "herencias",
+      filtro: (r) => r.clase === "herencia",
+      fila: (r) => ({
+        titulo: str(r.titulo),
+        cantidad_porcentaje: str(r.cantidad_porcentaje),
+        causante: [str(r.causante_nombre), r.causante_rut ? formatRut(String(r.causante_rut)) : ""].filter(Boolean).join(" · "),
+        resolucion_exenta: siNo(r.resolucion_exenta),
+        inscripcion_rnt: siNo(r.inscripcion_rnt),
+        fecha_adquisicion: fecha(r.fecha_adquisicion),
+        valorizacion: pesos(r.valorizacion),
+        gravamen: grav(r),
+        excluido: excl(r),
+        observaciones: str(r.observaciones),
+      }),
+    },
+  ],
+  anexo7: [
+    {
+      nombre: "valores",
+      fila: (r) => ({
+        titulo: str(r.titulo_codigo),
+        emisor: str(r.emisor),
+        fecha_adquisicion: fecha(r.fecha_adquisicion),
+        cantidad: str(r.cantidad),
+        moneda: str(r.moneda),
+        valor: num(r.valor),
+        excluido: excl(r),
+        gravamen: grav(r),
+        observaciones: str(r.observaciones),
+      }),
+    },
+  ],
+};
+
+/** Datos de un anexo de bienes (3 a 7) desde la ficha y los bienes de su categoría. */
+export function datosAnexoBienes(tipo: keyof typeof LISTAS_ANEXOS, c: LegalClient, f: LvsFicha, rows: BienRow[], lawyer: string | null) {
+  const errores: string[] = [];
+  const advertencias: string[] = [];
+  const cat = CATEGORIAS.find((x) => x.key === ANEXO_CATEGORIA[tipo])!;
+  if (!c.full_name?.trim()) errores.push("Falta el nombre del cliente.");
+  if (!c.rut) errores.push("Falta el RUT del cliente.");
+  if (f[cat.pregunta] !== true) errores.push(`La ficha no declara ${cat.titulo.toLowerCase()} (art. 273 A n.º 1).`);
+  if (rows.length === 0) errores.push(`No hay ${cat.titulo.toLowerCase()} cargados en la ficha.`);
+  const listas: Record<string, Record<string, string>[]> = {};
+  for (const l of LISTAS_ANEXOS[tipo]) listas[l.nombre] = rows.filter((r) => !l.filtro || l.filtro(r)).map((r, i) => l.fila(r, i));
+  rows.forEach((r, i) => {
+    if (r.excluido && !r.motivo_exclusion) advertencias.push(`${cat.singular} ${i + 1}: marcado como excluido sin motivo legal.`);
+    if (r.gravamen && !r.gravamen_detalle) advertencias.push(`${cat.singular} ${i + 1}: con gravamen sin detalle.`);
+  });
+  const data = { ...clientValues(c, lawyer), ...lvsValues(f), ...listas };
   return { data, errores, advertencias };
 }
 

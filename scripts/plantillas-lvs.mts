@@ -61,4 +61,4 @@ for (const [slot, def] of Object.entries(PREPARADORES)) {
   }
   console.log(`${slot}: ${existing ? "actualizada" : "creada"} · versión ${version} · ${prepared.length} bytes · ${path}`);
 }
-await supabase.auth.signOut();
+await supabase.auth.signOut({ scope: "local" }); // solo esta sesión: un signOut global cierra también el navegador
