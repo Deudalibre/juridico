@@ -356,10 +356,10 @@ export function templateError(buf: Uint8Array): string | null {
 export const FUENTE_DATOS = "Verdana";
 
 /** Mayúsculas en todos los textos del dato (también dentro de listas y objetos: las filas de los anexos). */
-export function enMayusculas<T>(v: T): T {
+export function enMayusculas<T>(v: T, excepto?: Set<string>): T {
   if (typeof v === "string") return v.toLocaleUpperCase("es-CL") as T;
-  if (Array.isArray(v)) return v.map(enMayusculas) as T;
-  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, enMayusculas(x)])) as T;
+  if (Array.isArray(v)) return v.map((x) => enMayusculas(x, excepto)) as T;
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, excepto?.has(k) ? x : enMayusculas(x, excepto)])) as T;
   return v;
 }
 
@@ -404,7 +404,7 @@ const SOLO_TEXTO = /^(?:<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>|<w:t(?:\s[^>]*)?\/>)+$/
  * Separa cada variable en su propio run con la fuente de datos. Solo se tocan runs de texto llano (sin campos,
  * notas ni dibujos); una variable partida entre runs también queda cubierta (docxtemplater la arma en el primero).
  */
-export function uniformarVariables(xml: string, font = FUENTE_DATOS): string {
+export function uniformarVariables(xml: string, font = FUENTE_DATOS, excepto?: Set<string>): string {
   const masked = xml.replace(OPAQUE_BLOCKS, (b) => " ".repeat(b.length));
   let out = "";
   let last = 0;
@@ -415,7 +415,7 @@ export function uniformarVariables(xml: string, font = FUENTE_DATOS): string {
     if (!SOLO_TEXTO.test(body) || !/[{}]/.test(body)) continue;
     const text = Array.from(body.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g), (t) => unescapeXml(t[1])).join("");
     const nuevo = trozos(text)
-      .map((p) => runXml(p.tag ? conFuente(rPr, font) : rPr, p.t))
+      .map((p) => runXml(p.tag && !excepto?.has(p.t.replace(/[{}]/g, "").trim()) ? conFuente(rPr, font) : rPr, p.t))
       .join("");
     out += xml.slice(last, m.index!) + nuevo;
     last = m.index! + m[0].length;
@@ -425,13 +425,52 @@ export function uniformarVariables(xml: string, font = FUENTE_DATOS): string {
 
 /**
  * Genera el documento final con los valores dados (las variables sin valor quedan vacías).
- * Los datos salen uniformes: fuente de datos y mayúsculas, en todos los documentos.
+ * Los datos salen uniformes: fuente de datos y mayúsculas, en todos los documentos. `textoFijo` nombra las
+ * variables que son redacción de la plantilla y no datos (p. ej. don/doña): conservan su letra y minúsculas.
  */
-export function renderDocx(buf: Uint8Array, data: Record<string, unknown>): Buffer {
+export function renderDocx(buf: Uint8Array, data: Record<string, unknown>, opciones: { textoFijo?: string[] } = {}): Buffer {
+  const excepto = new Set(opciones.textoFijo ?? []);
   const zip = new PizZip(buf);
   const file = zip.file(DOC_PATH);
-  if (file) zip.file(DOC_PATH, uniformarVariables(file.asText()));
+  if (file) zip.file(DOC_PATH, uniformarVariables(file.asText(), FUENTE_DATOS, excepto));
   const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, nullGetter: () => "" });
-  doc.render(enMayusculas(data));
+  doc.render(enMayusculas(data, excepto));
   return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+}
+
+/**
+ * Quita filas de una tabla (índices desde 0, tabla `tableIndex` contando solo las de primer nivel). Sirve para
+ * dejar una sola fila de datos en los anexos oficiales, que vienen con varias en blanco: esa fila se convierte en
+ * el bucle que docxtemplater repite por cada elemento.
+ */
+export function removeTableRows(buf: Uint8Array, tableIndex: number, rows: number[]): Buffer {
+  const { zip, xml } = open(buf);
+  const quitar = new Set(rows);
+  const cortes: [number, number][] = [];
+  let tbl = 0; // profundidad de tabla
+  let nTabla = -1;
+  let fila = -1;
+  let filaOpen = -1;
+  for (const m of xml.matchAll(/<w:(tbl|tr)(?=[\s/>])[^>]*?>|<\/w:(tbl|tr)>/g)) {
+    const [tok, openTag, closeTag] = m;
+    const at = m.index!;
+    if (openTag === "tbl") {
+      tbl++;
+      if (tbl === 1) {
+        nTabla++;
+        fila = -1;
+      }
+    } else if (closeTag === "tbl") tbl--;
+    else if (tbl === 1 && nTabla === tableIndex) {
+      if (openTag === "tr") {
+        fila++;
+        filaOpen = at;
+      } else if (closeTag === "tr" && quitar.has(fila)) cortes.push([filaOpen, at + tok.length]);
+    }
+  }
+  if (nTabla < tableIndex) throw new Error(`No existe la tabla ${tableIndex + 1} en el documento.`);
+  if (cortes.length !== quitar.size) throw new Error(`La tabla ${tableIndex + 1} no tiene las filas ${rows.map((r) => r + 1).join(", ")}.`);
+  let out = xml;
+  for (const [a, b] of cortes.reverse()) out = out.slice(0, a) + out.slice(b);
+  return save(zip, out);
 }

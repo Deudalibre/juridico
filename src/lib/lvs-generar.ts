@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import type { LegalClient } from "./data";
 import { renderDocx } from "./docx";
+import { TEXTO_SEGUN_GENERO } from "./lvs";
 import type { LvsFicha } from "./lvs";
 import { TIPOS_BIEN_MUEBLE, type BienRow } from "./lvs-bienes";
 import { totalDeudas, type Deuda } from "./lvs-acreedores";
@@ -94,7 +95,9 @@ export function datosDeclaracion(c: LegalClient, f: LvsFicha, lawyer: string | n
   falta(f.domicilio, "el domicilio");
   falta(f.comuna, "la comuna");
   falta(f.region, "la región");
-  const data = { ...clientValues(c, lawyer), ...lvsValues(f) };
+  // Anexos que acompañan la solicitud: 8, 9 y 11 siempre; 3 a 7 según cada «Sí» del patrimonio
+  const porCategoria = [f.tiene_bienes_raices, f.tiene_vehiculos, f.tiene_aguas, f.tiene_participaciones, f.tiene_instrumentos].filter(Boolean).length;
+  const data = { ...clientValues(c, lawyer), ...lvsValues(f), cantidad_anexos: String(3 + porCategoria) };
   return { data, errores, advertencias: [] as string[] };
 }
 
@@ -110,7 +113,7 @@ export async function generarDocumento(supabase: SupabaseClient, userId: string,
   if (dl.error || !dl.data) return { error: `No se pudo leer la plantilla: ${dl.error?.message ?? "sin archivo"}` };
   let out: Buffer;
   try {
-    out = renderDocx(Buffer.from(await dl.data.arrayBuffer()), data);
+    out = renderDocx(Buffer.from(await dl.data.arrayBuffer()), data, { textoFijo: TEXTO_SEGUN_GENERO });
   } catch (e) {
     return { error: `La plantilla no se pudo rellenar: ${(e as Error).message}` };
   }

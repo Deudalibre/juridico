@@ -97,6 +97,9 @@ export const PREGUNTAS_BIENES = PREGUNTAS_273A.filter((q) => q.numeral === 1);
 export const PREGUNTA_JUICIOS = PREGUNTAS_273A.find((q) => q.numeral === 4)!;
 
 /** Variables de plantilla que salen de la Ficha Maestra (se suman a las de la ficha del cliente). */
+/** Variables que son redacción según el género, no datos: en el Word conservan la letra y las minúsculas de la plantilla. */
+export const TEXTO_SEGUN_GENERO = ["don_dona", "domiciliado_a", "el_la_solicitante"];
+
 export function lvsValues(f: LvsFicha | null): Record<string, string> {
   const fem = f?.genero === "F";
   return {

@@ -2,7 +2,7 @@
 // original (en blanco, con «SI/NO» en las celdas) se escriben en la fila de datos los marcadores de
 // docxtemplater, conservando tablas, estilos, pie y numeración. El Word preparado se sube como plantilla
 // con su «slot». Solo servidor (usa pizzip/docxtemplater a través de docx.ts).
-import { insertText, readDocx, replaceText, setParagraphText, templateError, type Block, type Para, type Table } from "./docx";
+import { insertText, readDocx, removeTableRows, replaceText, templateError, type Block, type Para, type Table } from "./docx";
 
 /** Primer párrafo de cada celda de la fila `row` de la tabla número `tableIndex` (0 = primera tabla del documento). */
 function cellParagraphs(blocks: Block[], tableIndex: number, row: number): Para[] {
@@ -27,47 +27,39 @@ function fill(buf: Buffer, p: Para, text: string, replaceAll = false): Buffer {
 /** Celdas del Anexo 8 en el orden del formulario oficial, con el marcador que recibe cada una. */
 export const ANEXO8_COLUMNAS = ["tipo", "datos", "marca_modelo", "cantidad", "monto", "estado_conservacion", "direccion", "excluido", "gravamen", "observaciones"] as const;
 
-/**
- * Anexo 8: tabla 1 = deudor (ya trae {nombre_completo} y {rut}); tabla 2 = cabecera + una fila de datos.
- * La fila de datos pasa a ser un bucle {#bienes}…{/bienes}: docxtemplater la repite por cada bien.
- */
-export function prepararAnexo8(original: Buffer): Buffer {
-  let buf = original;
+/** Tabla del deudor de los anexos oficiales: dos filas (nombre, RUT) con la celda de la derecha en blanco. */
+function fillDeudor(buf: Buffer): Buffer {
   const doc = readDocx(buf);
-  const cells = cellParagraphs(doc.blocks, 1, 1);
-  if (cells.length !== ANEXO8_COLUMNAS.length) throw new Error(`El Anexo 8 debería tener ${ANEXO8_COLUMNAS.length} columnas y tiene ${cells.length}.`);
+  const rut = cellParagraphs(doc.blocks, 0, 1)[1];
+  const nombre = cellParagraphs(doc.blocks, 0, 0)[1];
+  // De atrás hacia adelante: la celda del RUT va después de la del nombre
+  buf = fill(buf, rut, "{rut}", rut.text.trim().length > 0);
+  return fill(buf, nombre, "{nombre_completo}", nombre.text.trim().length > 0);
+}
+
+/** Deja una sola fila de datos en la tabla y la convierte en el bucle `{#lista}…{/lista}` con una marca por celda. */
+function filaBucle(buf: Buffer, tableIndex: number, filasEnBlanco: number[], lista: string, columnas: readonly string[], etiqueta: string): Buffer {
+  buf = removeTableRows(buf, tableIndex, filasEnBlanco);
+  const doc = readDocx(buf);
+  const cells = cellParagraphs(doc.blocks, tableIndex, 1);
+  if (cells.length !== columnas.length) throw new Error(`${etiqueta} debería tener ${columnas.length} columnas y tiene ${cells.length}.`);
   // De atrás hacia adelante: las posiciones de los párrafos anteriores no cambian al editar los posteriores
   for (let i = cells.length - 1; i >= 0; i--) {
-    const col = ANEXO8_COLUMNAS[i];
-    const marker = (i === 0 ? "{#bienes}" : "") + `{${col}}` + (i === cells.length - 1 ? "{/bienes}" : "");
-    const p = cells[i];
-    buf = fill(buf, p, marker, p.text.trim().length > 0); // la celda «Dirección» traía {domicilio}: se sustituye
+    const marker = (i === 0 ? `{#${lista}}` : "") + `{${columnas[i]}}` + (i === cells.length - 1 ? `{/${lista}}` : "");
+    buf = fill(buf, cells[i], marker, cells[i].text.trim().length > 0); // «SI/NO» del modelo se sustituye
   }
-  const err = templateError(buf);
-  if (err) throw new Error(`El Anexo 8 preparado no compila: ${err}`);
   return buf;
 }
 
 /**
- * Declaración jurada 273 A (Anexo 11 del estudio): ya trae las variables escritas en el Word. Solo se normalizan
- * los nombres con tilde (el catálogo no los admite) y se separa «{domicilio}{comuna}», que venía pegado.
- * El texto jurídico no se toca.
+ * Anexo 8 oficial: tabla 1 = deudor; tabla 2 = cabecera y tres filas en blanco (la primera con «SI/NO» en
+ * Bien excluido y Gravamen). Queda una fila como bucle {#bienes}…{/bienes}: docxtemplater la repite por cada bien.
  */
-export function prepararDeclaracion(original: Buffer): Buffer {
-  let buf = original;
-  for (const [de, a] of [
-    ["{profesión_oficio}", "{profesion_oficio}"],
-    ["{región}", "{region}"],
-    ["{domicilio}{comuna}", "{domicilio}, {comuna}"],
-  ] as const) {
-    buf = replaceText(buf, de, a).buf;
-  }
-  // El modelo traía un párrafo con un punto suelto después de la individualización: queda en blanco
-  const doc = readDocx(buf);
-  const suelto = doc.blocks.find((b): b is Para => b.kind === "p" && b.text.trim() === ".");
-  if (suelto) buf = setParagraphText(buf, suelto.i, "");
+export function prepararAnexo8(original: Buffer): Buffer {
+  let buf = filaBucle(original, 1, [2, 3], "bienes", ANEXO8_COLUMNAS, "El Anexo 8");
+  buf = fillDeudor(buf);
   const err = templateError(buf);
-  if (err) throw new Error(`La Declaración 273-A preparada no compila: ${err}`);
+  if (err) throw new Error(`El Anexo 8 preparado no compila: ${err}`);
   return buf;
 }
 
@@ -75,46 +67,66 @@ export function prepararDeclaracion(original: Buffer): Buffer {
 export const ANEXO9_COLUMNAS = ["rut", "acreedor", "monto", "correo", "telefono", "naturaleza"] as const;
 
 /**
- * Anexo 9: tabla 1 = deudor; tabla 2 = cabecera, una fila de datos y la fila «Total» (4 celdas: «Total» ocupa
- * RUT y Acreedor, la siguiente es el monto). La fila de datos pasa a ser el bucle {#deudas}…{/deudas} y el
- * total calculado va en la celda del monto de la última fila.
+ * Anexo 9 oficial: tabla 1 = deudor; tabla 2 = cabecera, seis filas en blanco y la fila «Total» (4 celdas:
+ * «Total» ocupa RUT y Acreedor, la siguiente es el monto). Queda una fila como bucle {#deudas}…{/deudas} y el
+ * total calculado va en la celda del monto de la fila Total.
  */
 export function prepararAnexo9(original: Buffer): Buffer {
-  let buf = original;
+  let buf = removeTableRows(original, 1, [2, 3, 4, 5, 6]);
   const doc = readDocx(buf);
-  const datos = cellParagraphs(doc.blocks, 1, 1);
-  if (datos.length !== ANEXO9_COLUMNAS.length) throw new Error(`El Anexo 9 debería tener ${ANEXO9_COLUMNAS.length} columnas y tiene ${datos.length}.`);
   const totalRow = cellParagraphs(doc.blocks, 1, 2);
-  if (totalRow.length < 2) throw new Error("La fila Total del Anexo 9 no tiene la forma esperada.");
-  // De atrás hacia adelante: primero la fila Total (párrafos posteriores), luego la fila de datos
+  if (totalRow.length < 2 || !/total/i.test(totalRow[0].text)) throw new Error("La fila Total del Anexo 9 no tiene la forma esperada.");
   buf = fill(buf, totalRow[1], "{total}", totalRow[1].text.trim().length > 0);
-  for (let i = datos.length - 1; i >= 0; i--) {
-    const col = ANEXO9_COLUMNAS[i];
-    const marker = (i === 0 ? "{#deudas}" : "") + `{${col}}` + (i === datos.length - 1 ? "{/deudas}" : "");
-    buf = fill(buf, datos[i], marker, datos[i].text.trim().length > 0);
-  }
+  buf = filaBucle(buf, 1, [], "deudas", ANEXO9_COLUMNAS, "El Anexo 9");
+  buf = fillDeudor(buf);
   const err = templateError(buf);
   if (err) throw new Error(`El Anexo 9 preparado no compila: ${err}`);
   return buf;
 }
 
+/**
+ * Anexo 11 oficial (declaración jurada del art. 273 A): los huecos entre corchetes del modelo pasan a ser las
+ * variables de la ficha. Como la persona no es contribuyente de primera categoría, ese inciso del modelo se omite
+ * (igual que en la versión que usaba el estudio) y «domiciliado» sigue el género. El resto del texto no se toca.
+ */
+export function prepararDeclaracion(original: Buffer): Buffer {
+  let buf = original;
+  for (const [de, a] of [
+    ["[nombre] [apellidos]", "{nombre_completo}"],
+    ["[profesión u oficio]", "{profesion_oficio}"],
+    ["[nacionalidad]", "{nacionalidad}"],
+    ["[estado civil]", "{estado_civil}"],
+    ["RUN: [RUN], contribuyente de primera categoría, RUT, domiciliado", "RUN: {rut}, {domiciliado_a}"],
+    ["[dirección]", "{domicilio}"],
+    ["[comuna]", "{comuna}"],
+    ["los XX Anexos", "los {cantidad_anexos} Anexos"],
+  ] as const) {
+    const r = replaceText(buf, de, a);
+    if (r.count !== 1) throw new Error(`En el Anexo 11 no se encontró «${de}» (apariciones: ${r.count}).`);
+    buf = r.buf;
+  }
+  const err = templateError(buf);
+  if (err) throw new Error(`La Declaración 273-A preparada no compila: ${err}`);
+  return buf;
+}
+
 export const PREPARADORES: Record<string, { nombre: string; archivo: string; preparar: (buf: Buffer) => Buffer; variables: string[] }> = {
+  anexo8: {
+    nombre: "Anexo N.º 8 · Nómina de otros bienes muebles y financieros",
+    archivo: "Anexo8.docx",
+    preparar: prepararAnexo8,
+    variables: ["nombre_completo", "rut", "bienes"],
+  },
   anexo9: {
     nombre: "Anexo N.º 9 · Nómina de acreedores",
-    archivo: "10.- ANEXO 9.docx",
+    archivo: "Anexo9.docx",
     preparar: prepararAnexo9,
     variables: ["nombre_completo", "rut", "deudas", "total"],
   },
   declaracion_273a: {
     nombre: "Declaración jurada 273 A · antecedentes completos y fehacientes (Anexo N.º 11)",
-    archivo: "11.- Declaracion 273-A.docx",
+    archivo: "Anexo11.docx",
     preparar: prepararDeclaracion,
-    variables: ["nombre_completo", "profesion_oficio", "nacionalidad", "estado_civil", "rut", "domiciliado_a", "domicilio", "comuna", "region"],
-  },
-  anexo8: {
-    nombre: "Anexo N.º 8 · Nómina de otros bienes muebles y financieros",
-    archivo: "9.- ANEXO 8.docx",
-    preparar: prepararAnexo8,
-    variables: ["nombre_completo", "rut", "bienes"],
+    variables: ["nombre_completo", "profesion_oficio", "nacionalidad", "estado_civil", "rut", "domiciliado_a", "domicilio", "comuna", "cantidad_anexos"],
   },
 };
