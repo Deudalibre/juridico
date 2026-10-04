@@ -80,21 +80,22 @@ function PreguntaConLista({ q, cat, rows, value, onChange, clientId, canEdit, di
 }
 
 /** Bloque encuadrado: número y título a la izquierda, campos a la derecha; todos alineados a la misma rejilla. */
+/** Cada bloque de la ficha es una tarjeta: banda con número, título y una ayuda corta; los campos a todo el ancho. */
 function Section({ id, n, title, hint, aside, children }: { id: string; n: number; title: string; hint: string; aside?: ReactNode; children: ReactNode }) {
   return (
-    <div id={id} className="scroll-mt-3 grid gap-3 border-t border-line-soft px-5 py-4 lg:grid-cols-[176px_minmax(0,1fr)] lg:gap-6">
-      <div className="flex items-start gap-3">
-        <span className="tabnum flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11.5px] font-semibold text-accent" style={{ background: "var(--surface-active)" }}>
-          {n}
-        </span>
-        <div className="flex min-w-0 flex-col gap-1">
+    <section id={id} className="panel scroll-mt-3 overflow-hidden">
+      <div className="panel-head !py-2.5 flex-wrap justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+          <span className="tabnum flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-accent" style={{ background: "var(--surface-active)" }}>
+            {n}
+          </span>
           <span className="card-title">{title}</span>
-          <span className="text-[12px] leading-relaxed text-muted">{hint}</span>
-          {aside && <div className="mt-1">{aside}</div>}
+          <span className="text-[12px] text-muted">{hint}</span>
         </div>
+        {aside}
       </div>
-      <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-12">{children}</div>
-    </div>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-4 px-5 py-4 sm:grid-cols-12">{children}</div>
+    </section>
   );
 }
 
@@ -153,13 +154,12 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
   return (
     <form ref={formRef} onSubmit={save} className="flex flex-col gap-3">
       <fieldset disabled={disabled} className="contents">
-        <div className="panel overflow-hidden">
-          {progress.pct < 100 && (
-            <div className="flex flex-wrap items-center gap-2 px-5 py-2 text-[12px]" style={{ background: "var(--warning-bg)" }}>
-              <span className="font-semibold text-warning">Falta:</span>
-              <span className="text-soft">{progress.missing.join(", ")}</span>
-            </div>
-          )}
+        {progress.pct < 100 && (
+          <div className="alert-warning flex flex-wrap items-center gap-2 px-4 py-2.5 text-[12.5px]">
+            <span className="badge warning">Falta</span>
+            <span className="text-fg">{progress.missing.join(", ")}</span>
+          </div>
+        )}
 
           {/* ---- 1 · Cliente ---- */}
           <Section id="cliente" n={1} title="Cliente" hint="Datos de la persona. Valen para todos los documentos.">
@@ -239,7 +239,7 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
                 </Field>
               </>
             ) : (
-              <div className="flex items-center text-[12.5px] text-faint sm:col-span-12">{relacion === "no" ? "No está trabajando: no se piden contrato ni liquidaciones." : "Responde Sí o No a la izquierda."}</div>
+              <div className="flex items-center text-[12.5px] text-faint sm:col-span-12">{relacion === "no" ? "No está trabajando: no se piden contrato ni liquidaciones." : "Responde Sí o No arriba a la derecha."}</div>
             )}
           </Section>
 
@@ -285,7 +285,6 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
               <textarea ref={cartaDemanda} name="carta_demanda" className="input min-h-[240px] resize-y leading-relaxed" defaultValue={f.carta_demanda ?? ""} placeholder="Redacción revisada por el abogado." />
             </Field>
           </Section>
-        </div>
       </fieldset>
 
       {canEdit && (
