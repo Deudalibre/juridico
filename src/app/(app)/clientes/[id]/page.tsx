@@ -293,7 +293,7 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {isLiquidacion(c.procedure_type) && (
+            {isLiquidacion(c.procedure_type) && can("documents.view") && (
               <Link href={`/documentos/lvs/${c.id}`} className="btn-outline btn-sm" title="Ficha Maestra, bienes, acreedores y documentos de la solicitud LVS">
                 <Icon name="report" size={13} /> Expediente LVS
               </Link>

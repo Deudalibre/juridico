@@ -31,7 +31,7 @@ try {
   const cl = await jur.c.from("legal_clients").insert({ full_name: "JUR Cliente Prueba", rut: "12.345.678-5", procedure_type: "Renegociación" }).select().single();
   ok("Jurídico crea un cliente en tramitación", !cl.error, cl.error?.message);
   const p1 = await page(jur, "/clientes");
-  ok("Jurídico · /clientes muestra el cliente y el menú (sin Configuración)", p1.status === 200 && p1.html.includes("JUR Cliente Prueba") && /Clientes.*Plantillas.*Documentos/.test(p1.text) && !/Configuración/.test(p1.text), String(p1.status));
+  ok("Jurídico · /clientes muestra el cliente y solo Revisión y Clientes en el menú (sin Plantillas, Documentos ni Configuración)", p1.status === 200 && p1.html.includes("JUR Cliente Prueba") && /Revisión.*Clientes/.test(p1.text) && !/Plantillas/.test(p1.text) && !/Configuración/.test(p1.text), String(p1.status));
   const p2 = await page(eje, "/clientes");
   ok("Ejecutivo del CRM · sin acceso al área jurídica y sin datos", p2.status === 200 && /Sin acceso al área jurídica/.test(p2.text) && !p2.html.includes("JUR Cliente Prueba"), String(p2.status));
   const seen = await eje.c.from("legal_clients").select("id");
@@ -43,7 +43,7 @@ try {
   const p3 = await page(jur, "/configuracion");
   ok("Jurídico · /configuracion denegado (solo legal.settings)", p3.status === 307 || /NEXT_REDIRECT|Sin acceso/.test(p3.html), String(p3.status));
   const p4 = await page(jur, "/plantillas");
-  ok("Jurídico · /plantillas lista los modelos Word o invita a subir el primero", p4.status === 200 && /Plantillas/.test(p4.text) && /(Subir plantilla|modelos? Word)/.test(p4.text));
+  ok("Jurídico · /plantillas denegado (desde 0033 solo el administrador ve plantillas y documentos)", p4.status === 307 || /NEXT_REDIRECT|Sin acceso/.test(p4.html), String(p4.status));
   const p5 = await fetch(`${BASE}/clientes`, { redirect: "manual" });
   ok("Sin sesión → /login", p5.status === 307 && /\/login/.test(p5.headers.get("location") ?? ""), String(p5.status));
 } catch (e) {

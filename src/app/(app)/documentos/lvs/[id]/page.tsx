@@ -30,7 +30,8 @@ export default async function ExpedientePage(props: { params: Promise<{ id: stri
   const { id } = await props.params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const { supabase, can, tz } = await getContext();
-  if (!can("legal.view")) notFound();
+  // El expediente LVS es del administrador (documents.view); el abogado tramitador trabaja la causa desde Clientes
+  if (!can("legal.view") || !can("documents.view")) notFound();
   const [{ data: client }, { data: lvs }] = await Promise.all([
     supabase.from("legal_clients").select("*").eq("id", id).maybeSingle(),
     supabase.from("legal_lvs").select("*").eq("client_id", id).maybeSingle(),

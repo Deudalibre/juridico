@@ -29,7 +29,7 @@ const page = async (u, p) => {
 };
 
 try {
-  const jur = await user("juridico", "juridico");
+  const jur = await user("juridico", "administrador"); // LVS es del administrador desde 0033 (el rol juridico ya no tiene documents.*)
   const eje = await user("ejecutivo", "ejecutivo");
 
   // Cliente + expediente (como lo hace «Nueva solicitud LVS»)
