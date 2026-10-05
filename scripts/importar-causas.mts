@@ -7,6 +7,8 @@
 //     --fecha AAAA-MM-DD  fecha de ingreso para las causas NUEVAS (por defecto, hoy). Las que ya existen conservan
 //                       su fecha de ingreso (su mes en Revisión no cambia)
 //     --vence N         días de plazo para los apercibimientos pendientes (por defecto 5)
+//     --rol-planilla    si una causa existente tiene otro rol/tribunal en la base, toma el de la planilla (por defecto
+//                       se conserva el de la base y se avisa; suele ser una demanda reingresada con rol nuevo)
 //
 // Idempotente: busca cada causa por RUT (o por rol + apellido) y la actualiza; las tareas no se duplican (mismo título).
 // Colores de la planilla (leyenda al pie del Excel) → semáforo de la app (acordado el 2026-10-05):
@@ -28,6 +30,7 @@ const soloLeer = flag("--leer");
 const simular = flag("--simular");
 const fechaNuevas = opt("--fecha") ?? new Date().toISOString().slice(0, 10);
 const diasVence = Number(opt("--vence") ?? 5);
+const rolPlanilla = flag("--rol-planilla");
 if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaNuevas) || Number.isNaN(Date.parse(fechaNuevas))) {
   console.error("--fecha debe ser AAAA-MM-DD");
   process.exit(1);
@@ -304,14 +307,25 @@ for (const r of rows) {
   if (ex) {
     // Ya está en la app: conserva su fecha de ingreso (su mes), su abogado y su procedimiento; se actualiza lo demás
     const patch: Record<string, unknown> = {};
-    if (r.rol && r.rol !== (ex.rol ?? "").toUpperCase().trim()) patch.rol = r.rol;
-    if (r.tribunal && r.tribunal !== ex.tribunal) patch.tribunal = r.tribunal;
+    const avisos: string[] = [];
+    const exRol = (ex.rol ?? "").toUpperCase().trim();
+    if (r.rol && r.rol !== exRol) {
+      if (!exRol || rolPlanilla) patch.rol = r.rol;
+      else avisos.push(`rol distinto: base ${exRol}, planilla ${r.rol} (se conserva el de la base; --rol-planilla para cambiarlo)`);
+    }
+    if (r.tribunal && r.tribunal !== ex.tribunal) {
+      if (!ex.tribunal || rolPlanilla) patch.tribunal = r.tribunal;
+      else avisos.push(`tribunal distinto: base «${ex.tribunal}», planilla «${r.tribunal}» (se conserva el de la base)`);
+    }
     if (r.caratula && r.caratula !== ex.caratula) patch.caratula = r.caratula;
+    // Sin fecha de ingreso la causa sigue «En preparación» aunque tenga rol: si la planilla trae rol, ya se ingresó
+    if (!ex.intake_date && r.rol) patch.intake_date = fechaNuevas;
     if (r.phone && !ex.phone) patch.phone = r.phone;
     if (!ex.procedure_type) patch.procedure_type = "Liquidación voluntaria";
     if (r.semaforo && r.semaforo !== ex.semaforo) patch.semaforo = r.semaforo;
     const changes = Object.keys(patch);
     console.log(`${header}\n    ya existe (${monthName(ex.intake_date)}${ex.archived_at ? ", CERRADA" : ""})${changes.length ? ` · actualiza ${changes.join(", ")}` : " · sin cambios"}`);
+    for (const a of avisos) console.log(`    ⚠ ${a}`);
     if (changes.length && !simular) {
       const { error } = await supabase.from("legal_clients").update(patch).eq("id", ex.id);
       if (error) {
