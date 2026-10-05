@@ -79,21 +79,21 @@ try {
 
   // Pantallas
   const lista = await page(jur, "/clientes");
-  ok("Lista: cabecera, procedimiento como etiqueta, rol, tribunal, paso y acciones", lista.status === 200 && /JUR Ficha Prueba/.test(lista.text) && /Liquidación voluntaria/.test(lista.text) && /C-9999-2026/.test(lista.text) && /Carpeta/.test(lista.text) && /Ficha jurídica/.test(lista.text) && /Preparación de documentos/.test(lista.text), String(lista.status));
+  ok("Lista: cabecera, procedimiento como etiqueta, rol, tribunal, paso y acciones", lista.status === 200 && /JUR Ficha Prueba/.test(lista.text) && /Liquidación voluntaria/.test(lista.text) && /C-9999-2026/.test(lista.text) && /Carpeta/.test(lista.text) && /Ficha jurídica/.test(lista.text) && /Ingreso de demanda/.test(lista.text), String(lista.status));
   const busca = await page(jur, "/clientes?q=C-9999");
   ok("Lista: búsqueda por rol", busca.status === 200 && /JUR Ficha Prueba/.test(busca.text) && /1 coinciden/.test(busca.text));
   const ficha = await page(jur, `/clientes/${id}`);
   ok("Ficha: cabecera con etiqueta, botones y resumen", ficha.status === 200 && /Carpeta del cliente/.test(ficha.text) && /Ficha jurídica/.test(ficha.text) && /Clave Única/.test(ficha.text) && /Abogado a cargo/.test(ficha.text) && /Ingresada el 12 sept?\.? 2026/i.test(ficha.text), String(ficha.status));
   ok("Ficha: la Clave Única aparece oculta, nunca en el HTML", ficha.status === 200 && /••••••••/.test(ficha.text) && !/clave-secreta-789/.test(ficha.html));
   const causa = await page(jur, `/clientes/${id}?tab=Causa`);
-  ok("Ficha: pestaña Causa con los 9 pasos de la liquidación, los comprobantes exigidos y ninguno completado", causa.status === 200 && /Pasos de la causa/.test(causa.text) && /0 de 9 completados/.test(causa.text) && /Resolución de término/.test(causa.text) && /Requiere certificado de envío de causa/.test(causa.text) && /Cierra la causa/.test(causa.text) && !/Certificado de ejecutoria/.test(causa.text));
+  ok("Ficha: pestaña Causa con los 8 pasos de la liquidación (la preparación la infiere el programa), los comprobantes exigidos y ninguno completado", causa.status === 200 && /Pasos de la causa/.test(causa.text) && /0 de 8 completados/.test(causa.text) && !/Preparación de documentos/.test(causa.text) && /Resolución de término/.test(causa.text) && /Requiere certificado de envío de causa/.test(causa.text) && /Cierra la causa/.test(causa.text) && !/Certificado de ejecutoria/.test(causa.text));
   const nuevo = await page(jur, "/clientes/nuevo");
   ok("Alta manual: formulario con procedimiento y fecha de ingreso", nuevo.status === 200 && /Nuevo cliente/.test(nuevo.text) && /Fecha de ingreso/.test(nuevo.text));
   const ejeLista = await page(eje, "/clientes");
   ok("Ejecutivo del CRM: sin acceso a la lista", ejeLista.status === 307 || /Sin acceso/.test(ejeLista.text), String(ejeLista.status));
 
   // Pasos de la causa (liquidación voluntaria): completar, historial, hito en la cabecera
-  const s1 = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Preparación de documentos", completed_at: "2026-09-13", note: "carpeta completa" }).select().single();
+  const s1 = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Apercibimientos", completed_at: "2026-09-13", note: "sin apercibimientos" }).select().single();
   const sinCert = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Ingreso de demanda", completed_at: "2026-09-14" }).select().single();
   ok("La base no acepta «Ingreso de demanda» sin su certificado de envío (trigger)", Boolean(sinCert.error) && /comprobante/.test(sinCert.error?.message ?? ""), sinCert.error?.message);
   const certPdf = Buffer.from("%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
@@ -130,7 +130,7 @@ try {
   const hoyOld = await fetch(`${BASE}/hoy`, { headers: { cookie: jur.cookie }, redirect: "manual" });
   ok("La raíz y el antiguo /hoy llevan a Revisión", raiz.status === 307 && /\/revision/.test(raiz.headers.get("location") ?? "") && (hoyOld.status === 307 || hoyOld.status === 308) && /\/revision/.test(hoyOld.headers.get("location") ?? ""), `${raiz.status} ${hoyOld.status}`);
   const historial = await page(jur, `/clientes/${id}?tab=Historial`);
-  ok("Historial: muestra los pasos completados con fecha y autor", historial.status === 200 && /Paso completado: Preparación de documentos/.test(historial.text) && /JUR juridico/.test(historial.text), String(historial.status));
+  ok("Historial: muestra los pasos completados con fecha y autor", historial.status === 200 && /Paso completado: Apercibimientos/.test(historial.text) && /JUR juridico/.test(historial.text), String(historial.status));
 
   // Documentos: checklist desde la plantilla, subida al bucket privado, versión y enlace firmado
   const tplItems = sql(`select i.label, i.position, i.category_id from legal_checklist_template_items i join legal_checklist_templates t on t.id = i.template_id where t.procedure_type = 'Liquidación voluntaria' order by i.position`);

@@ -3156,6 +3156,84 @@ textarea::placeholder {
   font-weight: 600;
 }
 
+/* Semáforo de la causa: los colores de la planilla del estudio (verde al día, amarillo apercibimiento, rojo
+   rechazada, celeste reingresada, naranjo nominar, azul PyP por Zoom). Punto sólido + etiqueta tenue. */
+:root {
+  --sem-ok: #1a7f4b;
+  --sem-ok-bg: #ecf7f0;
+  --sem-apercibimiento: #b7791f;
+  --sem-apercibimiento-bg: #fdf6e3;
+  --sem-rechazada: #b3261e;
+  --sem-rechazada-bg: #fbeeed;
+  --sem-reingresada: #0e7490;
+  --sem-reingresada-bg: #e3f5f9;
+  --sem-nominar: #c2410c;
+  --sem-nominar-bg: #fdf0e7;
+  --sem-pyp_zoom: #1d4ed8;
+  --sem-pyp_zoom-bg: #e8eefc;
+  --sem-none: #b4bcc4;
+}
+.sem-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--sem-color, var(--sem-none));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.sem-dot.lg {
+  width: 12px;
+  height: 12px;
+}
+.tag.sem {
+  background: var(--sem-bg, var(--tag-bg));
+  color: var(--sem-color, var(--tag-fg));
+  font-weight: 600;
+}
+/* Botón del selector: una etiqueta que se puede pulsar; en las tablas, compacto */
+.sem-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 8px 0 7px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  background: var(--sem-bg, var(--tag-bg));
+  color: var(--sem-color, var(--tag-fg));
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.sem-trigger:hover:not(:disabled),
+.sem-trigger[data-state="open"] {
+  border-color: var(--sem-color, var(--border));
+}
+.sem-trigger:disabled {
+  cursor: default;
+}
+.sem-trigger .sem-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sem-trigger.muted {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.sem-item-hint {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
 
 /* ============================================================
    Vida: profundidad y movimiento. Fuera de @layer a propósito: son los ajustes

@@ -106,7 +106,7 @@ export function CausaSteps({ clientId, procedure, steps, done, current, tasks, n
         <div className="panel-head">
           <span className="card-title">Pasos de la causa</span>
           <span className="text-[12.5px] text-muted">
-            {procedure} · {done.length} de {steps.length} completados
+            {procedure} · {done.filter((d) => steps.includes(d.step)).length} de {steps.length} completados
           </span>
         </div>
         <ol className="flex flex-col">

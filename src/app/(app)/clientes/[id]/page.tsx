@@ -14,7 +14,7 @@ import {
 } from "@/lib/data";
 import { dateTime, dueLabel, initials } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import { CHECKLIST_ENABLED, CLOSE_TERMINATED, COMPLETED, STEP_RESOLUTION, TASK_KINDS, currentStep, isLiquidacion, procedureTone, stepsFor } from "@/lib/legal";
+import { CHECKLIST_ENABLED, CLOSE_TERMINATED, COMPLETED, IN_PREPARATION, STEP_RESOLUTION, TASK_KINDS, currentStep, isLiquidacion, procedureTone, stepLabel, stepsFor } from "@/lib/legal";
 import { Icon } from "@/components/icons";
 import { BasicsForm } from "./BasicsForm";
 import { CausaSteps } from "./CausaSteps";
@@ -24,6 +24,7 @@ import { DocumentsTab } from "./DocumentsTab";
 import { clientDrive, type ClientDrive } from "@/lib/drive-client";
 import { LinksCard } from "./LinksCard";
 import { LawyerSelect } from "./LawyerSelect";
+import { SemaforoPicker } from "./SemaforoPicker";
 
 // Ficha única del cliente, con la misma estructura que la ficha del lead en el CRM:
 // cabecera fija (identidad, etiquetas, acciones), pestañas, y datos a la izquierda con resumen a la derecha.
@@ -151,6 +152,8 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
     c.procedure_type,
     done.map((d) => d.step),
   );
+  // Lo que se muestra como paso: «En preparación» mientras no haya rol ni fecha de ingreso (lo infiere el programa)
+  const shownStep = stepLabel({ ...c, current_step: current });
   const names = Object.fromEntries(members.map((m) => [m.id, m.full_name || m.email]));
   const nextTask = tasks.find((t) => t.status === "pendiente");
   const nextDue = nextTask?.due_at ? dueLabel(nextTask.due_at, tz) : null;
@@ -265,9 +268,12 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
                   <span className={`tag ${c.close_reason === CLOSE_TERMINATED ? "success" : "danger"}`}>
                     {c.close_reason === CLOSE_TERMINATED ? "Causa terminada" : `Cerrada · ${c.close_reason ?? "sin motivo"}`}
                   </span>
-                ) : current ? (
-                  <span className={`tag ${current === COMPLETED ? "success" : "brand"}`}>{current === COMPLETED ? "Todos los pasos completados" : `Paso: ${current}`}</span>
+                ) : shownStep ? (
+                  <span className={`tag ${shownStep === COMPLETED ? "success" : shownStep === IN_PREPARATION ? "" : "brand"}`} title={shownStep === IN_PREPARATION ? "Sin fecha de ingreso: la demanda aún no se ingresa al tribunal" : undefined}>
+                    {shownStep === COMPLETED ? "Todos los pasos completados" : shownStep === IN_PREPARATION ? shownStep : `Paso: ${shownStep}`}
+                  </span>
                 ) : null}
+                {!closed && <SemaforoPicker clientId={c.id} value={c.semaforo} canEdit={canEdit} />}
                 {!closed &&
                   isLiquidacion(c.procedure_type) &&
                   (resolutionDone && c.liquidation_resolution_at ? (

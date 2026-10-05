@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icons";
 import { dueLabel, initials, shortDate } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import { CLOSE_TERMINATED, COMPLETED, TASK_KINDS, procedureTone, stepsFor } from "@/lib/legal";
+import { CLOSE_TERMINATED, COMPLETED, IN_PREPARATION, TASK_KINDS, procedureTone, stepLabel } from "@/lib/legal";
 import type { LegalClient, LegalTask } from "@/lib/data";
 import { LawyerSelect } from "./[id]/LawyerSelect";
+import { SemaforoPicker } from "./[id]/SemaforoPicker";
 
 type Member = {
   id: string;
@@ -20,6 +21,7 @@ type Props = {
   members: Member[];
   nextTasks: Record<string, LegalTask>;
   canAssign: boolean;
+  canEdit: boolean;
   closed: boolean;
   tz: string;
 };
@@ -28,20 +30,21 @@ type Props = {
 // las de etiquetas sin salto de línea (procedimiento, rol, paso, revisada) conservan el mínimo de contenido, así la etiqueta
 // ensancha su columna (y la tabla desplaza en horizontal) en vez de montarse sobre la vecina.
 const GRID_CLOSED = "grid grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_0.9fr_minmax(0,1.1fr)_1.3fr_minmax(0,1.1fr)_1.3fr_336px] items-center gap-3";
-// Activas: además de la próxima acción, cuándo y quién revisó la causa por última vez
-const GRID_ACTIVE = "grid grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_0.9fr_minmax(0,1.1fr)_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_1fr_336px] items-center gap-3";
+// Activas: además de la próxima acción, cuándo y quién revisó la causa por última vez; y el color de la causa
+// (semáforo) justo después del cliente, que es lo primero que mira el abogado
+const GRID_ACTIVE = "grid grid-cols-[minmax(0,2fr)_150px_minmax(0,1.4fr)_0.9fr_minmax(0,1.1fr)_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_1fr_336px] items-center gap-3";
 
 /** Lista de clientes con la misma estructura que «Todos los leads»: filas de 54 px y acciones al final. */
-export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }: Props) {
+export function ClientsTable({ rows, members, nextTasks, canAssign, canEdit, closed, tz }: Props) {
   const router = useRouter();
   const open = (id: string) => router.push(`/clientes/${id}`);
   const GRID = closed ? GRID_CLOSED : GRID_ACTIVE;
   const headers = closed
     ? ["Cliente", "Procedimiento", "Rol", "Tribunal", "Motivo de cierre", "Abogado", "Cerrada el", "Acciones"]
-    : ["Cliente", "Procedimiento", "Rol", "Tribunal", "Paso", "Abogado", "Próxima acción", "Revisada", "Acciones"];
+    : ["Cliente", "Estado", "Procedimiento", "Rol", "Tribunal", "Paso", "Abogado", "Próxima acción", "Revisada", "Acciones"];
 
   return (
-    <div role="table" aria-label="Clientes" className={closed ? "min-w-[1300px]" : "min-w-[1440px]"}>
+    <div role="table" aria-label="Clientes" className={closed ? "min-w-[1300px]" : "min-w-[1600px]"}>
       <div className={`${GRID} th-band border-y border-line px-4 py-2.5`} role="row">
         {headers.map((h) => (
           <div key={h} className="th" role="columnheader">
@@ -50,7 +53,7 @@ export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }
         ))}
       </div>
       {rows.map((c) => {
-        const step = c.current_step ?? stepsFor(c.procedure_type)[0] ?? null;
+        const step = stepLabel(c);
         const task = nextTasks[c.id];
         const due = task?.due_at ? dueLabel(task.due_at, tz) : null;
         return (
@@ -62,6 +65,11 @@ export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }
                 <span className="tabnum truncate text-[11px] leading-[14px] text-muted">{c.rut ? formatRut(c.rut) : "RUT pendiente"}</span>
               </span>
             </div>
+            {!closed && (
+              <div role="cell" className="min-w-0" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                <SemaforoPicker clientId={c.id} value={c.semaforo} canEdit={canEdit} compact />
+              </div>
+            )}
             <div role="cell" className="truncate text-[12.5px] text-soft">
               {c.procedure_type ? (
                 c.procedure_type === "Renegociación" ? (
@@ -87,7 +95,7 @@ export function ClientsTable({ rows, members, nextTasks, canAssign, closed, tz }
               <div role="cell" className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-soft">
                 {step ? (
                   <>
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${step === COMPLETED ? "bg-success" : "bg-brand"}`} aria-hidden />
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${step === COMPLETED ? "bg-success" : step === IN_PREPARATION ? "bg-line-strong" : "bg-brand"}`} aria-hidden />
                     <span className="truncate">{step}</span>
                   </>
                 ) : (

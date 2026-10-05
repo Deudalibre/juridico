@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import Loading from "../loading";
 import { getMembers, requirePermission, type LegalClient, type LegalTask } from "@/lib/data";
 import { dateTime } from "@/lib/format";
-import { COMPLETED, PROCEDURES, stepsFor } from "@/lib/legal";
+import { COMPLETED, IN_PREPARATION, PROCEDURES, SEMAFORO, isSemaforo, stepLabel, stepsFor } from "@/lib/legal";
 import { formatRut } from "@/lib/rut";
 import { Icon } from "@/components/icons";
 import { ExportButton } from "@/components/ExportButton";
@@ -12,7 +12,7 @@ import { FilterMenu } from "./ListControls";
 
 // Clientes en tramitación (tabla legal_clients; el vínculo con el lead comercial es lead_id).
 // Misma estructura que «Todos los leads» en el CRM: cabecera con icono, buscador y alta; tabla con acciones al final.
-type SP = { q?: string; estado?: string; proc?: string; abogado?: string; paso?: string; desde?: string; hasta?: string; pagina?: string };
+type SP = { q?: string; estado?: string; proc?: string; abogado?: string; paso?: string; color?: string; desde?: string; hasta?: string; pagina?: string };
 // Filas por página: con toda la cartera de una vez la respuesta pesaba 1,3 MB (244 filas con su selector de abogado)
 const PAGE = 50;
 const isDate = (s?: string) => /^\d{4}-\d{2}-\d{2}$/.test(s ?? "");
@@ -55,7 +55,9 @@ async function ClientesContent(props: { searchParams: Promise<SP> }) {
   if (res.error) throw new Error(res.error.message);
   const lawyers = members.filter((m) => m.active && (m.role === "juridico" || m.role === "administrador"));
   const abogado = sp.abogado === "sin" || lawyers.some((m) => m.id === sp.abogado) ? sp.abogado! : "";
-  const paso = sp.paso && [...PROCEDURES.flatMap((p) => [...stepsFor(p)]), COMPLETED].includes(sp.paso) ? sp.paso : "";
+  const paso = sp.paso && [IN_PREPARATION, ...PROCEDURES.flatMap((p) => [...stepsFor(p)]), COMPLETED].includes(sp.paso) ? sp.paso : "";
+  // «sin» = causas sin color marcado
+  const color = sp.color === "sin" || isSemaforo(sp.color) ? sp.color! : "";
   const term = (sp.q ?? "").trim().toLowerCase().slice(0, 80);
   const digits = term.replace(/\./g, "");
   const all = (res.data ?? []) as LegalClient[];
@@ -63,10 +65,11 @@ async function ClientesContent(props: { searchParams: Promise<SP> }) {
     (c) =>
       (!term || c.full_name.toLowerCase().includes(term) || (c.rut ?? "").replace(/\./g, "").includes(digits) || (c.rol ?? "").toLowerCase().includes(term)) &&
       (!abogado || (abogado === "sin" ? !c.lawyer_id : c.lawyer_id === abogado)) &&
-      (!paso || (c.current_step ?? stepsFor(c.procedure_type)[0]) === paso)
+      (!paso || stepLabel(c) === paso) &&
+      (!color || (color === "sin" ? !c.semaforo : c.semaforo === color))
   );
   const totals = { activas: (counts.data ?? []).filter((c) => !c.archived_at).length, cerradas: (counts.data ?? []).filter((c) => c.archived_at).length };
-  const filters = { proc, abogado, paso, desde: isDate(sp.desde) ? sp.desde : "", hasta: isDate(sp.hasta) ? sp.hasta : "" };
+  const filters = { proc, abogado, paso, color, desde: isDate(sp.desde) ? sp.desde : "", hasta: isDate(sp.hasta) ? sp.hasta : "" };
   const filterCount = Object.values(filters).filter(Boolean).length;
   const keepParams: Record<string, string> = {};
   if (closed) keepParams.estado = "cerradas";
@@ -78,7 +81,8 @@ async function ClientesContent(props: { searchParams: Promise<SP> }) {
     c.procedure_type ?? "",
     c.rol ?? "",
     c.tribunal ?? "",
-    closed ? c.close_reason ?? "" : c.current_step ?? stepsFor(c.procedure_type)[0] ?? "",
+    closed ? c.close_reason ?? "" : stepLabel(c) ?? "",
+    closed ? "" : c.semaforo ? SEMAFORO[c.semaforo]?.label ?? c.semaforo : "",
     nameOf(c.lawyer_id),
     c.intake_date ?? "",
     c.last_review_at ? dateTime(c.last_review_at, tz) : "",
@@ -138,7 +142,7 @@ async function ClientesContent(props: { searchParams: Promise<SP> }) {
           <FilterMenu values={filters} count={filterCount} closed={closed} keep={keepParams} clearHref={closed ? "/clientes?estado=cerradas" : "/clientes"} lawyers={lawyers.map((m) => ({ id: m.id, name: m.full_name || m.email }))} />
           <ExportButton
             filename={`causas-${closed ? "cerradas" : "activas"}.csv`}
-            header={["Cliente", "RUT", "Procedimiento", "Rol", "Tribunal", closed ? "Motivo de cierre" : "Paso", "Abogado", "Ingreso", "Última revisión", "Teléfono", "Email"]}
+            header={["Cliente", "RUT", "Procedimiento", "Rol", "Tribunal", closed ? "Motivo de cierre" : "Paso", "Color", "Abogado", "Ingreso", "Última revisión", "Teléfono", "Email"]}
             rows={exportRows}
           />
           {can("legal.create") && !closed && (
@@ -164,7 +168,7 @@ async function ClientesContent(props: { searchParams: Promise<SP> }) {
           </div>
         ) : (
           <div className="scroll-x">
-            <ClientsTable rows={shown} members={members} nextTasks={nextTasks} canAssign={can("legal.assign")} closed={closed} tz={tz} />
+            <ClientsTable rows={shown} members={members} nextTasks={nextTasks} canAssign={can("legal.assign")} canEdit={can("legal.edit")} closed={closed} tz={tz} />
           </div>
         )}
         {pages > 1 && (

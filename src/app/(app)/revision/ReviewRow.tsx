@@ -7,7 +7,8 @@ import { toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { TaskClose } from "@/components/TaskClose";
 import { dateTime, dueLabel, initials, relativeDays, shortDate } from "@/lib/format";
-import { TASK_KINDS, reviewCadence, stepsFor } from "@/lib/legal";
+import { TASK_KINDS, reviewCadence, stepLabel } from "@/lib/legal";
+import { SemaforoPicker } from "../clientes/[id]/SemaforoPicker";
 import type { LegalClient, LegalReview, LegalTask } from "@/lib/data";
 import { ReviewDialog } from "./ReviewDialog";
 import { quickReview } from "./actions";
@@ -30,13 +31,13 @@ type Props = {
 // Una sola rejilla para cabecera y filas: así cada dato queda en su columna y la lista se lee como una tabla.
 // La columna de acciones tiene ancho fijo: con «auto» cada grupo la calculaba a su manera y «Última revisión» se
 // corría de una tabla a otra (con o sin botón «Completar»).
-const GRID = "grid grid-cols-[32px_minmax(0,2.4fr)_minmax(0,1.5fr)_minmax(0,1.6fr)_272px] items-center gap-x-4";
+const GRID = "grid grid-cols-[32px_minmax(0,2.4fr)_150px_minmax(0,1.5fr)_minmax(0,1.6fr)_272px] items-center gap-x-4";
 
 /** Cabecera de columnas de la cola (una por lista). */
 export function ReviewHeader() {
   return (
     <div className={`${GRID} th-band border-b border-line px-4 py-2`} role="row">
-      {["N°", "Causa", "Última revisión", "Tarea pendiente", ""].map((h, i) => (
+      {["N°", "Causa", "Estado", "Última revisión", "Tarea pendiente", ""].map((h, i) => (
         <span key={i} className="th" role="columnheader">
           {h}
         </span>
@@ -55,7 +56,7 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
   const [open, setOpen] = useState(false);
   const href = `/clientes/${c.id}?tab=Causa`;
   const due = task?.due_at ? dueLabel(task.due_at, tz) : null;
-  const step = c.current_step ?? stepsFor(c.procedure_type)[0] ?? null;
+  const step = stepLabel(c);
   const nextDue = c.next_review_at ? dueLabel(c.next_review_at, tz) : null;
   const cadence = reviewCadence(c.procedure_type, doneSteps);
   // La fecha de la próxima revisión no se muestra en la fila (se confundía con la última y con la tarea): queda en el
@@ -103,6 +104,11 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
           )}
           {lawyerName && <span className="truncate">· {lawyerName}</span>}
         </span>
+      </div>
+
+      {/* Estado (semáforo): un clic para cambiar el color */}
+      <div className="min-w-0" role="cell" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <SemaforoPicker clientId={c.id} value={c.semaforo} canEdit={canReview} compact />
       </div>
 
       {/* Última revisión */}
