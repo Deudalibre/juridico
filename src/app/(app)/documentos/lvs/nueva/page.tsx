@@ -23,6 +23,7 @@ export default function NuevaLvsPage(props: { searchParams: Promise<SP> }) {
  */
 async function NuevaLvsContent(props: { searchParams: Promise<SP> }) {
   const sp = await props.searchParams;
+  await requirePermission("documents.view");
   const { supabase } = await requirePermission("legal.create");
   const q = (sp.q ?? "").trim();
   const [{ data: clients }, { data: existing }] = await Promise.all([

@@ -52,11 +52,8 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
     if (tipo === "demanda_lvs") return `Etapa ${def.etapa}`;
     if (!plantillas[tipo]) return "Sin plantilla cargada";
     if (tipo === "anexo9") return totalDeudas === 0 ? "Sin deudas en el bloque Acreedores" : null;
-    if (tipo === "anexo8") {
-      if (ficha.tiene_bienes_muebles !== true) return "La ficha no declara bienes muebles";
-      if (!bienes.muebles) return "Sin bienes cargados en la ficha";
-      return null;
-    }
+    // El Anexo 8 siempre se puede generar: lleva fijos los cuatro bienes excluidos (cama, refrigerador, lavadora, comedor)
+    if (tipo === "anexo8") return null;
     const cat = ANEXO_CATEGORIA[tipo];
     if (cat) return bienes[cat] ? null : "Sin bienes cargados en la ficha";
     const faltan = [
@@ -74,11 +71,11 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
   return (
     <>
       <section className="panel overflow-hidden">
-        <div className="panel-head !py-3">
-          <div className="flex flex-col">
-            <span className="card-title">Documentos generados</span>
-            <span className="text-[12px] text-muted">Cada documento se genera por separado desde su plantilla Word; la anterior queda como reemplazada. Los anexos 3 a 7 aparecen al marcar «Sí» en su categoría de bienes.</span>
-          </div>
+        {/* Solo títulos y botones (pedido del estudio, 2026-10-06): versión de plantilla, fecha, motivo de bloqueo y
+            advertencias van al tooltip del título o del botón, no a la vista */}
+        <div className="panel-head !py-2.5">
+          <span className="card-title">Documentos</span>
+          <span className="text-[12px] text-muted">{vigentes.length ? `${vigentes.length} generados` : "desde las plantillas Word"}</span>
         </div>
         {ORDEN.filter((tipo) => {
           // Los anexos 3 a 7 solo aparecen cuando la ficha marca «Sí» en su categoría
@@ -88,18 +85,19 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
           const def = GENERADOS[tipo];
           const g = vigentes.find((x) => x.tipo === tipo) ?? null;
           const why = bloqueo(tipo);
+          const detalle = g
+            ? [`Generado ${dateTime(g.generado_at, "America/Santiago")}`, g.template_version ? `plantilla v${g.template_version}` : null, ...(g.advertencias ?? [])].filter(Boolean).join(" · ")
+            : (why ?? "Listo para generar") + (plantillas[tipo] ? ` · plantilla v${plantillas[tipo]!.version}` : "") + (tipo === "anexo8" ? " · incluye siempre 4 bienes excluidos: cama de 2 plazas, refrigerador, lavadora y comedor" : "");
           return (
-            <div key={tipo} className="row flex min-h-[56px] flex-wrap items-center gap-3 px-4 py-2.5">
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate text-[13px] font-medium text-fg">{def.nombre}</span>
-                  {g && <span className={`tag ${g.estado === "final" ? "success" : "brand"}`}>{g.estado === "final" ? "Final" : "Borrador"}</span>}
-                  {plantillas[tipo] && <span className="tag">plantilla v{plantillas[tipo]!.version}</span>}
-                </span>
-                <span className="truncate text-[11.5px] text-muted">
-                  {g ? `Generado ${dateTime(g.generado_at, "America/Santiago")}${g.template_version ? ` · con plantilla v${g.template_version}` : ""}${g.advertencias?.length ? ` · ${g.advertencias.length} ${g.advertencias.length === 1 ? "advertencia" : "advertencias"}` : ""}` : why ? why : "Listo para generar"}
-                </span>
-                {g?.advertencias?.length ? <span className="text-[11.5px] text-warning">{g.advertencias.join(" · ")}</span> : null}
+            <div key={tipo} className="row flex min-h-[46px] flex-wrap items-center gap-3 px-4 py-1.5" title={detalle}>
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${g ? (g.estado === "final" ? "bg-success" : "bg-brand") : why ? "bg-line-strong" : "bg-warning"}`} aria-hidden />
+                <span className="truncate text-[13px] font-medium text-fg">{def.nombre}</span>
+                {g?.advertencias?.length ? (
+                  <span className="text-warning" title={g.advertencias.join(" · ")} aria-label="Con advertencias">
+                    <Icon name="alert" size={13} />
+                  </span>
+                ) : null}
               </span>
               <span className="flex items-center gap-1.5">
                 {g && (

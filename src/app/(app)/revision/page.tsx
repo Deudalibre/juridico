@@ -8,6 +8,8 @@ import { PROCEDURES, REVIEW_CADENCE, reviewCadence } from "@/lib/legal";
 import { Icon } from "@/components/icons";
 import { HelpPop } from "@/components/HelpPop";
 import { ReviewHeader, ReviewRow } from "./ReviewRow";
+import { ReviewQueueProvider } from "./ReviewQueue";
+import { SemaforoLegend } from "./SemaforoLegend";
 import { IngresarDemanda } from "./IngresarDemanda";
 import { Filters } from "./Filters";
 import { ReviewPicker, type YearSummary } from "./ReviewPicker";
@@ -21,14 +23,29 @@ const MONTH_NAMES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
 // Al entrar se ve el resumen de todos los clientes por año; «Revisar» pide año y mes y muestra solo eso.
 // Cada revisión deja registrado si hubo movimiento, la nota, la tarea pendiente, quién revisó y cuándo.
 
-function Group({ title, hint, count, tone, children }: { title: string; hint?: string; count: number; tone?: "danger" | "warning" | "brand" | "success"; children: ReactNode }) {
+function Group({ title, hint, count, tone, collapsible, children }: { title: string; hint?: ReactNode; count: number; tone?: "danger" | "warning" | "brand" | "success"; collapsible?: boolean; children: ReactNode }) {
+  const head = (
+    <>
+      <span className="card-title">{title}</span>
+      <span className={`badge ${tone ?? "neutral"} tabnum`}>{count}</span>
+      {hint && <span className="ml-auto flex items-center text-[12px] text-muted">{hint}</span>}
+    </>
+  );
+  // Plegable (cerrado por defecto): para lo que no urge, como las causas al día. La cola pendiente va siempre abierta.
+  if (collapsible)
+    return (
+      <details className="panel group overflow-hidden">
+        <summary className="panel-head !py-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          {head}
+          <span className="ml-auto text-[12px] font-medium text-accent group-open:hidden">Mostrar</span>
+          <span className="ml-auto hidden text-[12px] font-medium text-accent group-open:inline">Ocultar</span>
+        </summary>
+        <div className="border-t border-line">{children}</div>
+      </details>
+    );
   return (
     <section className="panel overflow-hidden">
-      <div className="panel-head !py-2.5">
-        <span className="card-title">{title}</span>
-        <span className={`badge ${tone ?? "neutral"} tabnum`}>{count}</span>
-        {hint && <span className="ml-auto text-[12px] text-muted">{hint}</span>}
-      </div>
+      <div className="panel-head !py-2.5">{head}</div>
       <div>{children}</div>
     </section>
   );
@@ -42,7 +59,7 @@ export const metadata = { title: "Revisión" };
  * esta pantalla es instantánea (Next 16 lo valida en desarrollo): marco y esqueleto aparecen al clic y los datos
  * entran en streaming. loading.tsx solo cubre la carga directa, no la navegación entre pantallas.
  */
-export default function RevisionPage(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string }> }) {
+export default function RevisionPage(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string; q?: string }> }) {
   return (
     <Suspense fallback={<Loading />}>
       <RevisionContent searchParams={props.searchParams} />
@@ -50,7 +67,7 @@ export default function RevisionPage(props: { searchParams: Promise<{ ver?: stri
   );
 }
 
-async function RevisionContent(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string }> }) {
+async function RevisionContent(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string; q?: string }> }) {
   const sp = await props.searchParams;
   const { supabase, user, profile, tz, can } = await requirePermission("legal.view");
   // Abogados y causas activas a la vez (el filtro por abogado se aplica aquí: son pocas filas y ahorra un viaje)
@@ -66,6 +83,14 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
   const modo = sp.modo === "calendario" ? "calendario" : "lista";
   const anio = /^\d{4}$/.test(sp.anio ?? "") ? sp.anio! : "";
   const mes = anio && /^([1-9]|1[0-2])$/.test(sp.mes ?? "") ? Number(sp.mes) : 0;
+  // Búsqueda por nombre, RUT o rol (cuando llama un cliente): salta por encima de la elección de año y mes
+  const q = (sp.q ?? "").trim().slice(0, 80);
+  const qNorm = q.toLowerCase().replace(/[.\-\s]/g, "");
+  const matches = (c: LegalClient) =>
+    !qNorm ||
+    c.full_name.toLowerCase().includes(q.toLowerCase()) ||
+    (c.rut ?? "").toLowerCase().replace(/[.\-\s]/g, "").includes(qNorm) ||
+    (c.rol ?? "").toLowerCase().replace(/[.\-\s]/g, "").includes(qNorm);
   const link = (patch: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
     Object.entries({
@@ -136,7 +161,11 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
   const doneSteps = new Map<string, string[]>(); // pasos hechos por causa: el diálogo ofrece solo los que faltan
   // Las revisiones solo hacen falta para las filas que se van a mostrar (año/mes elegido): la portada no las necesita
   // y así no se traen hasta 3000 filas de toda la cartera en cada carga.
-  const shownIds = anio ? clients.filter((c) => c.intake_date?.slice(0, 4) === anio && (!mes || Number(c.intake_date.slice(5, 7)) === mes)).map((c) => c.id) : [];
+  const shownIds = q
+    ? clients.filter(matches).map((c) => c.id)
+    : anio
+      ? clients.filter((c) => c.intake_date?.slice(0, 4) === anio && (!mes || Number(c.intake_date.slice(5, 7)) === mes)).map((c) => c.id)
+      : [];
   if (ids.length > 0) {
     const [t, r, st] = await Promise.all([
       supabase.from("legal_tasks").select("*").in("client_id", ids).eq("status", "pendiente").order("due_at", { ascending: true, nullsFirst: false }),
@@ -199,11 +228,19 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
   const totalPending = filed.filter(isPending).length;
   const totalOverdue = filed.filter((c) => overdueTasks.has(c.id)).length;
 
-  // Selección: un año (y opcionalmente un mes)
-  const visible = anio ? filed.filter((c) => yearOf(c) === anio && (!mes || monthOf(c) === mes)) : [];
+  // Selección: un año (y opcionalmente un mes), o el resultado de la búsqueda
+  const visible = q ? filed.filter(matches) : anio ? filed.filter((c) => yearOf(c) === anio && (!mes || monthOf(c) === mes)) : [];
   const queue = visible.filter(isPending).sort(chrono);
   const upToDate = visible.filter((c) => !isPending(c)).sort(chrono);
   const withOverdue = visible.filter((c) => overdueTasks.has(c.id)).sort(chrono);
+  // Urgencias de la selección: lo primero que mira el abogado al abrir el día
+  const withApercibimiento = visible.filter((c) => nextTask.get(c.id)?.kind === "apercibimiento");
+  const todayKeyList = dayKey(new Date(), tz);
+  const dueToday = visible.filter((c) => {
+    const t = nextTask.get(c.id);
+    return t?.due_at && dayKey(t.due_at, tz) === todayKeyList;
+  });
+  const queueOrder = Array.from(new Set([...withOverdue, ...queue].map((c) => c.id)));
 
   const nameOf = (id: string | null) => (id ? (members.find((m) => m.id === id)?.full_name ?? null) : null);
   const showLawyer = view === "equipo";
@@ -279,8 +316,12 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
               cada {REVIEW_CADENCE.settled}. Nadie elige la fecha.
             </span>
             <span>
-              Si no pasó nada, «Sin movimiento» lo registra con un clic. Si hubo novedades, «Revisar» pide qué pasó, si avanzó de paso y qué tarea quedó resuelta o pendiente. Todo
-              queda con tu nombre, día y hora.
+              «Revisar» abre la causa: si no pasó nada, marca «Sin movimiento» y listo; si hubo novedades, anota qué pasó, si avanzó de paso y qué tarea quedó resuelta o
+              pendiente. Todo queda con tu nombre, día y hora. Con «Guardar y siguiente» (Ctrl+Enter) pasas a la causa que sigue.
+            </span>
+            <span className="flex flex-col gap-1">
+              <span>Colores de la causa:</span>
+              <SemaforoLegend />
             </span>
           </HelpPop>
           <div className="seg" role="group" aria-label="Vista de Revisión">
@@ -291,6 +332,11 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
               Calendario
             </Link>
           </div>
+          <form action="/revision" className="contents" role="search">
+            {view !== "equipo" && <input type="hidden" name="ver" value={view} />}
+            {proc && <input type="hidden" name="proc" value={proc} />}
+            <input name="q" defaultValue={q} className="search !min-h-[36px] !w-[220px]" placeholder="Buscar nombre, RUT o rol…" aria-label="Buscar causas" />
+          </form>
           <Filters view={view} proc={proc} anio={anio} mes={mes} lawyers={lawyerOpts} />
           {modo === "lista" && <ReviewPicker summary={summary} anio={anio} mes={mes} base={{ ver: view !== "equipo" ? view : "", proc }} />}
         </div>
@@ -305,7 +351,7 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
           <span className="empty-title">{view === "mios" ? "No tienes causas asignadas" : "No hay causas activas"}</span>
           <span className="empty-text">Cuando haya causas en tramitación aparecerán aquí para revisarlas una por una.</span>
         </section>
-      ) : !anio ? (
+      ) : !anio && !q ? (
         // Portada: todos los clientes, por año, con sus meses
         <>
           <section className="panel overflow-hidden">
@@ -402,18 +448,21 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
           )}
         </>
       ) : (
-        <>
+        <ReviewQueueProvider order={queueOrder}>
           {/* Barra de la selección: el año, sus meses para saltar entre ellos y la vuelta a todos los clientes */}
           <section className="panel">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
               <div className="flex min-w-0 flex-col">
-                <span className="page-title !text-[20px] leading-none">{mes ? `${MONTH_NAMES[mes]} ${anio}` : anio}</span>
+                <span className="page-title !text-[20px] leading-none">{q ? `Resultados para «${q}»` : mes ? `${MONTH_NAMES[mes]} ${anio}` : anio}</span>
+                {/* Urgencias en una sola línea, solo las que existen: nada de recuadros (el estudio los sintió recargados) */}
                 <span className="mt-1 text-[12px] text-muted">
                   {visible.length} {visible.length === 1 ? "causa" : "causas"} · {queue.length} por revisar
+                  {withApercibimiento.length > 0 ? ` · ${withApercibimiento.length} con apercibimiento` : ""}
+                  {dueToday.length > 0 ? ` · ${dueToday.length} ${dueToday.length === 1 ? "vence" : "vencen"} hoy` : ""}
                   {withOverdue.length > 0 ? ` · ${withOverdue.length} con tareas vencidas` : ""}
                 </span>
               </div>
-              {
+              {!q && (
                 <nav className="seg flex-wrap" aria-label="Mes de ingreso">
                   <Link href={link({ mes: undefined })} aria-current={!mes ? "true" : undefined}>
                     Todo el año
@@ -430,7 +479,7 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
                     </Link>
                   ))}
                 </nav>
-              }
+              )}
               <Link href={link({ anio: undefined, mes: undefined })} className="btn-ghost btn-sm ml-auto">
                 ← Todos los clientes
               </Link>
@@ -441,7 +490,7 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
               {table(withOverdue, (c) => overdueTasks.get(c.id) ?? null)}
             </Group>
           )}
-          <Group title="Por revisar" hint="Numeradas 1…N por mes de ingreso" count={queue.length} tone={queue.length ? "warning" : "success"}>
+          <Group title="Por revisar" count={queue.length} tone={queue.length ? "warning" : "success"}>
             {queue.length === 0 ? (
               <div className="px-5 py-6 text-center text-[12.5px] text-faint">Nada pendiente en esta selección.</div>
             ) : (
@@ -449,11 +498,11 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
             )}
           </Group>
           {upToDate.length > 0 && (
-            <Group title="Al día" count={upToDate.length} tone="success">
+            <Group title="Al día" count={upToDate.length} tone="success" collapsible>
               {table(upToDate, (c) => nextTask.get(c.id) ?? null)}
             </Group>
           )}
-        </>
+        </ReviewQueueProvider>
       )}
     </>
   );

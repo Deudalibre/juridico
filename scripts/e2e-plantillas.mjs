@@ -78,7 +78,8 @@ try {
   ok("Rechaza marcar en un párrafo vacío", /vacío/.test(err), err);
 
   // 2. Tabla y bucket con permisos
-  const jur = await user("juridico", "juridico");
+  const jur = await user("juridico", "administrador"); // plantillas son del administrador desde 0033 (el rol juridico ya no tiene documents.*)
+  const abo = await user("abogado", "juridico"); // abogado tramitador: sin documents.*, no toca plantillas ni variables
   const eje = await user("ejecutivo", "ejecutivo");
   adm = await user("admin", "administrador");
   const id = crypto.randomUUID();
@@ -105,8 +106,8 @@ try {
   const upd = await jur.c.from("legal_templates").update({ version: 2, variables: [] }).eq("id", id).select().single();
   const audit2 = sql(`select action from audit_log where entity = 'plantilla' and entity_id = '${id}' and action = 'plantilla.editada'`);
   ok("Cambiar archivo/variables queda en auditoría (plantilla.editada) y updated_at sube", !upd.error && audit2.length === 1 && upd.data.updated_at > upd.data.created_at, upd.error?.message);
-  const delJur = await jur.c.from("legal_templates").delete().eq("id", id).select();
-  ok("Jurídico no elimina plantillas (solo documents.manage)", !delJur.error && (delJur.data ?? []).length === 0);
+  const delJur = await abo.c.from("legal_templates").delete().eq("id", id).select();
+  ok("El abogado tramitador no elimina plantillas (sin documents.*)", !delJur.error && (delJur.data ?? []).length === 0);
   const signed = await jur.c.storage.from("legal-templates").createSignedUrl(path, 60);
   ok("Jurídico obtiene enlace de descarga del Word", !signed.error && Boolean(signed.data?.signedUrl), signed.error?.message);
 
@@ -129,8 +130,10 @@ try {
   ok("Editor: recibe el catálogo para ofrecerlo al marcar", editor2.status === 200 && /jur_domicilio/.test(editor2.html));
   const auditCat = sql(`select action from audit_log where entity = 'variable' and entity_id = 'jur_domicilio'`);
   ok("Auditoría: variable.creada", auditCat.some((x) => x.action === "variable.creada"), JSON.stringify(auditCat));
-  const delCat = await jur.c.from("legal_variables").delete().eq("name", "jur_domicilio").select();
-  ok("Jurídico no quita variables del catálogo (solo documents.manage)", !delCat.error && (delCat.data ?? []).length === 0);
+  const delCat = await abo.c.from("legal_variables").delete().eq("name", "jur_domicilio").select();
+  ok("El abogado tramitador no quita variables del catálogo (sin documents.*)", !delCat.error && (delCat.data ?? []).length === 0);
+  const aboList = await page(abo, "/plantillas");
+  ok("El abogado tramitador no entra a Plantillas", aboList.status === 307 || /Sin acceso/.test(aboList.text), String(aboList.status));
   const ejeList = await page(eje, "/plantillas");
   ok("Un ejecutivo no entra a Plantillas", ejeList.status === 307 || /Sin acceso/.test(ejeList.text), String(ejeList.status));
   const bad = await page(jur, `/plantillas/${crypto.randomUUID()}`);

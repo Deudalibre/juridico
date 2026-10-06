@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icons";
-import { PROCEDURES, stepsFor, COMPLETED } from "@/lib/legal";
+import { PROCEDURES, stepsFor, COMPLETED, IN_PREPARATION, SEMAFORO, SEMAFORO_KEYS } from "@/lib/legal";
 
-export type ClientFilters = { proc?: string; abogado?: string; paso?: string; desde?: string; hasta?: string };
+export type ClientFilters = { proc?: string; abogado?: string; paso?: string; color?: string; desde?: string; hasta?: string };
 
 /** Botón «Filtros» con panel desplegable, como en la lista de leads del CRM. */
 export function FilterMenu({
@@ -35,7 +35,7 @@ export function FilterMenu({
       document.removeEventListener("keydown", esc);
     };
   }, []);
-  const steps = Array.from(new Set([...PROCEDURES.flatMap((p) => [...stepsFor(p)]), COMPLETED]));
+  const steps = Array.from(new Set([IN_PREPARATION, ...PROCEDURES.flatMap((p) => [...stepsFor(p)]), COMPLETED]));
 
   return (
     <div className="relative" ref={ref}>
@@ -73,6 +73,20 @@ export function FilterMenu({
                 ))}
               </select>
             </label>
+            {!closed && (
+              <label className="field">
+                <span className="label">Color de la causa</span>
+                <select name="color" defaultValue={values.color ?? ""} className="input">
+                  <option value="">Todos</option>
+                  {SEMAFORO_KEYS.map((k) => (
+                    <option key={k} value={k}>
+                      {SEMAFORO[k].label} ({SEMAFORO[k].color})
+                    </option>
+                  ))}
+                  <option value="sin">Sin color</option>
+                </select>
+              </label>
+            )}
             {!closed && (
               <label className="field">
                 <span className="label">Paso actual</span>

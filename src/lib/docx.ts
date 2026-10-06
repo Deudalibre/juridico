@@ -398,7 +398,9 @@ function trozos(text: string): { t: string; tag: boolean }[] {
   return out;
 }
 
-const SOLO_TEXTO = /^(?:<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>|<w:t(?:\s[^>]*)?\/>)+$/;
+// Solo nodos w:t (su contenido nunca lleva «<»), saltos de línea y tabulaciones; cualquier otra cosa (campos, notas) no se toca
+const SOLO_TEXTO = /^(?:<w:t(?:\s[^>]*)?>[^<]*<\/w:t>|<w:t(?:\s[^>]*)?\/>|<w:br\/>|<w:tab\/>)+$/;
+const TEXTO_O_SALTO = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:br\/>|<w:tab\/>/g;
 
 /**
  * Separa cada variable en su propio run con la fuente de datos. Solo se tocan runs de texto llano (sin campos,
@@ -413,7 +415,8 @@ export function uniformarVariables(xml: string, font = FUENTE_DATOS, excepto?: S
     const rPr = inner.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)?.[0] ?? "";
     const body = inner.replace(rPr, "");
     if (!SOLO_TEXTO.test(body) || !/[{}]/.test(body)) continue;
-    const text = Array.from(body.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g), (t) => unescapeXml(t[1])).join("");
+    // Los saltos y tabulaciones vuelven como \n y \t: runXml los reconstruye al escribir cada trozo
+    const text = Array.from(body.matchAll(TEXTO_O_SALTO), (t) => (t[0] === "<w:br/>" ? "\n" : t[0] === "<w:tab/>" ? "\t" : unescapeXml(t[1]))).join("");
     const nuevo = trozos(text)
       .map((p) => runXml(p.tag && !excepto?.has(p.t.replace(/[{}]/g, "").trim()) ? conFuente(rPr, font) : rPr, p.t))
       .join("");

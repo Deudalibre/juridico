@@ -67,6 +67,8 @@ export type LegalClient = {
   liquidator_name: string | null;
   liquidation_resolution_at: string | null;
   current_step: string | null;
+  /** Color de la causa (semáforo del estudio): ok, apercibimiento, rechazada, reingresada, nominar, pyp_zoom */
+  semaforo: string | null;
   status_id: string | null;
   lawyer_id: string | null;
   lead_id: string | null;

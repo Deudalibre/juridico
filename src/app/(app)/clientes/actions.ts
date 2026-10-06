@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import { cleanRut, isValidRut } from "@/lib/rut";
 import { zonedToIso } from "@/lib/format";
-import { CLOSE_REASONS, STEP_RESOLUTION, TASK_KINDS, currentStep, isProcedure } from "@/lib/legal";
+import { CLOSE_REASONS, STEP_RESOLUTION, TASK_KINDS, currentStep, isProcedure, isSemaforo } from "@/lib/legal";
 import { applyStep, cadenceDays, nextReviewAt, stepContext, stepInputFromForm } from "@/lib/case-steps";
 
 type Result = { error?: string };
@@ -83,6 +83,20 @@ export async function assignLawyer(id: string, lawyerId: string | null): Promise
   if (error) return { error: error.message };
   revalidatePath(`/clientes/${id}`);
   revalidatePath("/clientes");
+  return {};
+}
+
+/** Color de la causa (semáforo del estudio). Vacío = sin color. El trigger deja el cambio en el historial. */
+export async function setSemaforo(id: string, value: string | null): Promise<Result> {
+  const { supabase, can } = await getContext();
+  if (!can("legal.edit")) return { error: "No tienes permiso para editar la causa." };
+  if (!isUuid(id)) return { error: "Cliente no válido." };
+  if (value && !isSemaforo(value)) return { error: "Color no reconocido." };
+  const { error } = await supabase.from("legal_clients").update({ semaforo: value || null }).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath(`/clientes/${id}`);
+  revalidatePath("/clientes");
+  revalidatePath("/revision");
   return {};
 }
 

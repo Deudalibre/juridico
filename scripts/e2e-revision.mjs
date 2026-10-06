@@ -93,9 +93,10 @@ try {
 
   // 4. Pantallas después de la revisión
   const rev2 = await page(jur, `/revision?ver=${abo.id}&anio=2026`);
-  const alDia = rev2.text.indexOf("Al día");
+  // La cabecera del grupo «Al día» (la leyenda del semáforo también dice «Al día», así que se busca la cabecera con su contador)
+  const alDia = rev2.text.search(/Al día \d+ (Mostrar|N°)/);
   const posA2 = rev2.text.indexOf("JUR Revisión Antigua");
-  ok("Revisión: la causa revisada pasa a «Al día» con movimiento, fecha y revisor", rev2.status === 200 && alDia > 0 && posA2 > alDia && /con movimiento/i.test(rev2.text) && /JUR juridico/.test(rev2.text), `${alDia} ${posA2}`);
+  ok("Revisión: la causa revisada pasa a «Al día» con movimiento, fecha y revisor", rev2.status === 200 && alDia > 0 && posA2 > alDia && /con mov/i.test(rev2.text) && /JUR juridico/.test(rev2.text), `${alDia} ${posA2}`);
   ok("Revisión: la causa nueva sigue en «Por revisar»", rev2.text.indexOf("JUR Revisión Nueva") < alDia);
   const mios = await page(abo, "/revision?ver=mios&anio=2026&mes=9");
   ok("Año y mes concretos (septiembre 2026) con «Mis causas»: solo la causa de ese mes", mios.status === 200 && /JUR Revisión Nueva/.test(mios.text) && !/JUR Revisión Antigua/.test(mios.text) && /Todo el año/.test(mios.text));
@@ -104,7 +105,8 @@ try {
   const histPage = await page(jur, "/revision/historial");
   ok("Historial de revisiones: fila con causa, movimiento, nota, tarea y revisor", histPage.status === 200 && /JUR Revisión Antigua/.test(histPage.text) && /Con movimiento/.test(histPage.text) && /liquidaciones actualizadas/.test(histPage.text) && /Tarea: Pedir/.test(histPage.text) && /JUR juridico/.test(histPage.text), String(histPage.status));
   const lista = await page(jur, "/clientes");
-  ok("Lista de causas: columna «Revisada» con fecha para la revisada y «Nunca» para la otra", lista.status === 200 && /Revisada/.test(lista.text) && /Nunca/.test(lista.text) && /Al día/.test(lista.text));
+  // Desde el 2026-10-06 la lista es solo antecedentes (nombre, procedimiento, rol, tribunal, abogado): sin estado, próxima acción ni revisada
+  ok("Lista de causas: solo antecedentes, sin columnas de Estado, Próxima acción ni Revisada", lista.status === 200 && /JUR Revisión Antigua/.test(lista.text) && /Tribunal/.test(lista.text) && !/Próxima acción/.test(lista.text) && !/Revisada/.test(lista.text));
   const ficha = await page(jur, `/clientes/${idA}`);
   ok("Ficha: tile «Última revisión» con movimiento, fecha, revisor y próxima", ficha.status === 200 && /Última revisión/.test(ficha.text) && /Con movimiento/.test(ficha.text) && /Próxima:/.test(ficha.text));
   const fichaHist = await page(jur, `/clientes/${idA}?tab=Historial`);
@@ -124,7 +126,8 @@ try {
   const cad7 = await jur.c.rpc("legal_review_cadence_days", { p_client: idA });
   ok("Cadencia: con resolución de liquidación pasa a 7 días", !stepRes.error && cad7.data === 7, stepRes.error?.message ?? String(cad7.data));
   const rev3 = await page(jur, `/revision?ver=${abo.id}&anio=2026`);
-  ok("Revisión: botones «Sin movimiento» (rápido) y «Revisar», y acceso a Tareas cerradas", rev3.status === 200 && /Sin movimiento/.test(rev3.text) && /Tareas cerradas/.test(rev3.text));
+  // Desde el 2026-10-06 la fila lleva un solo botón, «Revisar» (el «Sin movimiento» directo se quitó a petición del estudio)
+  ok("Revisión: botón «Revisar» (sin «Sin movimiento» directo) y acceso a Tareas cerradas", rev3.status === 200 && /Revisar/.test(rev3.text) && !/>s*Sin movimientos*</.test(rev3.html ?? "") && /Tareas cerradas/.test(rev3.text));
 
   // 5. Paridad con el CRM: calendario, filtros y exportación
   const cal = await page(jur, `/revision?modo=calendario&ver=${abo.id}`);

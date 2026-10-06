@@ -24,7 +24,8 @@ const GRID = "grid min-w-[760px] grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minm
 /** Todas las solicitudes de Liquidación Voluntaria Simplificada: cliente, avance de la ficha, estado y última edición. */
 async function LvsContent(props: { searchParams: Promise<SP> }) {
   const sp = await props.searchParams;
-  const { supabase, can, tz } = await requirePermission("legal.view");
+  // Las solicitudes LVS son del administrador: el abogado tramitador (sin documents.view) no las ve
+  const { supabase, can, tz } = await requirePermission("documents.view");
   const q = (sp.q ?? "").trim().toLowerCase();
   const { data } = await supabase
     .from("legal_lvs")

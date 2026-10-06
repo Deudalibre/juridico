@@ -299,7 +299,7 @@ function DeudaModal({ clientId, deuda: d, onClose, onSaved }: { clientId: string
             </select>
           </Field>
           <Field label="Aparece en el informe CMF" className="sm:col-span-4">
-            <div className="seg" role="radiogroup" aria-label="CMF">
+            <div className="seg yn" role="radiogroup" aria-label="CMF">
               {(["si", "no"] as const).map((o) => (
                 <button key={o} type="button" role="radio" aria-checked={v.cmf === o} aria-current={v.cmf === o ? "true" : undefined} onClick={() => set("cmf", o)} className="min-w-[44px] justify-center">
                   {o === "si" ? "Sí" : "No"}

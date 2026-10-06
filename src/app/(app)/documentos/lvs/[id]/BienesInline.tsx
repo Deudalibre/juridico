@@ -22,7 +22,7 @@ export function BienesInline({ clientId, cat, rows, canEdit }: { clientId: strin
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<{ row: BienRow | null } | null>(null);
   // Carga rápida del Anexo 8: nombre + tipo (sugerido por el nombre); el resto va por defecto
-  const [rapido, setRapido] = useState({ datos: "", tipo: "" as string, tocado: false });
+  const [rapido, setRapido] = useState({ datos: "", monto: "", tipo: "" as string, tocado: false });
   const rapidoTipo = rapido.tocado ? rapido.tipo : rapido.tipo || (sugerirTipoMueble(rapido.datos)?.toString() ?? "");
 
   const agregarRapido = () => {
@@ -32,11 +32,12 @@ export function BienesInline({ clientId, cat, rows, canEdit }: { clientId: strin
     const fd = new FormData();
     fd.set("datos", datos);
     fd.set("tipo_codigo", rapidoTipo);
+    if (rapido.monto.trim()) fd.set("monto", rapido.monto.replace(/\D/g, ""));
     start(async () => {
       const r = await saveBien(clientId, cat.key, null, fd);
       if (r.error) toast(r.error, true);
       else {
-        setRapido({ datos: "", tipo: "", tocado: false });
+        setRapido({ datos: "", monto: "", tipo: "", tocado: false });
         router.refresh();
       }
     });
@@ -55,24 +56,14 @@ export function BienesInline({ clientId, cat, rows, canEdit }: { clientId: strin
   };
 
   return (
-    <div className="rounded-lg border border-line-soft" style={{ background: "var(--band)" }}>
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-        <span className="text-[12px] font-semibold text-soft">
-          {cat.titulo}
-          {cat.anexo ? <span className="text-faint"> · Anexo N.º {cat.anexo}</span> : null}
-        </span>
-        <span className="text-[11.5px] text-muted">· {rows.length === 0 ? `sin ${cat.singular}s cargados` : `${rows.length} ${rows.length === 1 ? cat.singular : cat.singular + "s"}`}</span>
-        {canEdit && (
-          <button type="button" className="btn-outline btn-sm ml-auto" onClick={() => setEditing({ row: null })} disabled={pending}>
-            + Agregar {cat.singular}
-          </button>
-        )}
-      </div>
+    <div className="bienes-card">
+      {/* Carga rápida del Anexo 8: bien, monto y tipo en una línea; el resto sale por defecto (marca, cantidad, estado…)
+          y se cambia en «Editar» si hace falta. Sin instrucciones a la vista: el sistema ya lo sabe. */}
       {cat.key === "muebles" && canEdit && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-line-soft bg-surface px-3 py-2">
+        <div className="bienes-quick">
           <input
-            className="input !min-h-[30px] min-w-[200px] flex-1 text-[12.5px]"
-            placeholder="Escribe el bien y Enter: cafetera, notebook, plancha de pelo…"
+            className="input !min-h-[32px] min-w-[200px] flex-1 text-[12.5px]"
+            placeholder="Bien: cafetera, notebook, plancha de pelo… y Enter"
             value={rapido.datos}
             disabled={pending}
             onChange={(e) => setRapido((s) => ({ ...s, datos: e.target.value }))}
@@ -84,7 +75,22 @@ export function BienesInline({ clientId, cat, rows, canEdit }: { clientId: strin
             }}
             aria-label="Bien del Anexo 8"
           />
-          <select className="input !min-h-[30px] w-[260px] text-[12.5px]" value={rapidoTipo} disabled={pending} onChange={(e) => setRapido((s) => ({ ...s, tipo: e.target.value, tocado: true }))} aria-label="Tipo del Anexo 8">
+          <input
+            className="input tabnum !min-h-[32px] w-[130px] text-[12.5px]"
+            placeholder="Monto $"
+            inputMode="numeric"
+            value={rapido.monto}
+            disabled={pending}
+            onChange={(e) => setRapido((s) => ({ ...s, monto: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                agregarRapido();
+              }
+            }}
+            aria-label="Monto del bien"
+          />
+          <select className="input !min-h-[32px] w-[230px] text-[12.5px]" value={rapidoTipo} disabled={pending} onChange={(e) => setRapido((s) => ({ ...s, tipo: e.target.value, tocado: true }))} aria-label="Tipo del Anexo 8">
             <option value="">Tipo…</option>
             {Object.entries(TIPOS_BIEN_MUEBLE).map(([k, v]) => (
               <option key={k} value={k}>
@@ -95,13 +101,22 @@ export function BienesInline({ clientId, cat, rows, canEdit }: { clientId: strin
           <button type="button" className="btn-primary btn-sm" disabled={pending || !rapido.datos.trim()} onClick={agregarRapido}>
             Agregar
           </button>
-          <span className="w-full text-[11px] text-muted">Marca/modelo SIN INFORMAR · cantidad 1 · estado REGULAR · excluido NO · gravamen NO · SIN OBSERVACIONES · dirección del domicilio. Para cambiar algo, «Editar».</span>
+        </div>
+      )}
+      {rows.length === 0 && (
+        <div className="flex items-center justify-between gap-2 px-3 py-2 text-[12px] text-faint">
+          <span>Sin {cat.singular}s cargados.</span>
+          {canEdit && cat.key !== "muebles" && (
+            <button type="button" className="btn-outline btn-sm" onClick={() => setEditing({ row: null })} disabled={pending}>
+              + Agregar {cat.singular}
+            </button>
+          )}
         </div>
       )}
       {rows.map((row, i) => {
         const s = cat.resumen(row);
         return (
-          <div key={row.id} className="flex min-h-[40px] items-center gap-3 border-t border-line-soft bg-surface px-3 py-1.5">
+          <div key={row.id} className="bienes-row">
             <span className="tabnum w-5 text-[12px] font-semibold text-muted">{i + 1}</span>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="flex min-w-0 items-center gap-2">
@@ -124,6 +139,20 @@ export function BienesInline({ clientId, cat, rows, canEdit }: { clientId: strin
           </div>
         );
       })}
+      {rows.length > 0 && canEdit && cat.key !== "muebles" && (
+        <div className="flex justify-end border-t border-line-soft px-3 py-1.5">
+          <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing({ row: null })} disabled={pending}>
+            + Agregar {cat.singular}
+          </button>
+        </div>
+      )}
+      {rows.length > 0 && canEdit && cat.key === "muebles" && (
+        <div className="flex justify-end border-t border-line-soft px-3 py-1.5">
+          <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing({ row: null })} disabled={pending} title="Formulario completo del Anexo 8 (marca, cantidad, estado, exclusión, gravamen…)">
+            + Agregar con detalle
+          </button>
+        </div>
+      )}
       {editing && (
         <BienModal
           clientId={clientId}
@@ -173,7 +202,7 @@ function BienModal({ clientId, cat, row, onClose, onSaved }: { clientId: string;
     const common = { id: `b-${f.name}`, disabled: pending };
     if (f.type === "bool")
       return (
-        <div className="seg" role="radiogroup" aria-label={f.label}>
+        <div className="seg yn" role="radiogroup" aria-label={f.label}>
           {(["si", "no"] as const).map((v) => (
             <button key={v} type="button" role="radio" aria-checked={vals[f.name] === v} aria-current={vals[f.name] === v ? "true" : undefined} onClick={() => set(f.name, v)} disabled={pending} className="min-w-[44px] justify-center">
               {v === "si" ? "Sí" : "No"}

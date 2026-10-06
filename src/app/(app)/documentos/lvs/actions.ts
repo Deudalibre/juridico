@@ -83,7 +83,7 @@ export async function saveLvs(clientId: string, fd: FormData): Promise<Result & 
 
   const lvs: Partial<LvsFicha> = {
     genero: (genero as "F" | "M" | null) ?? null,
-    nacionalidad: text(fd, "nacionalidad", 60) ?? "chilena",
+    nacionalidad: text(fd, "nacionalidad", 60) ?? "Chilena",
     estado_civil: oneOf(text(fd, "estado_civil", 40), ESTADOS_CIVILES),
     profesion_oficio: text(fd, "profesion_oficio"),
     domicilio: text(fd, "domicilio", 300),

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import { zonedToIso } from "@/lib/format";
-import { TASK_KINDS } from "@/lib/legal";
+import { TASK_KINDS, isSemaforo } from "@/lib/legal";
 import { applyStep, cadenceDays, nextReviewAt, type StepDocument } from "@/lib/case-steps";
 
 type Result = { error?: string };
@@ -25,6 +25,8 @@ export type ReviewInput = {
   } | null;
   /** Tarea pendiente que quedó resuelta al revisar (opcional). */
   resolvedTaskId: string | null;
+  /** Color de la causa (semáforo) tal como queda tras la revisión; null = sin color. Si no viene, no se toca. */
+  semaforo?: string | null;
 };
 
 /**
@@ -76,6 +78,13 @@ export async function reviewCase(clientId: string, input: ReviewInput): Promise<
       .single();
     if (error) return { error: error.message };
     taskId = data.id;
+  }
+
+  // El color de la causa se fija en la misma revisión (el trigger deja el cambio en el historial solo si cambió)
+  if (input.semaforo !== undefined) {
+    if (input.semaforo !== null && !isSemaforo(input.semaforo)) return { error: "Color de la causa no reconocido." };
+    const { error } = await supabase.from("legal_clients").update({ semaforo: input.semaforo }).eq("id", clientId);
+    if (error) return { error: error.message };
   }
 
   // La próxima revisión sale de la cadencia de la causa (con el paso ya aplicado, si lo hubo)

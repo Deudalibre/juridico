@@ -14,7 +14,7 @@ import {
 } from "@/lib/data";
 import { dateTime, dueLabel, initials } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import { CHECKLIST_ENABLED, CLOSE_TERMINATED, COMPLETED, STEP_RESOLUTION, TASK_KINDS, currentStep, isLiquidacion, procedureTone, stepsFor } from "@/lib/legal";
+import { CHECKLIST_ENABLED, CLOSE_TERMINATED, TASK_KINDS, currentStep, isLiquidacion, isSemaforo, procedureTone, semaforoStyle, stepsFor } from "@/lib/legal";
 import { Icon } from "@/components/icons";
 import { BasicsForm } from "./BasicsForm";
 import { CausaSteps } from "./CausaSteps";
@@ -22,8 +22,10 @@ import { ClaveUnica } from "./ClaveUnica";
 import { CloseCase } from "./CloseCase";
 import { DocumentsTab } from "./DocumentsTab";
 import { clientDrive, type ClientDrive } from "@/lib/drive-client";
+import { ContactButtons } from "@/components/ContactButtons";
 import { LinksCard } from "./LinksCard";
 import { LawyerSelect } from "./LawyerSelect";
+import { SemaforoPicker } from "./SemaforoPicker";
 
 // Ficha única del cliente, con la misma estructura que la ficha del lead en el CRM:
 // cabecera fija (identidad, etiquetas, acciones), pestañas, y datos a la izquierda con resumen a la derecha.
@@ -154,7 +156,6 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
   const names = Object.fromEntries(members.map((m) => [m.id, m.full_name || m.email]));
   const nextTask = tasks.find((t) => t.status === "pendiente");
   const nextDue = nextTask?.due_at ? dueLabel(nextTask.due_at, tz) : null;
-  const resolutionDone = done.some((d) => d.step === STEP_RESOLUTION);
 
   // Qué falta para trabajar la causa (solo datos de esta ficha)
   const missing = [!c.rut && "RUT", !c.phone && !c.email && "contacto", !c.procedure_type && "procedimiento", !c.intake_date && "fecha de ingreso"].filter(Boolean) as string[];
@@ -167,6 +168,7 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
       <Tile label="Contacto">
         {c.phone ? <span className="tabnum text-[13.5px] font-medium">{c.phone}</span> : <span className="text-[13.5px] text-faint">Sin teléfono</span>}
         {c.email ? <span className="truncate text-xs text-muted">{c.email}</span> : <span className="text-xs text-faint">Sin email</span>}
+        <ContactButtons phone={c.phone} name={c.full_name} variant="labeled" />
       </Tile>
       <Tile label="Causa">
         {c.rol ? <span className="tabnum text-[13.5px] font-medium">{c.rol}</span> : <span className="tag warn">Sin rol aún</span>}
@@ -250,7 +252,7 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
 
   return (
     <>
-      <div className="panel relative z-10 gap-3 px-5 py-4 !overflow-visible">
+      <div className={`panel relative z-10 gap-3 px-5 py-4 !overflow-visible ${!closed && isSemaforo(c.semaforo) ? "sem-row" : ""}`} style={closed ? undefined : semaforoStyle(c.semaforo)}>
         <Link href="/clientes" className="link-muted self-start text-xs">
           ← Volver a clientes
         </Link>
@@ -258,36 +260,29 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
           <div className="flex min-w-0 items-center gap-3">
             <span className="avatar h-11 w-11 text-[13px]">{initials(c.full_name) || "?"}</span>
             <div className="flex min-w-0 flex-col gap-1">
+              {/* Cabecera ligera (pedido del estudio, 2026-10-06): nombre, color y procedimiento. El paso, la resolución y la
+                  última revisión ya están en el resumen de la derecha; aquí solo estorbaban. */}
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="page-title">{c.full_name}</h1>
+                {!closed && <SemaforoPicker clientId={c.id} value={c.semaforo} canEdit={canEdit} />}
                 {c.procedure_type && <span className={`tag ${procedureTone(c.procedure_type)}`}>{c.procedure_type}</span>}
-                {closed ? (
+                {closed && (
                   <span className={`tag ${c.close_reason === CLOSE_TERMINATED ? "success" : "danger"}`}>
                     {c.close_reason === CLOSE_TERMINATED ? "Causa terminada" : `Cerrada · ${c.close_reason ?? "sin motivo"}`}
                   </span>
-                ) : current ? (
-                  <span className={`tag ${current === COMPLETED ? "success" : "brand"}`}>{current === COMPLETED ? "Todos los pasos completados" : `Paso: ${current}`}</span>
-                ) : null}
-                {!closed &&
-                  isLiquidacion(c.procedure_type) &&
-                  (resolutionDone && c.liquidation_resolution_at ? (
-                    <span className="tag success">Resolución de liquidación · {fmtDate(c.liquidation_resolution_at)}</span>
-                  ) : (
-                    <span className="tag warn">Sin resolución de liquidación aún</span>
-                  ))}
+                )}
               </div>
               <span className="text-[13px] text-soft">
                 {c.rut ? <span className="tabnum">RUT {formatRut(c.rut)}</span> : <span className="text-warning">RUT pendiente</span>}
                 {c.rol && <span className="tabnum"> · {c.rol}</span>}
                 {c.tribunal && ` · ${c.tribunal}`}
-                {c.last_review_at && ` · última revisión ${dateTime(c.last_review_at, tz)}${lastReview?.reviewer_name ? ` por ${lastReview.reviewer_name}` : ""}`}
               </span>
               {closed && c.close_detail && <span className="text-[12.5px] text-muted">{c.close_detail}</span>}
               {!closed && missing.length > 0 && <span className="text-[12.5px] text-warning">Falta: {missing.join(", ")}</span>}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {isLiquidacion(c.procedure_type) && (
+            {isLiquidacion(c.procedure_type) && can("documents.view") && (
               <Link href={`/documentos/lvs/${c.id}`} className="btn-outline btn-sm" title="Ficha Maestra, bienes, acreedores y documentos de la solicitud LVS">
                 <Icon name="report" size={13} /> Expediente LVS
               </Link>
@@ -332,6 +327,7 @@ export default async function ClientePage(props: { params: Promise<{ id: string 
           canTasks={can("legal.tasks")}
           closed={closed}
           tz={tz}
+          showSteps={false}
         />
       ) : tab === "Historial" ? (
         <section className="panel overflow-hidden">

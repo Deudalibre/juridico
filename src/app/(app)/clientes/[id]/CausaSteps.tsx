@@ -26,6 +26,8 @@ type Props = {
   canTasks: boolean;
   closed: boolean;
   tz: string;
+  /** Mostrar el panel «Pasos de la causa». El estudio lo quitó de la ficha por ahora (2026-10-06): recargaba sin aportar. */
+  showSteps?: boolean;
 };
 
 const fmtDate = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
@@ -35,7 +37,7 @@ const today = () => new Date().toISOString().slice(0, 10);
  * Pestaña «Causa»: los pasos del procedimiento en orden, cada uno con su comprobante cuando lo exige (certificado de
  * envío, certificado de nominación, resolución de término), y las tareas con fecha (apercibimientos, audiencias).
  */
-export function CausaSteps({ clientId, procedure, steps, done, current, tasks, names, liquidatorName, filing, canEdit, canTasks, closed, tz }: Props) {
+export function CausaSteps({ clientId, procedure, steps, done, current, tasks, names, liquidatorName, filing, canEdit, canTasks, closed, tz, showSteps = true }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [marking, setMarking] = useState<string | null>(null);
@@ -89,7 +91,7 @@ export function CausaSteps({ clientId, procedure, steps, done, current, tasks, n
       else window.open(r.url, "_blank", "noopener");
     });
 
-  if (steps.length === 0)
+  if (steps.length === 0 && showSteps)
     return (
       <section className="panel empty">
         <span className="empty-title">Define el procedimiento para ver sus pasos</span>
@@ -101,12 +103,13 @@ export function CausaSteps({ clientId, procedure, steps, done, current, tasks, n
   const doneTasks = tasks.filter((t) => t.status !== "pendiente");
 
   return (
-    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_380px]">
+    <div className={showSteps ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_380px]" : "grid gap-3"}>
+      {showSteps && (
       <section className="panel">
         <div className="panel-head">
           <span className="card-title">Pasos de la causa</span>
           <span className="text-[12.5px] text-muted">
-            {procedure} · {done.length} de {steps.length} completados
+            {procedure} · {done.filter((d) => steps.includes(d.step)).length} de {steps.length} completados
           </span>
         </div>
         <ol className="flex flex-col">
@@ -247,6 +250,7 @@ export function CausaSteps({ clientId, procedure, steps, done, current, tasks, n
           <div className="border-t border-line-soft px-5 py-3 text-[12.5px] text-success">Todos los pasos están completados. Si corresponde, cierra la causa desde la cabecera.</div>
         )}
       </section>
+      )}
 
       <section className="panel">
         <div className="panel-head">

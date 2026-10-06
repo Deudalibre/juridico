@@ -1,13 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type KeyboardEvent, type ReactNode } from "react";
 import { Modal } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { Field, toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { dateTime, dayKey, dueLabel } from "@/lib/format";
-import { COMPLETED, STEP_DOCS, STEP_FILING, STEP_LIQUIDATOR, STEP_TERMINATION, TASK_KINDS, reviewCadence, stepsFor } from "@/lib/legal";
+import { COMPLETED, SEMAFORO, SEMAFORO_KEYS, STEP_DOCS, STEP_FILING, STEP_LIQUIDATOR, STEP_TERMINATION, TASK_KINDS, reviewCadence, semaforoStyle, stepsFor } from "@/lib/legal";
 import { uploadCaseFile } from "@/lib/upload-client";
 import type { LegalClient, LegalReview, LegalTask } from "@/lib/data";
 import { reviewCase } from "./actions";
@@ -22,8 +22,16 @@ type Props = {
   defaultAssignee: string;
   canTasks: boolean;
   tz: string;
+  /** Hay otra causa pendiente después de esta en la cola (habilita «Guardar y siguiente»). */
+  hasNext?: boolean;
   onClose: () => void;
+  /** Tras guardar: true = abrir la siguiente causa de la cola; false = cerrar. Si no viene, se cierra. */
+  onSaved?: (goNext: boolean) => void;
 };
+
+/** Tecla → color de la causa (la letra va marcada en cada ficha de color). */
+const COLOR_KEYS: Record<string, string | null> = { a: "ok", p: "apercibimiento", r: "rechazada", i: "reingresada", n: "nominar", z: "pyp_zoom", "0": null };
+const KEY_OF: Record<string, string> = Object.fromEntries(Object.entries(COLOR_KEYS).filter(([, v]) => v).map(([k, v]) => [v as string, k.toUpperCase()]));
 
 function Section({ n, title, hint, children }: { n: number; title: string; hint?: string; children: ReactNode }) {
   return (
@@ -39,14 +47,16 @@ function Section({ n, title, hint, children }: { n: number; title: string; hint?
 }
 
 /**
- * Revisión de una causa en tres pasos, de arriba abajo: 1) qué encontraste (sin o con movimiento), 2) si hubo
- * movimiento, qué pasó y si avanzó de paso, 3) tareas (la pendiente que quedó resuelta y la que queda).
+ * Revisión de una causa en tres pasos, de arriba abajo: 1) qué encontraste (sin o con movimiento) y el color con que
+ * queda la causa (semáforo; antes era un selector aparte en la fila y el estudio lo sintió como doble trabajo),
+ * 2) si hubo movimiento, qué pasó y si avanzó de paso, 3) tareas (la pendiente que quedó resuelta y la que queda).
  * La próxima revisión no se elige: sale de la cadencia de la causa (3 días sin resolución, 7 después).
  */
-export function ReviewDialog({ client, pendingTask, lastReview, doneSteps, lawyers, defaultAssignee, canTasks, tz, onClose }: Props) {
+export function ReviewDialog({ client, pendingTask, lastReview, doneSteps, lawyers, defaultAssignee, canTasks, tz, hasNext, onClose, onSaved }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [movement, setMovement] = useState<boolean | null>(null);
+  const [color, setColor] = useState<string | null>(client.semaforo && client.semaforo in SEMAFORO ? client.semaforo : null);
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
   const [withTask, setWithTask] = useState(false);
@@ -64,7 +74,7 @@ export function ReviewDialog({ client, pendingTask, lastReview, doneSteps, lawye
   const stepSpec = withStep ? STEP_DOCS[step.name] : undefined;
   const cadence = reviewCadence(client.procedure_type, withStep ? [...doneSteps, step.name] : doneSteps);
 
-  const save = () => {
+  const save = (goNext = false) => {
     if (movement === null) return toast("Indica si la causa tuvo movimiento.", true);
     if (movement && note.trim().length < 3) return toast("Anota qué pasó: es lo que queda en el historial.", true);
     if (withStep && !step.name) return toast("Elige el paso que quedó hecho.", true);
@@ -80,11 +90,13 @@ export function ReviewDialog({ client, pendingTask, lastReview, doneSteps, lawye
           task: withTask ? task : null,
           step: withStep ? { ...step, document, filing: step.name === STEP_FILING ? filing : null } : null,
           resolvedTaskId: resolved && pendingTask ? pendingTask.id : null,
+          semaforo: color,
         });
         if (r.error) toast(r.error, true);
         else {
           toast(withStep && step.name === STEP_TERMINATION ? `Causa terminada · ${client.full_name}` : `Revisión registrada · ${client.full_name}`);
-          onClose();
+          if (onSaved) onSaved(goNext && Boolean(hasNext));
+          else onClose();
           router.refresh();
         }
       } catch (e) {
@@ -95,9 +107,28 @@ export function ReviewDialog({ client, pendingTask, lastReview, doneSteps, lawye
 
   const due = pendingTask?.due_at ? dueLabel(pendingTask.due_at, tz) : null;
 
+  // Atajos de teclado (revisar 30 causas seguidas sin tocar el ratón): 1 sin movimiento, 2 con movimiento, la letra
+  // de cada color, Ctrl+Enter guarda (y pasa a la siguiente si la hay). Escribiendo en un campo, solo vale Ctrl+Enter.
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (pending) return;
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      save(Boolean(hasNext));
+      return;
+    }
+    const t = e.target as HTMLElement;
+    if (e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable) return;
+    const k = e.key.toLowerCase();
+    if (k === "1") setMovement(false);
+    else if (k === "2") setMovement(true);
+    else if (k in COLOR_KEYS) setColor(COLOR_KEYS[k]);
+    else return;
+    e.preventDefault();
+  };
+
   return (
     <Modal title={`Revisar · ${client.full_name}`} subtitle={[client.procedure_type, client.rol, client.tribunal].filter(Boolean).join(" · ") || "Sin datos de la causa"} onClose={onClose} busy={pending} wide>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4" onKeyDown={onKey}>
         {/* Contexto: dónde va la causa y cuándo se vio por última vez */}
         <div className="grid gap-x-4 gap-y-1 rounded-md bg-[color:var(--band)] px-3 py-2 text-[12.5px] sm:grid-cols-2">
           <span>
@@ -126,16 +157,29 @@ export function ReviewDialog({ client, pendingTask, lastReview, doneSteps, lawye
           <div className="grid gap-2 sm:grid-cols-2">
             <button type="button" className={`option-card ${movement === false ? "selected" : ""}`} aria-pressed={movement === false} onClick={() => setMovement(false)}>
               <span className="flex items-center gap-2 text-[13.5px] font-semibold">
-                <Icon name="check" size={15} /> Sin movimiento
+                <Icon name="check" size={15} /> Sin movimiento <kbd className="kbd">1</kbd>
               </span>
               <span className="text-[12px] text-muted">Nada nuevo en el portal. Se registra y vuelve a la cola en {cadence.days} días.</span>
             </button>
             <button type="button" className={`option-card ${movement === true ? "selected" : ""}`} aria-pressed={movement === true} onClick={() => setMovement(true)}>
               <span className="flex items-center gap-2 text-[13.5px] font-semibold">
-                <Icon name="history" size={15} /> Con movimiento
+                <Icon name="history" size={15} /> Con movimiento <kbd className="kbd">2</kbd>
               </span>
               <span className="text-[12px] text-muted">Salió una resolución, el tribunal pidió algo o se hizo una gestión.</span>
             </button>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-medium text-muted">Color con que queda la causa</span>
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Color de la causa">
+              {SEMAFORO_KEYS.map((k) => (
+                <button key={k} type="button" role="radio" aria-checked={color === k} className={`sem-chip ${color === k ? "selected" : ""}`} style={semaforoStyle(k)} title={SEMAFORO[k].hint} onClick={() => setColor(k)}>
+                  <span className="sem-dot" aria-hidden /> {SEMAFORO[k].label} <kbd className="kbd">{KEY_OF[k]}</kbd>
+                </button>
+              ))}
+              <button type="button" role="radio" aria-checked={color === null} className={`sem-chip ${color === null ? "selected" : ""}`} onClick={() => setColor(null)}>
+                <span className="sem-dot" aria-hidden /> Sin color <kbd className="kbd">0</kbd>
+              </button>
+            </div>
           </div>
           {movement === false &&
             (showNote ? (
@@ -252,16 +296,32 @@ export function ReviewDialog({ client, pendingTask, lastReview, doneSteps, lawye
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-4">
-          <span className="text-[12px] text-muted">
-            Próxima revisión: en {cadence.days} días · {cadence.reason}
+          <span className="flex flex-col gap-0.5 text-[12px] text-muted">
+            <span>
+              Próxima revisión: en {cadence.days} días · {cadence.reason}
+            </span>
+            <span className="text-faint">
+              Atajos: <kbd className="kbd">1</kbd>/<kbd className="kbd">2</kbd> movimiento · letra del color · <kbd className="kbd">Ctrl</kbd>+<kbd className="kbd">Enter</kbd> guardar
+            </span>
           </span>
           <span className="flex gap-2">
             <button type="button" className="btn-ghost" onClick={onClose} disabled={pending}>
               Cancelar
             </button>
-            <button type="button" className="btn-primary" onClick={save} disabled={pending || movement === null}>
-              {pending ? "Guardando…" : "Guardar revisión"}
-            </button>
+            {hasNext ? (
+              <>
+                <button type="button" className="btn-secondary" onClick={() => save(false)} disabled={pending || movement === null}>
+                  Guardar
+                </button>
+                <button type="button" className="btn-primary" onClick={() => save(true)} disabled={pending || movement === null} title="Guarda y abre la siguiente causa de la cola (Ctrl+Enter)">
+                  {pending ? "Guardando…" : "Guardar y siguiente →"}
+                </button>
+              </>
+            ) : (
+              <button type="button" className="btn-primary" onClick={() => save(false)} disabled={pending || movement === null}>
+                {pending ? "Guardando…" : "Guardar revisión"}
+              </button>
+            )}
           </span>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 // Vocabulario del área jurídica (Ley 20.720). Los pasos de cada procedimiento los definió el estudio;
 // aquí se declaran una sola vez para que ficha, lista, revisión y tareas usen los mismos nombres.
 
@@ -7,14 +8,16 @@ export const PROCEDURES = ["Liquidación voluntaria", "Renegociación"] as const
 export type Procedure = (typeof PROCEDURES)[number];
 
 /**
- * Pasos de la liquidación voluntaria, en orden (ciclo definido por el estudio el 2026-09-30): preparación mientras
- * se juntan documentos y firmas → ingreso de la demanda, acreditado con el Certificado de envío de causa → apercibimientos
- * → nominación del liquidador, acreditada con el Certificado de nominación (la solicitud del art. 37 va directo al
- * tribunal, sin comprobante) → Resolución de liquidación (hito) → gestiones del liquidador → Resolución de término,
- * que al subirse cierra la causa como «Causa terminada».
+ * Pasos de la liquidación voluntaria, en orden (ciclo definido por el estudio el 2026-09-30): ingreso de la demanda,
+ * acreditado con el Certificado de envío de causa → apercibimientos → nominación del liquidador, acreditada con el
+ * Certificado de nominación (la solicitud del art. 37 va directo al tribunal, sin comprobante) → Resolución de
+ * liquidación (hito) → gestiones del liquidador → Resolución de término, que al subirse cierra la causa como
+ * «Causa terminada».
+ *
+ * La preparación de documentos (juntar antecedentes y firmas antes de ingresar) no es un paso que se marque: el
+ * programa la infiere (2026-10-05): mientras la causa no tenga rol ni fecha de ingreso está «En preparación».
  */
 const LIQUIDACION_STEPS = [
-  "Preparación de documentos",
   "Ingreso de demanda",
   "Apercibimientos",
   "Nominación del liquidador",
@@ -27,7 +30,6 @@ const LIQUIDACION_STEPS = [
 
 /** Pasos de la renegociación ante la Superintendencia, en orden. */
 const RENEGOCIACION_STEPS = [
-  "Preparación de documentos",
   "Ingreso de la solicitud",
   "Admisibilidad",
   "Audiencia de determinación del pasivo",
@@ -117,6 +119,39 @@ export function currentStep(p: string | null | undefined, done: readonly string[
   if (steps.length === 0) return null;
   return steps.find((s) => !done.includes(s)) ?? COMPLETED;
 }
+
+/** Situación que el programa infiere, no un paso: la causa aún no tiene fecha de ingreso (misma regla que Revisión). */
+export const IN_PREPARATION = "En preparación";
+
+/**
+ * Qué mostrar como paso en listas y cabecera. Si todavía no se ingresó la demanda (sin fecha de ingreso, como agrupa
+ * Revisión) la causa está «En preparación», que el programa deduce solo; después, el paso actual (el primero no
+ * completado).
+ */
+export function stepLabel(c: { procedure_type: string | null; current_step: string | null; intake_date: string | null }): string | null {
+  const steps = stepsFor(c.procedure_type);
+  if (steps.length === 0) return null;
+  const current = c.current_step ?? steps[0];
+  return current === steps[0] && !c.intake_date ? IN_PREPARATION : current;
+}
+
+/**
+ * Semáforo de la causa: el color con que el estudio marca cada causa en su planilla, ahora en la app. Lo cambia el
+ * abogado tramitador con un clic; no se deduce de los pasos. Clave = valor en legal_clients.semaforo (0032).
+ */
+export const SEMAFORO: Record<string, { label: string; hint: string; color: string }> = {
+  ok: { label: "Al día", hint: "Patrocinio y poder al día, o escrito de PyP enviado", color: "verde" },
+  apercibimiento: { label: "Apercibimiento", hint: "El tribunal pidió algo con plazo", color: "amarillo" },
+  rechazada: { label: "Demanda rechazada", hint: "Hay que corregir y reingresar", color: "rojo" },
+  reingresada: { label: "Demanda reingresada", hint: "Reingresada tras el rechazo; a la espera del tribunal", color: "celeste" },
+  nominar: { label: "Nominar", hint: "Falta nominar al liquidador", color: "naranjo" },
+  pyp_zoom: { label: "PyP por Zoom", hint: "Patrocinio y poder pendiente de ratificar por videoconferencia", color: "azul" },
+};
+export const SEMAFORO_KEYS = Object.keys(SEMAFORO);
+/** Variables CSS del color elegido (definidas en globals.css como --sem-<clave> y --sem-<clave>-bg). */
+export const semaforoStyle = (key: string | null | undefined): CSSProperties | undefined =>
+  key && key in SEMAFORO ? ({ "--sem-color": `var(--sem-${key})`, "--sem-bg": `var(--sem-${key}-bg)` } as CSSProperties) : undefined;
+export const isSemaforo = (v: string | null | undefined): v is keyof typeof SEMAFORO => Boolean(v && v in SEMAFORO);
 
 /** Tono de la etiqueta según procedimiento (mismos tonos que las etiquetas del CRM). */
 export const procedureTone = (p: string | null): "" | "brand" | "warn" => (p === "Renegociación" ? "brand" : isLiquidacion(p) ? "" : "warn");
