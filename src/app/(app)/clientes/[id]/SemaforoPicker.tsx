@@ -1,16 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition, type CSSProperties } from "react";
+import { useTransition } from "react";
 import { setSemaforo } from "../actions";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/Menu";
 import { toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
-import { SEMAFORO, SEMAFORO_KEYS } from "@/lib/legal";
+import { SEMAFORO, SEMAFORO_KEYS, semaforoStyle } from "@/lib/legal";
 
-/** Variables CSS del color elegido (definidas en globals.css como --sem-<clave> y --sem-<clave>-bg). */
-export const semaforoStyle = (key: string | null): CSSProperties | undefined =>
-  key && key in SEMAFORO ? ({ "--sem-color": `var(--sem-${key})`, "--sem-bg": `var(--sem-${key}-bg)` } as CSSProperties) : undefined;
+export { semaforoStyle };
 
 /** Punto de color de la causa (para filas y cabeceras donde no cabe la etiqueta). */
 export function SemaforoDot({ value, size }: { value: string | null; size?: "lg" }) {
@@ -56,7 +54,7 @@ export function SemaforoPicker({ clientId, value, canEdit, compact }: Props) {
 
   if (!canEdit)
     return (
-      <span className={`sem-trigger ${current ? "" : "muted"}`} style={semaforoStyle(value)} title={current?.hint} aria-disabled>
+      <span className={`sem-trigger ${compact ? "compact" : ""} ${current ? "" : "muted"}`} style={semaforoStyle(value)} title={current?.hint} aria-disabled>
         {label}
       </span>
     );
@@ -66,7 +64,7 @@ export function SemaforoPicker({ clientId, value, canEdit, compact }: Props) {
       align="start"
       className="!w-[280px]"
       trigger={
-        <button type="button" className={`sem-trigger ${current ? "" : "muted"}`} style={semaforoStyle(value)} disabled={pending} title={current ? `${current.label} · ${current.hint}` : "Marcar el color de la causa"} aria-label="Color de la causa" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className={`sem-trigger ${compact ? "compact" : ""} ${current ? "" : "muted"}`} style={semaforoStyle(value)} disabled={pending} title={current ? `${current.label} · ${current.hint}` : "Marcar el color de la causa"} aria-label="Color de la causa" onClick={(e) => e.stopPropagation()}>
           {label}
           {!compact && <Icon name="chevron" size={12} />}
         </button>

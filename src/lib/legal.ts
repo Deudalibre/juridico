@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 // Vocabulario del área jurídica (Ley 20.720). Los pasos de cada procedimiento los definió el estudio;
 // aquí se declaran una sola vez para que ficha, lista, revisión y tareas usen los mismos nombres.
 
@@ -147,6 +148,9 @@ export const SEMAFORO: Record<string, { label: string; hint: string; color: stri
   pyp_zoom: { label: "PyP por Zoom", hint: "Patrocinio y poder pendiente de ratificar por videoconferencia", color: "azul" },
 };
 export const SEMAFORO_KEYS = Object.keys(SEMAFORO);
+/** Variables CSS del color elegido (definidas en globals.css como --sem-<clave> y --sem-<clave>-bg). */
+export const semaforoStyle = (key: string | null | undefined): CSSProperties | undefined =>
+  key && key in SEMAFORO ? ({ "--sem-color": `var(--sem-${key})`, "--sem-bg": `var(--sem-${key}-bg)` } as CSSProperties) : undefined;
 export const isSemaforo = (v: string | null | undefined): v is keyof typeof SEMAFORO => Boolean(v && v in SEMAFORO);
 
 /** Tono de la etiqueta según procedimiento (mismos tonos que las etiquetas del CRM). */

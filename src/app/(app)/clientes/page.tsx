@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import Loading from "../loading";
-import { getMembers, requirePermission, type LegalClient, type LegalTask } from "@/lib/data";
+import { getMembers, requirePermission, type LegalClient } from "@/lib/data";
 import { dateTime } from "@/lib/format";
 import { COMPLETED, IN_PREPARATION, PROCEDURES, SEMAFORO, isSemaforo, stepLabel, stepsFor } from "@/lib/legal";
 import { formatRut } from "@/lib/rut";
@@ -44,14 +44,8 @@ async function ClientesContent(props: { searchParams: Promise<SP> }) {
   if (proc) q = q.eq("procedure_type", proc);
   if (isDate(sp.desde)) q = q.gte("intake_date", sp.desde!);
   if (isDate(sp.hasta)) q = q.lte("intake_date", sp.hasta!);
-  // Todo lo que no depende entre sí va en un solo viaje: abogados, causas, totales y tareas pendientes
-  // (las tareas se piden completas y se cruzan aquí: son pocas y así no esperan a la lista de causas)
-  const [members, res, counts, pendingTasks] = await Promise.all([
-    getMembers(supabase),
-    q,
-    supabase.from("legal_clients").select("id, archived_at"),
-    closed ? Promise.resolve({ data: [] as LegalTask[] }) : supabase.from("legal_tasks").select("*").eq("status", "pendiente").order("due_at", { ascending: true, nullsFirst: false }),
-  ]);
+  // Todo lo que no depende entre sí va en un solo viaje: abogados, causas y totales
+  const [members, res, counts] = await Promise.all([getMembers(supabase), q, supabase.from("legal_clients").select("id, archived_at")]);
   if (res.error) throw new Error(res.error.message);
   const lawyers = members.filter((m) => m.active && (m.role === "juridico" || m.role === "administrador"));
   const abogado = sp.abogado === "sin" || lawyers.some((m) => m.id === sp.abogado) ? sp.abogado! : "";
@@ -90,12 +84,6 @@ async function ClientesContent(props: { searchParams: Promise<SP> }) {
     c.email ?? "",
   ]);
 
-  // Próxima acción de cada causa: la tarea pendiente que vence antes
-  const nextTasks: Record<string, LegalTask> = {};
-  if (!closed) {
-    const shown = new Set(rows.map((c) => c.id));
-    for (const t of (pendingTasks.data ?? []) as LegalTask[]) if (shown.has(t.client_id) && !nextTasks[t.client_id]) nextTasks[t.client_id] = t;
-  }
   const keep = sp.q ? `&q=${encodeURIComponent(sp.q)}` : "";
   const pages = Math.max(1, Math.ceil(rows.length / PAGE));
   const page = Math.min(pages, Math.max(1, Number(sp.pagina) || 1));
@@ -168,7 +156,7 @@ async function ClientesContent(props: { searchParams: Promise<SP> }) {
           </div>
         ) : (
           <div className="scroll-x">
-            <ClientsTable rows={shown} members={members} nextTasks={nextTasks} canAssign={can("legal.assign")} canEdit={can("legal.edit")} closed={closed} tz={tz} />
+            <ClientsTable rows={shown} members={members} canAssign={can("legal.assign")} closed={closed} tz={tz} />
           </div>
         )}
         {pages > 1 && (

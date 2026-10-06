@@ -3186,6 +3186,19 @@ textarea::placeholder {
   width: 12px;
   height: 12px;
 }
+/* Todo el cuadro de la causa toma el color del semáforo (pedido del estudio, 2026-10-06): fondo suave del color y una
+   franja a la izquierda con el color pleno, así la lista se lee como su Excel. Sin color, el cuadro queda como siempre. */
+.sem-row {
+  background: var(--sem-bg);
+  box-shadow: inset 4px 0 0 var(--sem-color);
+}
+.row.sem-row:hover {
+  background: color-mix(in srgb, var(--sem-bg) 60%, var(--band));
+}
+.sem-row .sem-trigger {
+  background: var(--surface, #fff);
+  border-color: var(--sem-color);
+}
 .tag.sem {
   background: var(--sem-bg, var(--tag-bg));
   color: var(--sem-color, var(--tag-fg));
@@ -3226,6 +3239,212 @@ textarea::placeholder {
   border-color: var(--border);
   color: var(--text-secondary);
   font-weight: 500;
+}
+/* En las tablas, una causa sin color no debe parecer un pendiente: el recuadro «Color…» solo aparece al pasar el ratón */
+.sem-trigger.compact.muted {
+  border-color: transparent;
+  opacity: 0.6;
+}
+.row:hover .sem-trigger.compact.muted,
+.sem-trigger.compact.muted:focus-visible,
+.sem-trigger.compact.muted[data-state="open"] {
+  border-color: var(--border);
+  opacity: 1;
+}
+/* Fichas de color dentro de «Revisar»: una fila de opciones, la elegida con el fondo y el borde de su color */
+.sem-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface, #fff);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.sem-chip:hover {
+  border-color: var(--sem-color, var(--text-secondary));
+  color: var(--sem-color, var(--text));
+}
+.sem-chip.selected {
+  background: var(--sem-bg, var(--band));
+  border-color: var(--sem-color, var(--text-secondary));
+  color: var(--sem-color, var(--text));
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--sem-color, transparent);
+}
+/* Botones de contacto (WhatsApp, llamada, portal) en las filas: mismo tamaño y forma, cada uno con su color;
+   al pasar el ratón se rellenan del color pleno */
+.icon-btn.contact {
+  --c: var(--brand-dark);
+  --c-bg: rgba(var(--brand-rgb), 0.12);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border-color: transparent;
+  background: var(--c-bg);
+  color: var(--c);
+}
+.icon-btn.contact:hover {
+  border-color: transparent;
+  background: var(--c);
+  color: #fff;
+}
+.icon-btn.contact.wa {
+  --c: #1aa05a;
+  --c-bg: #e3f6ea;
+}
+.icon-btn.contact.tel {
+  --c: #1d4ed8;
+  --c-bg: #e8eefc;
+}
+.icon-btn.contact.pjud {
+  --c: #5b6470;
+  --c-bg: #eef1f4;
+}
+/* En la ficha, con texto: mismos colores, borde fino */
+.btn-secondary.contact-wa {
+  color: #1aa05a;
+  border-color: #9fd9b8;
+  background: #f1fbf5;
+}
+.btn-secondary.contact-wa:hover {
+  background: #1aa05a;
+  border-color: #1aa05a;
+  color: #fff;
+}
+.btn-secondary.contact-tel {
+  color: #1d4ed8;
+  border-color: #b7c7f5;
+  background: #f2f5fe;
+}
+.btn-secondary.contact-tel:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+/* Teclas de los atajos */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface, #fff);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+.option-card.selected .kbd,
+.sem-chip.selected .kbd {
+  border-color: currentColor;
+  color: inherit;
+}
+/* Tarea pendiente en la cola de Revisión: recuadro blanco sobre la fila (que puede ir teñida), icono del tipo y plazo */
+.task-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-height: 36px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface, #fff);
+  color: var(--text-secondary);
+}
+/* «Completar» dentro del recuadro: botón pequeño y sin borde, se marca al pasar; el panel del resultado ocupa todo el ancho */
+.task-box .btn-outline.btn-sm {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  border-color: transparent;
+  background: var(--surface-2, #f3f5f7);
+}
+.task-box .btn-outline.btn-sm:hover {
+  border-color: var(--brand-line-strong);
+  background: var(--surface-active);
+  color: var(--brand-dark);
+}
+.task-box > .card {
+  margin-top: 4px;
+}
+.task-box > svg {
+  flex-shrink: 0;
+  color: var(--brand-dark);
+}
+.task-box.overdue {
+  border-color: #f0b4b0;
+}
+.task-box.overdue > svg {
+  color: var(--sem-rechazada);
+}
+.task-box.today {
+  border-color: var(--brand-line-strong);
+}
+.task-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface, #fff);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.task-due > svg {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+.task-due.danger {
+  border-color: #f0b4b0;
+  background: var(--sem-rechazada-bg);
+  color: var(--sem-rechazada);
+  font-weight: 600;
+}
+.task-due.brand {
+  border-color: var(--brand-line-strong);
+  background: rgba(var(--brand-rgb), 0.1);
+  color: var(--brand-dark);
+  font-weight: 600;
+}
+.task-due.none {
+  border-style: dashed;
+  color: var(--text-faint, #9aa3ad);
+}
+/* Leyenda del semáforo (en la ayuda «Cómo funciona») */
+.sem-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.sem-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sem-legend .sem-dot {
+  width: 8px;
+  height: 8px;
 }
 .sem-item-hint {
   display: block;
@@ -3764,4 +3983,214 @@ textarea {
 .sel-content,
 .popover {
   animation-fill-mode: backwards;
+}
+
+/* ===== Expediente LVS · formularios compactos y con vida (pedido del estudio, 2026-10-06) =====
+   Campos «rellenos» (fondo gris suave, sin borde) que se vuelven blancos con borde al pasar y al enfocar; etiquetas
+   pequeñas y firmes; número de sección relleno de marca; Sí/No con la opción elegida en color. Solo dentro de .lvs-form. */
+.lvs-form .label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
+  margin-bottom: -3px;
+}
+.lvs-form .input,
+.lvs-form .search {
+  min-height: 34px;
+  font-size: 13px;
+  background: var(--surface-secondary);
+  border-color: transparent;
+  box-shadow: none;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+}
+.lvs-form .input:hover:not(:disabled):not(:focus) {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+.lvs-form .input:focus {
+  background: var(--surface);
+}
+.lvs-form .input:disabled {
+  background: var(--surface-secondary);
+  opacity: 0.8;
+}
+.lvs-form textarea.input {
+  min-height: 160px; /* la regla .lvs-form .input (min-height 34px) pisaba el min-h de Tailwind */
+  padding: 8px 10px;
+}
+.lvs-form select.input {
+  background-color: var(--surface-secondary);
+}
+.lvs-form select.input:hover:not(:disabled):not(:focus),
+.lvs-form select.input:focus {
+  background-color: var(--surface);
+}
+/* Número de sección */
+.lvs-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--brand-dark);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+/* Sí / No y otros selectores de dos opciones: la elegida en color de marca */
+.lvs-form .seg > * {
+  min-height: 26px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.lvs-form .seg.yn > [aria-current="true"] {
+  background: var(--brand-dark);
+  color: #fff;
+  box-shadow: none;
+}
+/* Sub-tarjetas (vehículos, bienes, acreedores): un poco más apretadas */
+.lvs-form .rounded-lg.border.border-line-soft > .flex.flex-wrap.items-center.gap-2.border-t {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+/* «No» elegido: gris grafito, no color de marca (el color de marca sugiere algo positivo) */
+.lvs-form .seg.yn > .no[aria-current="true"] {
+  background: var(--brand-graphite);
+}
+/* Dato pendiente en la ficha LVS: triángulo ámbar pequeño y tenue junto a la etiqueta (sin franjas ni textos) */
+.miss {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  vertical-align: -1px;
+  color: var(--sem-apercibimiento);
+  opacity: 0.75;
+}
+/* Grupos dentro de un bloque de la ficha LVS: título y ayuda a la izquierda, campos a la derecha */
+.lvs-group {
+  display: grid;
+  grid-template-columns: 172px minmax(0, 1fr);
+  gap: 6px 20px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line-soft, #eef1f4);
+}
+.lvs-group:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+.lvs-group:last-child {
+  padding-bottom: 2px;
+}
+.lvs-group-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 3px;
+}
+.lvs-cap {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.lvs-group-hint {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-faint, #9aa3ad);
+}
+@media (max-width: 640px) {
+  .lvs-group {
+    grid-template-columns: 1fr;
+  }
+}
+/* Acordeón de categorías de patrimonio (ficha LVS): cabecera completa clicable, chevrón siempre visible que gira al
+   abrir, fondo suave cuando está abierto y el detalle indentado debajo */
+.acc {
+  border-bottom: 1px solid var(--line-soft, #eef1f4);
+}
+.acc:last-child {
+  border-bottom: 0;
+}
+.acc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 8px;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+.acc.activa .acc-head {
+  cursor: pointer;
+}
+.acc.activa .acc-head:hover {
+  background: var(--band);
+}
+.acc.open .acc-head {
+  background: var(--surface-secondary);
+}
+.acc-chev {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  color: var(--text-faint, #9aa3ad);
+  transition: transform var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+.acc.activa .acc-chev {
+  color: var(--text-secondary);
+}
+.acc.activa .acc-head:hover .acc-chev {
+  background: var(--surface, #fff);
+}
+.acc.open .acc-chev {
+  transform: rotate(90deg);
+  color: var(--brand-dark);
+}
+.acc:not(.activa) .acc-chev {
+  opacity: 0.3;
+}
+.acc-body {
+  padding: 6px 8px 12px 36px;
+}
+/* Lista de bienes de una categoría (ficha LVS), dentro del acordeón: tarjeta blanca con borde fino, filas con
+   línea de separación, carga rápida en la primera línea */
+.bienes-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.bienes-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--surface-secondary);
+  border-bottom: 1px solid var(--line-soft, #eef1f4);
+}
+.bienes-quick .input {
+  background: var(--surface, #fff);
+}
+.bienes-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--line-soft, #eef1f4);
+}
+.bienes-row:first-child {
+  border-top: 0;
+}
+.bienes-quick + .bienes-row {
+  border-top: 0;
 }

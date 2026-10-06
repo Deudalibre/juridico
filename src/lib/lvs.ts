@@ -103,7 +103,7 @@ export const TEXTO_SEGUN_GENERO = ["don_dona", "domiciliado_a", "el_la_solicitan
 export function lvsValues(f: LvsFicha | null): Record<string, string> {
   const fem = f?.genero === "F";
   return {
-    nacionalidad: f?.nacionalidad ?? "",
+    nacionalidad: f?.nacionalidad ?? "Chilena", // siempre prellenada: casi todos los clientes son chilenos
     // «Soltero/a» → «Soltera» o «Soltero» según el género (Conviviente civil no cambia)
     estado_civil: f?.estado_civil ? (f.estado_civil.endsWith("o/a") ? f.estado_civil.slice(0, -3) + (fem ? "a" : "o") : f.estado_civil) : "",
     profesion_oficio: f?.profesion_oficio ?? "",

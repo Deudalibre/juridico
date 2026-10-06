@@ -20,14 +20,42 @@ const siNo = (v: unknown) => (v ? "SI" : "NO");
 const slug = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, " ").trim().replace(/\s+/g, "-");
 
 /** Datos del Anexo 8 a partir de la ficha y los bienes muebles. Errores = no se puede generar; advertencias = se genera igual. */
-export function datosAnexo8(c: LegalClient, f: LvsFicha, bienes: BienRow[], lawyer: string | null) {
+/**
+ * Bienes que van SIEMPRE en el Anexo 8 como excluidos (inembargables), sin cargarlos en la ficha: el estudio los pone en
+ * toda nómina (2026-10-06). Van primero; después, los bienes que el operador haya cargado.
+ */
+export const BIENES_EXCLUIDOS_FIJOS: BienRow[] = (
+  [
+    ["CAMA DE 2 PLAZAS", 1],
+    ["REFRIGERADOR", 7],
+    ["LAVADORA", 7],
+    ["COMEDOR", 1],
+  ] as const
+).map(([datos, tipo], i) => ({
+  id: `fijo-${i + 1}`,
+  tipo_codigo: tipo,
+  datos,
+  marca_modelo: "SIN INFORMAR",
+  cantidad: "1",
+  monto: null,
+  estado_conservacion: "REGULAR",
+  direccion: null,
+  // En la columna «Excluido» va solo «SI»; el fundamento va en «Observaciones» (así lo pide el estudio)
+  excluido: true,
+  motivo_exclusion: null,
+  gravamen: false,
+  gravamen_detalle: null,
+  observaciones: "Bien inembargable (art. 445 del Código de Procedimiento Civil)",
+})) as unknown as BienRow[];
+
+export function datosAnexo8(c: LegalClient, f: LvsFicha, cargados: BienRow[], lawyer: string | null) {
   const errores: string[] = [];
   const advertencias: string[] = [];
   if (!c.full_name?.trim()) errores.push("Falta el nombre del cliente.");
   if (!c.rut) errores.push("Falta el RUT del cliente.");
-  if (f.tiene_bienes_muebles !== true) errores.push("La ficha no declara otros bienes muebles o financieros (art. 273 A n.º 1).");
-  if (bienes.length === 0) errores.push("No hay bienes cargados en la pestaña Bienes.");
-  bienes.forEach((b, i) => {
+  // Con los cuatro bienes excluidos fijos, el Anexo 8 siempre tiene contenido: se genera aunque la ficha no declare más
+  const bienes = [...BIENES_EXCLUIDOS_FIJOS, ...cargados];
+  cargados.forEach((b, i) => {
     if (!b.tipo_codigo) errores.push(`Bien ${i + 1}: falta el tipo (código del Anexo 8).`);
     if (!b.datos) advertencias.push(`Bien ${i + 1}: sin descripción («Datos del bien»).`);
     if (b.monto == null) advertencias.push(`Bien ${i + 1}: sin monto o valor.`);

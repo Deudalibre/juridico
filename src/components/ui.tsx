@@ -13,7 +13,7 @@ export function SubmitButton({ children, pendingText, className = "btn-primary" 
   );
 }
 
-export function Field({ label, error, children, className = "" }: { label: string; error?: string; children: ReactNode; className?: string }) {
+export function Field({ label, error, children, className = "" }: { label: ReactNode; error?: string; children: ReactNode; className?: string }) {
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
       <label className="label">{label}</label>

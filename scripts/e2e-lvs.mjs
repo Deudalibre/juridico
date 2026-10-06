@@ -53,7 +53,8 @@ try {
   const nueva = await page(jur, "/documentos/lvs/nueva?q=LVS%20Cliente");
   ok("/documentos/lvs/nueva encuentra al cliente y avisa que ya tiene expediente", nueva.status === 200 && /Ya tiene expediente/.test(nueva.text), String(nueva.status));
   const exp = await page(jur, `/documentos/lvs/${id}?tab=Ficha%20maestra`);
-  ok("Expediente · una sola página con índice y todos los bloques", exp.status === 200 && /Cliente.*Tribunal.*Trabajo.*Patrimonio.*Juicios.*Acreedores.*Carta.*Documentación.*Generados.*Historial/.test(exp.text) && /Patrimonio · art. 273 A/.test(exp.text) && /Lo que lleva la carpeta/.test(exp.text) && /Documentos generados/.test(exp.text), String(exp.status));
+  // Desde el 2026-10-06 la ficha va en cuatro bloques (cliente+tribunal+trabajo, patrimonio+juicios, acreedores, carta) y sin la lista de la carpeta
+  ok("Expediente · una sola página con índice, los cuatro bloques y los documentos (sin historial: va en la ficha de la causa)", exp.status === 200 && /Cliente.*Patrimonio y juicios.*Acreedores.*Carta.*Generados/.test(exp.text) && !/Historial del expediente/.test(exp.text) && /Patrimonio y juicios · art\. 273 A/.test(exp.text) && /Documentos/.test(exp.text), String(exp.status));
   ok("Expediente · avance inicial parcial (nombre y RUT ya cuentan)", /Ficha\s*11%/.test(exp.text));
   const ejeExp = await page(eje, `/documentos/lvs/${id}`);
   ok("Ejecutivo · el expediente no se le muestra", ejeExp.status !== 200 || /Sin acceso/.test(ejeExp.text), String(ejeExp.status));
@@ -68,7 +69,7 @@ try {
   const upd = await jur.c.from("legal_lvs").update(full).eq("client_id", id).select().single();
   ok("Jurídico guarda la ficha completa (RLS legal.edit)", !upd.error && upd.data?.tiene_vehiculos === true, upd.error?.message);
   const after = await page(jur, `/documentos/lvs/${id}?tab=Resumen`);
-  ok("Cabecera · la ficha marca 100% y el patrimonio está en la página", after.status === 200 && /Ficha\s*100%/.test(after.text) && /Patrimonio · art\. 273 A/.test(after.text), String(after.status));
+  ok("Cabecera · la ficha marca 100% y el patrimonio está en la página", after.status === 200 && /Ficha\s*100%/.test(after.text) && /Patrimonio y juicios · art\. 273 A/.test(after.text), String(after.status));
 
   // Bienes y juicios (etapa 3): se cargan desde la ficha; la base valida los códigos oficiales
   const veh = await jur.c.from("legal_lvs_vehiculos").insert({ client_id: id, tipo_codigo: 1, patente: "ABCD12", marca: "Toyota", modelo: "Yaris", anio: 2018, avaluo_fiscal: 5000000 }).select().single();
@@ -80,7 +81,8 @@ try {
   const eVeh = await eje.c.from("legal_lvs_vehiculos").select("id");
   ok("Ejecutivo · no ve los bienes LVS", (eVeh.data ?? []).length === 0);
   const bienesPage = await page(jur, `/documentos/lvs/${id}?tab=Ficha%20maestra`);
-  ok("Ficha · las listas de vehículos y bienes muebles se despliegan bajo su «Sí»", bienesPage.status === 200 && /Toyota Yaris 2018/.test(bienesPage.text) && /Cuenta de ahorro Banco Estado/.test(bienesPage.text) && /Anexo N.º 4/.test(bienesPage.text), String(bienesPage.status));
+  // Las listas con elementos van plegadas por defecto (compacto): en la página sale el contador junto a la categoría
+  ok("Ficha · vehículos y bienes muebles cuentan bajo su «Sí» (listas plegadas por defecto)", bienesPage.status === 200 && /Vehículos u otros bienes registrables\s*1/.test(bienesPage.text) && /Otros bienes muebles o financieros\s*1/.test(bienesPage.text) && /Anexo 4/.test(bienesPage.text), String(bienesPage.status));
   const jui = await jur.c.from("legal_lvs_juicios").insert({ client_id: id, rol: "C-55-2025", tribunal: "2º Juzgado Civil de Santiago", calidad: "Demandado", monto: 1500000 }).select().single();
   ok("Juicios · se cargan desde la ficha (RLS) con calidad validada", !jui.error && jui.data?.calidad === "Demandado", jui.error?.message);
   const juiBad = await jur.c.from("legal_lvs_juicios").insert({ client_id: id, calidad: "Otro" });
@@ -101,14 +103,11 @@ try {
   const fichaDeudas = await page(jur, `/documentos/lvs/${id}?tab=Ficha%20maestra`);
   ok("Ficha · sección Acreedores con la deuda y el total", fichaDeudas.status === 200 && /Acreedores · Anexo N\.º 9/.test(fichaDeudas.text) && /Promotora CMR/.test(fichaDeudas.text) && /2\.500\.000/.test(fichaDeudas.text), String(fichaDeudas.status));
 
-  // Documentación: lista recordatorio desde la ficha (sin marcar nada)
-  const docsPage = await page(jur, `/documentos/lvs/${id}?tab=Documentación`);
-  ok("Documentación · lista con los fijos, contrato y liquidaciones (trabaja), no matrimonio (soltera), Anexo 4 y CAV del vehículo", docsPage.status === 200 && /Lo que lleva la carpeta/.test(docsPage.text) && /Carnet de identidad/.test(docsPage.text) && /Contrato de trabajo/.test(docsPage.text) && /no matrimonio/.test(docsPage.text) && /Anexo N\.º 4/.test(docsPage.text) && /anotaciones vigentes · ABCD12/.test(docsPage.text), String(docsPage.status));
-  const soloDocs = docsPage.text.slice(docsPage.text.indexOf("Lo que lleva la carpeta"), docsPage.text.indexOf("Documentos generados"));
-  ok("Documentación · sin Anexo 3 ni dominio vigente (no tiene bienes raíces)", !/Anexo N\.º 3/.test(soloDocs) && !/dominio vigente/i.test(soloDocs));
+  // Documentación: la lista «Lo que lleva la carpeta» se quitó del expediente el 2026-10-06 (solo ficha + generar).
+  // La lógica sigue en src/lib/lvs-documentos.ts; aquí solo se comprueba que ya no aparece en la página.
+  const docsPage = await page(jur, `/documentos/lvs/${id}`);
+  ok("Expediente · sin la lista «Lo que lleva la carpeta» (quitada a petición del estudio)", docsPage.status === 200 && !/Lo que lleva la carpeta/.test(docsPage.text), String(docsPage.status));
   await jur.c.from("legal_lvs").update({ estado_civil: "Casado/a", relacion_laboral: false, empleador: null, rut_empleador: null }).eq("client_id", id);
-  const docsPage2 = await page(jur, `/documentos/lvs/${id}?tab=Documentación`);
-  ok("Documentación · casada y cesante: certificado de matrimonio y 12 cotizaciones en vez de contrato", /Certificado de matrimonio/.test(docsPage2.text) && /cotizaciones/.test(docsPage2.text) && !/Contrato de trabajo/.test(docsPage2.text));
 
   // Historial: creación + cambios con campos antes/después
   const hist = sql(`select summary, before, after from legal_case_history where client_id = '${id}' and kind = 'lvs' order by at`);
@@ -116,8 +115,9 @@ try {
   ok("Historial · creación y guardado con campos cambiados", hist.length >= 2 && /creado/.test(hist[0].summary) && fichaHist.length >= 1, String(hist.length));
   const last = fichaHist[0];
   ok("Historial · guarda valor anterior y nuevo", last.before?.comuna === null && last.after?.comuna === "Maipú");
-  const hpage = await page(jur, `/documentos/lvs/${id}?tab=Historial`);
-  ok("Historial en la página muestra los movimientos", hpage.status === 200 && /Expediente LVS creado/.test(hpage.text) && /Ficha LVS:/.test(hpage.text));
+  // El historial del expediente ya no va en la página LVS: se ve en la pestaña Historial de la ficha de la causa (2026-10-06)
+  const hpage = await page(jur, `/clientes/${id}?tab=Historial`);
+  ok("Historial · los movimientos del expediente salen en la ficha de la causa (pestaña Historial)", hpage.status === 200 && /Expediente LVS creado/.test(hpage.text) && /Ficha LVS:/.test(hpage.text), String(hpage.status));
   const audit = sql(`select count(*)::int as n from audit_log where entity = 'legal_lvs' and entity_id = '${id}'`);
   ok("Auditoría global registra creación y edición", audit[0].n >= 2, String(audit[0].n));
 
