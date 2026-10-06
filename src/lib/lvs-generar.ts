@@ -4,8 +4,9 @@ import { randomUUID } from "node:crypto";
 import type { LegalClient } from "./data";
 import { renderDocx } from "./docx";
 import { TEXTO_SEGUN_GENERO } from "./lvs";
+import { TEXTO_FIJO_DEMANDA } from "./lvs-demanda";
 import type { LvsFicha } from "./lvs";
-import { CATEGORIAS, TIPOS_BIEN_MUEBLE, type BienRow } from "./lvs-bienes";
+import { CATEGORIAS, TIPOS_BIEN_MUEBLE, type BienCategoriaKey, type BienRow } from "./lvs-bienes";
 import { totalDeudas, type Deuda } from "./lvs-acreedores";
 import { lvsValues } from "./lvs";
 import { clientValues } from "./templates";
@@ -277,6 +278,66 @@ export function datosAnexo9(c: LegalClient, f: LvsFicha, deudas: Deuda[], lawyer
   return { data, errores, advertencias };
 }
 
+/** Anexos en los que hay bienes marcados como excluidos, como texto para la demanda («el Anexo N.º 8», «los Anexos N.º 3 y 8»). */
+function anexosConExcluidos(porCategoria: Partial<Record<BienCategoriaKey, BienRow[]>>): string {
+  const nums = CATEGORIAS.filter((cat) => cat.anexo && (porCategoria[cat.key] ?? []).some((r) => r.excluido)).map((cat) => cat.anexo as number);
+  if (nums.length === 0) return "";
+  if (nums.length === 1) return `el Anexo N.º ${nums[0]}`;
+  return `los Anexos N.º ${nums.slice(0, -1).join(", ")} y ${nums[nums.length - 1]}`;
+}
+
+/**
+ * Datos de la Solicitud LVS: variables de la ficha, banderas para los bloques condicionales y listas (juicios,
+ * inmuebles y vehículos para los certificados del segundo otrosí). Sin alguno de los datos base no se genera.
+ */
+export function datosDemanda(c: LegalClient, f: LvsFicha, porCategoria: Partial<Record<BienCategoriaKey, BienRow[]>>, lawyer: string | null) {
+  const errores: string[] = [];
+  const advertencias: string[] = [];
+  const falta = (ok: unknown, que: string) => {
+    if (!ok) errores.push(`Falta ${que} en la ficha.`);
+  };
+  falta(c.full_name?.trim(), "el nombre");
+  falta(c.rut, "el RUT");
+  falta(f.genero, "el género");
+  falta(f.nacionalidad, "la nacionalidad");
+  falta(f.estado_civil, "el estado civil");
+  falta(f.profesion_oficio, "la profesión u oficio");
+  falta(f.domicilio, "el domicilio");
+  falta(f.comuna, "la comuna");
+  falta(f.region, "la región");
+  falta(f.sj_comuna, "el tribunal (S.J.L.)");
+  falta(f.carta_demanda?.trim(), "la carta de insolvencia (versión para la demanda)");
+  falta(f.relacion_laboral != null, "la situación laboral");
+  if (f.relacion_laboral === true && !f.empleador) errores.push("Falta el empleador en la ficha.");
+  for (const cat of CATEGORIAS) {
+    if (f[cat.pregunta] == null) errores.push(`Falta responder «${cat.titulo}» en la ficha.`);
+    else if (f[cat.pregunta] === true && (porCategoria[cat.key] ?? []).length === 0) advertencias.push(`${cat.titulo}: la ficha marca «Sí» pero no hay elementos cargados.`);
+  }
+  const rows = (k: BienCategoriaKey) => porCategoria[k] ?? [];
+  const excluidos = anexosConExcluidos(porCategoria);
+  const data = {
+    ...clientValues(c, lawyer),
+    ...lvsValues(f),
+    tiene_bienes_raices: f.tiene_bienes_raices === true,
+    tiene_vehiculos: f.tiene_vehiculos === true,
+    tiene_aguas: f.tiene_aguas === true,
+    tiene_participaciones: f.tiene_participaciones === true,
+    tiene_instrumentos: f.tiene_instrumentos === true,
+    tiene_bienes_muebles: f.tiene_bienes_muebles === true,
+    tiene_juicios: f.tiene_juicios === true && rows("juicios").length > 0,
+    trabaja: f.relacion_laboral === true,
+    empleador: f.empleador ?? "",
+    soltero: f.estado_civil === "Soltero/a",
+    casado: f.estado_civil === "Casado/a",
+    tiene_excluidos: excluidos !== "",
+    anexos_excluidos: excluidos,
+    raices: rows("raices").map((r) => ({ descripcion: str(r.descripcion) || "singularizado en el Anexo N.º 3", conservador: str(r.conservador) || "Conservador de Bienes Raíces competente" })),
+    vehiculos: rows("vehiculos").map((r) => ({ patente: str(r.patente) })),
+    juicios: rows("juicios").map((j) => ({ rol: str(j.rol), tribunal: str(j.tribunal), corte: str(j.corte), caratula: str(j.caratula), calidad: str(j.calidad), estado: str(j.estado), monto: pesos(j.monto) })),
+  };
+  return { data, errores, advertencias };
+}
+
 /** Datos de la Declaración 273-A: todo sale de la ficha; sin alguno de estos no se genera. */
 export function datosDeclaracion(c: LegalClient, f: LvsFicha, lawyer: string | null) {
   const errores: string[] = [];
@@ -310,7 +371,7 @@ export async function generarDocumento(supabase: SupabaseClient, userId: string,
   if (dl.error || !dl.data) return { error: `No se pudo leer la plantilla: ${dl.error?.message ?? "sin archivo"}` };
   let out: Buffer;
   try {
-    out = renderDocx(Buffer.from(await dl.data.arrayBuffer()), data, { textoFijo: TEXTO_SEGUN_GENERO });
+    out = renderDocx(Buffer.from(await dl.data.arrayBuffer()), data, { textoFijo: [...TEXTO_SEGUN_GENERO, ...TEXTO_FIJO_DEMANDA] });
   } catch (e) {
     return { error: `La plantilla no se pudo rellenar: ${(e as Error).message}` };
   }

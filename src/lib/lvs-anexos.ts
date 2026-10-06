@@ -3,6 +3,7 @@
 // docxtemplater, conservando tablas, estilos, pie y numeración. El Word preparado se sube como plantilla
 // con su «slot». Solo servidor (usa pizzip/docxtemplater a través de docx.ts).
 import { insertText, readDocx, removeTableRows, replaceText, setParagraphText, templateError, type Block, type Para, type Table } from "./docx";
+import { prepararDemanda } from "./lvs-demanda";
 
 /** Primer párrafo de cada celda de la fila `row` de la tabla número `tableIndex` (0 = primera tabla del documento). */
 function cellParagraphs(blocks: Block[], tableIndex: number, row: number): Para[] {
@@ -194,6 +195,12 @@ export const PREPARADORES: Record<string, { nombre: string; archivo: string; pre
     archivo: "Anexo9.docx",
     preparar: prepararAnexo9,
     variables: ["nombre_completo", "rut", "deudas", "total"],
+  },
+  demanda_lvs: {
+    nombre: "Solicitud de liquidación voluntaria simplificada",
+    archivo: "Solicitud - LVS - Modelo.docx",
+    preparar: prepararDemanda,
+    variables: ["nombre_completo", "rut", "nacionalidad", "estado_civil", "profesion_oficio", "domiciliado_a", "domicilio", "comuna", "region", "sj_comuna", "carta_de_insolvencia", "don_dona", "el_la_solicitante", "empleador", "anexos_excluidos", "juicios", "raices", "vehiculos"],
   },
   declaracion_273a: {
     nombre: "Declaración jurada 273 A · antecedentes completos y fehacientes (Anexo N.º 11)",
