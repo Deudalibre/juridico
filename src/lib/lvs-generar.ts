@@ -23,7 +23,7 @@ const slug = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/
 /** Datos del Anexo 8 a partir de la ficha y los bienes muebles. Errores = no se puede generar; advertencias = se genera igual. */
 /**
  * Bienes que van SIEMPRE en el Anexo 8 como excluidos (inembargables), sin cargarlos en la ficha: el estudio los pone en
- * toda nómina (2026-10-06). Van primero; después, los bienes que el operador haya cargado.
+ * toda nómina (2026-10-06). Van al final, después de los bienes que el operador haya cargado.
  */
 export const BIENES_EXCLUIDOS_FIJOS: BienRow[] = (
   [
@@ -54,8 +54,9 @@ export function datosAnexo8(c: LegalClient, f: LvsFicha, cargados: BienRow[], la
   const advertencias: string[] = [];
   if (!c.full_name?.trim()) errores.push("Falta el nombre del cliente.");
   if (!c.rut) errores.push("Falta el RUT del cliente.");
-  // Con los cuatro bienes excluidos fijos, el Anexo 8 siempre tiene contenido: se genera aunque la ficha no declare más
-  const bienes = [...BIENES_EXCLUIDOS_FIJOS, ...cargados];
+  // Con los cuatro bienes excluidos fijos, el Anexo 8 siempre tiene contenido: se genera aunque la ficha no declare más.
+  // Orden: primero lo que cargó el operador, al final los excluidos fijos (así lo quiere el estudio)
+  const bienes = [...cargados, ...BIENES_EXCLUIDOS_FIJOS];
   cargados.forEach((b, i) => {
     if (!b.tipo_codigo) errores.push(`Bien ${i + 1}: falta el tipo (código del Anexo 8).`);
     if (!b.datos) advertencias.push(`Bien ${i + 1}: sin descripción («Datos del bien»).`);
