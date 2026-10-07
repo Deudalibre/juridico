@@ -4194,3 +4194,15 @@ textarea {
 .bienes-quick + .bienes-row {
   border-top: 0;
 }
+
+/* Word dibujado en la app (docx-preview): la banda tenue del sistema en vez del gris por defecto de la biblioteca,
+   y cada página como una hoja con borde fino (carpeta universal, lupa del expediente LVS y editor de plantillas) */
+.docx-wrapper {
+  background: var(--band) !important;
+  padding: 20px 16px !important;
+}
+.docx-wrapper > section.docx {
+  margin-bottom: 16px !important;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(11, 18, 32, 0.06) !important;
+}

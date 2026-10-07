@@ -145,7 +145,7 @@ const CRUMBS: [RegExp, string[]][] = [
   [/^\/documentos\/lvs\/nueva/, ["Documentos", "Nueva solicitud LVS"]],
   [/^\/documentos\/lvs\/.+/, ["Documentos", "Expediente LVS"]],
   [/^\/documentos\/lvs/, ["Documentos", "Solicitudes LVS"]],
-  [/^\/documentos/, ["Documentos", "Generados"]],
+  [/^\/documentos/, ["Documentos", "Carpeta universal"]],
   [/^\/configuracion/, ["Configuración"]],
 ];
 
