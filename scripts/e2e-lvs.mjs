@@ -125,9 +125,34 @@ try {
   const ficha = await page(jur, `/clientes/${id}`);
   ok("Ficha de la causa · botón «Expediente LVS»", ficha.status === 200 && /Expediente LVS/.test(ficha.text));
 
-  // Borrar el cliente (solo el administrador puede: aquí por SQL) arrastra el expediente y su historial (cascada)
+  // Lista LVS: papelera por fila (solo documents.manage) y carpeta universal en Documentos (2026-10-06)
+  const lista2 = await page(jur, "/documentos/lvs");
+  ok("Lista LVS · botón «Eliminar la solicitud» en la fila", lista2.status === 200 && /Eliminar la solicitud LVS de LVS Cliente Prueba/.test(lista2.html), String(lista2.status));
+  const carpeta = await page(jur, "/documentos");
+  ok("Documentos · es la carpeta universal del Drive (o pide configurarla)", carpeta.status === 200 && /Carpeta universal/.test(carpeta.text) && !/Todavía no se generan documentos/.test(carpeta.text), String(carpeta.status));
+  const ejeCarpeta = await page(eje, "/documentos");
+  ok("Ejecutivo · no ve la carpeta universal", ejeCarpeta.status !== 200 || /Sin acceso/.test(ejeCarpeta.text), String(ejeCarpeta.status));
+
+  // Eliminar la solicitud: borra ficha, bienes y deudas; la causa sigue. El ejecutivo no puede.
+  const delEje = await eje.c.rpc("legal_lvs_delete", { p_client_id: id });
+  ok("Ejecutivo · no puede eliminar la solicitud (función exige documents.manage)", Boolean(delEje.error));
+  const delJur = await jur.c.rpc("legal_lvs_delete", { p_client_id: id });
+  ok("Administrador · elimina la solicitud LVS", !delJur.error && Array.isArray(delJur.data), delJur.error?.message);
+  const quedan = sql(`select (select count(*) from legal_lvs where client_id = '${id}')::int as lvs, (select count(*) from legal_lvs_deudas where client_id = '${id}')::int as deudas, (select count(*) from legal_clients where id = '${id}')::int as causa`);
+  ok("Eliminar · se van ficha y deudas, la causa sigue en Clientes", quedan[0].lvs === 0 && quedan[0].deudas === 0 && quedan[0].causa === 1, JSON.stringify(quedan[0]));
+  const histDel = sql(`select count(*)::int as n from legal_case_history where client_id = '${id}' and summary like 'Solicitud LVS eliminada%'`);
+  ok("Eliminar · queda en el historial de la causa", histDel[0].n === 1);
+  const sinLvs = await page(jur, `/documentos/lvs/${id}`);
+  ok("Expediente eliminado · la página ofrece abrirlo de nuevo", sinLvs.status === 200 && /Abrir expediente|expediente/i.test(sinLvs.text), String(sinLvs.status));
+  const lvs2 = await jur.c.from("legal_lvs").insert({ client_id: id }).select().single();
+  ok("Se puede volver a abrir la solicitud del mismo cliente", !lvs2.error, lvs2.error?.message);
+
+  // Borrar el cliente arrastra el expediente y su historial (cascada). Desde 0033 el usuario de prueba es administrador
+  // (legal.settings), así que puede borrarlo él mismo; el ejecutivo del CRM no.
+  const delEjeCli = await eje.c.from("legal_clients").delete().eq("id", id).select();
+  ok("Ejecutivo · no puede borrar clientes (RLS)", (delEjeCli.data ?? []).length === 0);
   const del = await jur.c.from("legal_clients").delete().eq("id", id).select();
-  ok("Jurídico · no puede borrar clientes (RLS)", (del.data ?? []).length === 0);
+  ok("Administrador · borra el cliente (RLS legal.settings)", (del.data ?? []).length === 1, del.error?.message);
   sql(`delete from legal_clients where id = '${id}'`);
   const left = sql(`select count(*)::int as n from legal_lvs where client_id = '${id}'`);
   ok("Borrar el cliente arrastra el expediente", left[0].n === 0);

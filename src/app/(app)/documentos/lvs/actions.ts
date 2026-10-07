@@ -20,6 +20,24 @@ const revalidate = (id: string) => {
   revalidatePath(`/clientes/${id}`);
 };
 
+/**
+ * Elimina la solicitud LVS (ficha, bienes, juicios, deudas y documentos generados). La causa sigue en Clientes.
+ * La base borra las filas (función legal_lvs_delete, solo documents.manage) y devuelve las rutas de los Word del
+ * almacén interno, que se borran aquí. En el Drive no se toca nada.
+ */
+export async function deleteLvs(clientId: string): Promise<Result> {
+  const { supabase, can } = await getContext();
+  if (!can("documents.manage")) return { error: "Solo el administrador elimina solicitudes LVS." };
+  if (!isUuid(clientId)) return { error: "Cliente no válido." };
+  const { data, error } = await supabase.rpc("legal_lvs_delete", { p_client_id: clientId });
+  if (error) return { error: error.message };
+  const paths = ((data ?? []) as string[]).filter(Boolean);
+  if (paths.length) await supabase.storage.from("legal-documents").remove(paths);
+  revalidate(clientId);
+  revalidatePath("/clientes");
+  return {};
+}
+
 /** Abre el expediente LVS de un cliente que ya existe en Jurídico. */
 export async function createLvs(clientId: string): Promise<Result & { id?: string }> {
   const { supabase, can } = await getContext();

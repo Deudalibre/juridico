@@ -93,7 +93,7 @@ const SECTIONS: {
     items: [
       { href: "/documentos/lvs", label: "Solicitudes LVS", icon: "report", group: "LVS", exact: true },
       { href: "/documentos/lvs/nueva", label: "Nueva solicitud LVS", icon: "plus", group: "LVS", need: "legal.create" },
-      { href: "/documentos", label: "Documentos generados", icon: "folder", group: "Generados", exact: true },
+      { href: "/documentos", label: "Carpeta universal", icon: "folder", group: "Drive", exact: true },
     ],
   },
   {

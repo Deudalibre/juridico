@@ -6,17 +6,16 @@ import type { LvsFicha } from "@/lib/lvs";
 import type { BienCategoriaKey, BienRow } from "@/lib/lvs-bienes";
 import { ANEXO_CATEGORIA, GENERADOS, type GeneradoTipo } from "@/lib/lvs-generados";
 import { CATEGORIAS } from "@/lib/lvs-bienes";
-import { datosAnexo8, datosAnexo9, datosAnexoBienes, datosDeclaracion, datosDemanda, generarDocumento } from "@/lib/lvs-generar";
+import { datosAnexo8, datosAnexo9, datosAnexoBienes, datosDeclaracion, datosDemanda, generarDocumento, nombreArchivo, renderizarLvs } from "@/lib/lvs-generar";
 import type { Deuda } from "@/lib/lvs-acreedores";
+import { DOCX_MIME } from "@/lib/templates";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Result = { error?: string; advertencias?: string[] };
 const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
 
-/** Genera un documento de la LVS (anexos 3 a 9, Declaración 273-A, Solicitud). Con errores no genera; con advertencias genera y las guarda. */
-export async function generarLvs(clientId: string, tipo: GeneradoTipo): Promise<Result> {
-  const { supabase, can, user } = await getContext();
-  if (!can("documents.edit") || !can("legal.edit")) return { error: "No tienes permiso para generar documentos." };
-  if (!isUuid(clientId) || !(tipo in GENERADOS)) return { error: "Datos no válidos." };
+/** Reúne ficha, bienes y deudas y calcula los datos del documento. Lo comparten la vista previa y la generación. */
+async function prepararLvs(supabase: SupabaseClient, clientId: string, tipo: GeneradoTipo): Promise<{ error?: string; c?: LegalClient; data?: Record<string, unknown>; advertencias?: string[] }> {
   // Tablas de bienes que alimentan este documento: una para los anexos 3 a 8, todas para la demanda, ninguna para el resto
   const categoria = tipo === "anexo8" ? "muebles" : ANEXO_CATEGORIA[tipo];
   const cats = tipo === "demanda_lvs" ? CATEGORIAS : categoria ? CATEGORIAS.filter((x) => x.key === categoria) : [];
@@ -43,11 +42,48 @@ export async function generarLvs(clientId: string, tipo: GeneradoTipo): Promise<
     : tipo === "demanda_lvs" ? datosDemanda(c, f, porCategoria, lawyer)
     : datosAnexoBienes(tipo, c, f, rows, lawyer);
   if (errores.length) return { error: errores.join(" ") };
-  const r = await generarDocumento(supabase, user.id, c, tipo, data, advertencias);
+  return { c, data, advertencias };
+}
+
+/** Genera un documento de la LVS (anexos 3 a 9, Declaración 273-A, Solicitud). Con errores no genera; con advertencias genera y las guarda. */
+export async function generarLvs(clientId: string, tipo: GeneradoTipo): Promise<Result & { driveLink?: string | null }> {
+  const { supabase, can, user } = await getContext();
+  if (!can("documents.edit") || !can("legal.edit")) return { error: "No tienes permiso para generar documentos." };
+  if (!isUuid(clientId) || !(tipo in GENERADOS)) return { error: "Datos no válidos." };
+  const p = await prepararLvs(supabase, clientId, tipo);
+  if (p.error || !p.c || !p.data) return { error: p.error ?? "No se pudo preparar el documento." };
+  const r = await generarDocumento(supabase, user.id, p.c, tipo, p.data, p.advertencias ?? []);
   if (r.error) return { error: r.error };
   revalidatePath(`/documentos/lvs/${clientId}`);
   revalidatePath(`/clientes/${clientId}`);
-  return { advertencias };
+  revalidatePath("/documentos");
+  return { advertencias: r.advertencias ?? p.advertencias, driveLink: r.driveLink ?? null };
+}
+
+/**
+ * Vista previa (lupa): rellena la plantilla con los datos de la ficha y deja el Word en una carpeta temporal del
+ * almacén (no se registra como generado ni va al Drive). Devuelve un enlace de dos minutos para que el navegador lo
+ * dibuje con docx-preview tal como va a quedar. Las vistas previas anteriores del cliente se borran en cada llamada.
+ * (La solicitud pesa casi 3 MB: por eso va por enlace y no dentro de la respuesta de la acción.)
+ */
+export async function previsualizarLvs(clientId: string, tipo: GeneradoTipo): Promise<Result & { url?: string; fileName?: string }> {
+  const { supabase, can } = await getContext();
+  if (!can("documents.view") || !can("documents.edit")) return { error: "Sin permiso." };
+  if (!isUuid(clientId) || !(tipo in GENERADOS)) return { error: "Datos no válidos." };
+  const p = await prepararLvs(supabase, clientId, tipo);
+  if (p.error || !p.c || !p.data) return { error: p.error ?? "No se pudo preparar el documento." };
+  const r = await renderizarLvs(supabase, tipo, p.data);
+  if (r.error || !r.out) return { error: r.error ?? "No se pudo rellenar la plantilla." };
+  const bucket = supabase.storage.from("legal-documents");
+  const dir = `${clientId}/previsualizaciones`;
+  const { data: viejas } = await bucket.list(dir, { limit: 100 });
+  if (viejas?.length) await bucket.remove(viejas.map((f) => `${dir}/${f.name}`));
+  const path = `${dir}/${tipo}-${Date.now().toString(36)}.docx`;
+  const up = await bucket.upload(path, r.out, { contentType: DOCX_MIME, cacheControl: "0", upsert: true });
+  if (up.error) return { error: `No se pudo preparar la vista previa: ${up.error.message}` };
+  const { data, error } = await bucket.createSignedUrl(path, 120);
+  if (error || !data) return { error: error?.message ?? "No se pudo preparar la vista previa." };
+  return { url: data.signedUrl, fileName: nombreArchivo(p.c, tipo), advertencias: p.advertencias };
 }
 
 /** Marca una versión como final (o la devuelve a borrador). */

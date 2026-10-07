@@ -6,6 +6,7 @@ import { requirePermission, type LegalClient } from "@/lib/data";
 import { dateTime } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
 import { LVS_ESTADOS, lvsEstadoTone, lvsProgress, type LvsFicha } from "@/lib/lvs";
+import { DeleteLvsButton } from "./DeleteLvsButton";
 
 export const metadata = { title: "Solicitudes LVS" };
 
@@ -29,10 +30,10 @@ async function LvsContent(props: { searchParams: Promise<SP> }) {
   const q = (sp.q ?? "").trim().toLowerCase();
   const { data } = await supabase
     .from("legal_lvs")
-    .select("*, legal_clients!inner(id, internal_number, full_name, rut, archived_at, updated_at)")
+    .select("*, legal_clients!inner(id, internal_number, full_name, rut, archived_at, updated_at, legal_lvs_generados(count))")
     .order("updated_at", { ascending: false })
     .limit(500);
-  type Row = LvsFicha & { legal_clients: Pick<LegalClient, "id" | "internal_number" | "full_name" | "rut" | "archived_at" | "updated_at"> };
+  type Row = LvsFicha & { legal_clients: Pick<LegalClient, "id" | "internal_number" | "full_name" | "rut" | "archived_at" | "updated_at"> & { legal_lvs_generados: { count: number }[] } };
   const rows = ((data ?? []) as Row[]).filter((r) => {
     if (!q) return true;
     const c = r.legal_clients;
@@ -107,8 +108,11 @@ async function LvsContent(props: { searchParams: Promise<SP> }) {
                   <span className="tabnum text-[12px] text-muted" role="cell">
                     {dateTime(r.updated_at, tz)}
                   </span>
-                  <span className="flex justify-end" role="cell">
+                  <span className="flex items-center justify-end gap-1" role="cell">
                     <span className="btn-secondary btn-sm">Abrir</span>
+                    {/* Eliminar la solicitud (solo la solicitud: la causa sigue en Clientes). El botón vive dentro del enlace de la
+                        fila; el diálogo se abre en un portal y corta los eventos para no navegar. */}
+                    {can("documents.manage") && <DeleteLvsButton clientId={r.client_id} name={c.full_name} generados={c.legal_lvs_generados?.[0]?.count ?? 0} />}
                   </span>
                 </Link>
               );

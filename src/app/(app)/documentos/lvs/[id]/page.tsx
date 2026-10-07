@@ -119,7 +119,7 @@ async function ExpedienteContent(props: { params: Promise<{ id: string }> }) {
           <FichaForm client={c} ficha={f} canEdit={canEdit} progress={p} bienes={bienes} deudas={deudas} catalogo={catalogo} />
 
           <section id="generados" className="flex scroll-mt-3 flex-col gap-3">
-            <GeneradosTab clientId={c.id} ficha={f} generados={generados} bienes={Object.fromEntries(CATEGORIAS.map((cat) => [cat.key, bienes[cat.key].length]))} totalDeudas={deudas.length} plantillas={plantillas} canEdit={canEdit && can("documents.edit")} />
+            <GeneradosTab clientId={c.id} ficha={f} generados={generados} bienes={Object.fromEntries(CATEGORIAS.map((cat) => [cat.key, bienes[cat.key].length]))} totalDeudas={deudas.length} plantillas={plantillas} canEdit={canEdit && can("documents.edit")} driveFolderUrl={c.drive_folder_url} />
           </section>
 
         </div>

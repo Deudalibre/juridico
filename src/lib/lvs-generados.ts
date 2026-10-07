@@ -30,6 +30,9 @@ export type LvsGenerado = {
   advertencias: string[] | null;
   generado_por: string | null;
   generado_at: string;
+  /** Copia en el Google Drive del estudio (carpeta universal → carpeta del cliente); null si no se pudo subir */
+  drive_file_id: string | null;
+  drive_link: string | null;
 };
 
 /** Anexos de bienes (3 a 7): a qué categoría de la ficha corresponde cada uno. */
