@@ -46,16 +46,15 @@ const tipoDe = (f: Pick<DriveFile, "mimeType" | "isFolder">): Tipo => {
   return { tag: "ARCH", nombre: "Archivo", bg: "var(--band)", fg: "var(--text-faint)", render: "drive" };
 };
 
-function TipoTile({ tipo, size = "md" }: { tipo: Tipo; size?: "md" | "sm" }) {
-  const dims = size === "md" ? "h-8 w-8 text-[9.5px]" : "h-6 w-6 text-[8.5px]";
+function TipoTile({ tipo }: { tipo: Tipo }) {
   if (tipo.render === "carpeta")
     return (
-      <span className={`inline-flex shrink-0 items-center justify-center rounded-md ${dims}`} style={{ background: tipo.bg, color: "var(--brand-dark)" }} aria-hidden>
-        <Icon name="folder" size={size === "md" ? 15 : 12} />
+      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ background: tipo.bg, color: "var(--brand-dark)" }} aria-hidden>
+        <Icon name="folder" size={15} />
       </span>
     );
   return (
-    <span className={`inline-flex shrink-0 items-center justify-center rounded-md font-bold tracking-wider ${dims}`} style={{ background: tipo.bg, color: tipo.fg }} aria-hidden>
+    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[9.5px] font-bold tracking-wider" style={{ background: tipo.bg, color: tipo.fg }} aria-hidden>
       {tipo.tag}
     </span>
   );
@@ -64,20 +63,21 @@ function TipoTile({ tipo, size = "md" }: { tipo: Tipo; size?: "md" | "sm" }) {
 const porNombre = (a: string, b: string) => a.localeCompare(b, "es", { numeric: true, sensitivity: "base" });
 
 /**
- * Gestor de archivos en tres zonas: barra lateral con los clientes (siempre a mano), tabla central con columnas
- * ordenables y panel de vista previa con zoom. Elegir un archivo no recarga la página; cambiar de carpeta sí (la lista
- * viene del Drive).
+ * Cuerpo de la carpeta universal con la estructura de «Todos los leads»: lateral con los clientes como si fueran filtros,
+ * fila «Mostrando N» con el buscador, tabla densa de 54 px y, al elegir un archivo, la vista previa a la derecha de la
+ * tabla. Elegir un archivo no recarga la página; cambiar de carpeta sí (la lista viene del Drive).
  */
 export function CarpetaUniversal({ raiz, items, carpeta, root, clientes, archivoId, q }: Props) {
-  // La página monta este componente con key = carpeta, así que al cambiar de carpeta la selección empieza de cero
-  const [sel, setSel] = useState<DriveFile | null>(() => items.find((f) => f.id === archivoId && !f.isFolder) ?? null);
+  const archivosDeCarpeta = items.filter((f) => !f.isFolder);
+  // La página monta este componente con key = carpeta: al entrar en una carpeta se abre el archivo pedido o el más reciente
+  const [sel, setSel] = useState<DriveFile | null>(() => archivosDeCarpeta.find((f) => f.id === archivoId) ?? (carpeta ? [...archivosDeCarpeta].sort((a, b) => Date.parse(b.modifiedTime) - Date.parse(a.modifiedTime))[0] ?? null : null));
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>(carpeta ? { key: "fecha", dir: -1 } : { key: "nombre", dir: 1 });
   const [filtro, setFiltro] = useState("");
 
   const cliente = carpeta ? clientes[carpeta.id] : undefined;
   const nombreDe = (f: DriveFile) => clientes[f.id]?.full_name ?? f.name;
 
-  // Tabla central: filtra por el buscador y ordena por la columna elegida (carpetas siempre antes que archivos)
+  // Tabla: filtra por el buscador y ordena por la columna elegida (carpetas siempre antes que archivos)
   const n = q.trim().toLowerCase();
   const visibles = items.filter((f) => !n || f.name.toLowerCase().includes(n) || nombreDe(f).toLowerCase().includes(n) || (clientes[f.id]?.rut ?? "").includes(n.replace(/[^0-9k]/gi, "")));
   const cmp = (a: DriveFile, b: DriveFile): number => {
@@ -102,7 +102,7 @@ export function CarpetaUniversal({ raiz, items, carpeta, root, clientes, archivo
   const archivos = filas.filter((f) => !f.isFolder);
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: key === "fecha" ? -1 : 1 }));
 
-  // Barra lateral: carpetas de clientes de la raíz, filtradas al vuelo
+  // Lateral: carpetas de clientes de la raíz, filtradas al vuelo
   const fl = filtro.trim().toLowerCase();
   const lateral = raiz
     .filter((f) => f.isFolder)
@@ -119,12 +119,13 @@ export function CarpetaUniversal({ raiz, items, carpeta, root, clientes, archivo
     } else if (e.key === "Escape") setSel(null);
   };
 
-  // Columnas: en la raíz, datos del cliente; dentro de una carpeta, datos del archivo
-  const columnas: { key: SortKey; label: string; w: string; align?: "right" }[] = carpeta
+  // Columnas: en la raíz, datos del cliente; dentro de una carpeta, datos del archivo. Con la vista previa abierta la
+  // tabla se estrecha y se quedan las dos columnas que importan.
+  const columnas: { key: SortKey; label: string; w: string; align?: "right"; ocultable?: boolean }[] = carpeta
     ? [
         { key: "nombre", label: "Nombre", w: "minmax(0,1fr)" },
-        { key: "tipo", label: "Tipo", w: "96px" },
-        { key: "tamano", label: "Tamaño", w: "84px", align: "right" },
+        { key: "tipo", label: "Tipo", w: "92px", ocultable: true },
+        { key: "tamano", label: "Tamaño", w: "80px", align: "right", ocultable: true },
         { key: "fecha", label: "Modificado", w: "118px", align: "right" },
       ]
     : [
@@ -133,209 +134,178 @@ export function CarpetaUniversal({ raiz, items, carpeta, root, clientes, archivo
         { key: "numero", label: "N°", w: "64px" },
         { key: "fecha", label: "Modificado", w: "118px", align: "right" },
       ];
-  const grid = { gridTemplateColumns: columnas.map((c) => c.w).join(" ") + " 28px" };
+  const cols = sel ? columnas.filter((c) => !c.ocultable) : columnas;
+  const grid = { gridTemplateColumns: cols.map((c) => c.w).join(" ") + " 24px" };
+  const celda = (c: { key: SortKey }) => cols.some((x) => x.key === c.key);
 
   return (
-    <div className="grid min-h-0 gap-3 grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] xl:grid-cols-[248px_minmax(380px,1fr)_minmax(0,1.15fr)]" style={{ height: "calc(100vh - 150px)" }}>
-      {/* ------------------------------------------ Barra lateral: clientes ------------------------------------------ */}
-      <aside className="panel hidden min-h-0 min-w-0 flex-col overflow-hidden xl:flex" aria-label="Clientes en el Drive">
-        <div className="flex flex-col gap-2 border-b border-line px-3 pb-2.5 pt-3">
-          <span className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">Clientes</span>
-            <span className="tabnum text-[11px] text-faint">{raiz.filter((f) => f.isFolder).length}</span>
-          </span>
-          <input value={filtro} onChange={(e) => setFiltro(e.target.value)} className="search !min-h-[30px] !w-full !text-[12.5px]" placeholder="Filtrar por nombre o RUT…" aria-label="Filtrar clientes" autoComplete="off" />
+    <div className="frame-split">
+      {/* ------------------------------------------ Lateral: clientes (como los filtros) ------------------------------------------ */}
+      <aside aria-label="Clientes" className="flex min-h-0 flex-col">
+        <div className="filter-panel-head">
+          <span className="text-[14px] font-semibold text-fg">Clientes</span>
+          <span className="tabnum text-[12px] text-faint">{raiz.filter((f) => f.isFolder).length}</span>
         </div>
-        <nav className="min-h-0 flex-1 overflow-y-auto py-1">
-          <Link href="/documentos" className={`relative flex items-center gap-2.5 px-3 py-2 text-[12.5px] ${!carpeta ? "font-semibold text-fg" : "text-soft hover:bg-[color:var(--band)]"}`} aria-current={!carpeta ? "page" : undefined} style={!carpeta ? { background: "var(--surface-active)" } : undefined}>
-            {!carpeta && <span className="absolute inset-y-1 left-0 w-[3px] rounded-r" style={{ background: "var(--brand-dark)" }} aria-hidden />}
-            <TipoTile tipo={CARPETA} size="sm" />
-            <span className="truncate">{root.name}</span>
+        <div className="px-3 pt-3">
+          <label className="board-search !w-full !h-[30px]">
+            <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Filtrar cliente o RUT…" aria-label="Filtrar clientes" autoComplete="off" className="!text-[12.5px]" />
+            <Icon name="search" size={14} />
+          </label>
+        </div>
+        <nav className="filter-group-body min-h-0 flex-1 overflow-y-auto !pt-3" aria-label="Carpetas">
+          <Link href="/documentos" className="filter-opt" aria-current={!carpeta ? "true" : undefined} title={root.name}>
+            <span className="dot" aria-hidden>
+              {!carpeta && <Icon name="check" size={10} />}
+            </span>
+            <span className="min-w-0 flex-1 truncate">Todas las carpetas</span>
           </Link>
           {lateral.map((f) => {
-            const c = clientes[f.id];
             const activo = carpeta?.id === f.id;
+            const c = clientes[f.id];
             return (
-              <Link key={f.id} href={`/documentos?carpeta=${encodeURIComponent(f.id)}`} className={`relative flex items-center gap-2.5 px-3 py-1.5 ${activo ? "" : "hover:bg-[color:var(--band)]"}`} aria-current={activo ? "page" : undefined} style={activo ? { background: "var(--surface-active)" } : undefined} title={f.name}>
-                {activo && <span className="absolute inset-y-1 left-0 w-[3px] rounded-r" style={{ background: "var(--brand-dark)" }} aria-hidden />}
-                <span className="avatar h-7 w-7 text-[10px]">{initials(nombreDe(f)) || "?"}</span>
-                <span className="flex min-w-0 flex-col">
-                  <span className={`truncate text-[12.5px] ${activo ? "font-semibold text-fg" : "font-medium text-fg"}`}>{nombreDe(f)}</span>
-                  <span className="tabnum truncate text-[11px] text-muted">{c?.rut ? formatRut(c.rut) : c ? "RUT pendiente" : "Sin causa enlazada"}</span>
+              <Link key={f.id} href={`/documentos?carpeta=${encodeURIComponent(f.id)}`} className="filter-opt" aria-current={activo ? "true" : undefined} title={c?.rut ? `${nombreDe(f)} · ${formatRut(c.rut)}` : f.name}>
+                <span className="dot" aria-hidden>
+                  {activo && <Icon name="check" size={10} />}
                 </span>
+                <span className="min-w-0 flex-1 truncate">{nombreDe(f)}</span>
+                {c?.cerrada && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--danger)" }} title="Causa cerrada" />}
               </Link>
             );
           })}
-          {lateral.length === 0 && <span className="block px-3 py-4 text-center text-[12px] text-faint">{fl ? "Ningún cliente coincide." : "Todavía no hay carpetas de clientes."}</span>}
+          {lateral.length === 0 && <span className="px-2 py-3 text-center text-[12px] text-faint">{fl ? "Ningún cliente coincide." : "Todavía no hay carpetas."}</span>}
         </nav>
       </aside>
 
-      {/* ------------------------------------------------ Tabla central ------------------------------------------------ */}
-      <section className="panel flex min-h-0 min-w-0 flex-col overflow-hidden" aria-label="Archivos">
-        <div className="flex items-center gap-2 border-b border-line px-3 py-2">
-          <nav className="flex min-w-0 flex-1 items-center gap-2.5" aria-label="Ruta">
+      {/* ------------------------------------------------ Resultados ------------------------------------------------ */}
+      <section className="flex min-h-0 min-w-0 flex-col">
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 whitespace-nowrap text-[14px] text-fg">
             {carpeta ? (
               <>
-                <Link href="/documentos" className="icon-btn plain shrink-0" aria-label="Volver a todas las carpetas" title="Todas las carpetas">
+                <Link href="/documentos" className="icon-btn plain -ml-1.5 shrink-0" aria-label="Volver a todas las carpetas" title="Todas las carpetas">
                   <span className="inline-flex rotate-180">
-                    <Icon name="chevron" size={14} />
+                    <Icon name="chevron" size={15} />
                   </span>
                 </Link>
-                <span className="avatar h-8 w-8 shrink-0 text-[11px]">{initials(cliente?.full_name ?? carpeta.name) || "?"}</span>
-                <span className="flex min-w-0 flex-col">
-                  <Link href="/documentos" className="truncate text-[11px] uppercase tracking-wider text-faint hover:text-fg hover:underline" title={root.name}>
-                    {root.name}
-                  </Link>
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate text-[13.5px] font-semibold text-fg" title={carpeta.name}>
-                      {cliente?.full_name ?? carpeta.name}
-                    </span>
-                    {cliente?.cerrada && <span className="tag danger shrink-0">Cerrada</span>}
-                  </span>
+                <span className="avatar h-7 w-7 shrink-0 text-[10px]">{initials(cliente?.full_name ?? carpeta.name) || "?"}</span>
+                <strong className="truncate font-semibold">{cliente?.full_name ?? carpeta.name}</strong>
+                {cliente?.rut && <span className="tabnum hidden text-[12.5px] text-muted lg:inline">· {formatRut(cliente.rut)}</span>}
+                {cliente?.cerrada && <span className="tag danger">Cerrada</span>}
+                <span className="text-muted">
+                  · <strong className="tabnum text-fg">{archivos.length}</strong> {archivos.length === 1 ? "archivo" : "archivos"}
                 </span>
               </>
             ) : (
               <>
-                <TipoTile tipo={CARPETA} />
-                <span className="flex min-w-0 flex-col">
-                  <span className="text-[11px] uppercase tracking-wider text-faint">Carpeta universal</span>
-                  <span className="truncate text-[13.5px] font-semibold text-fg">{root.name}</span>
+                Mostrando <strong className="tabnum text-fg">{filas.filter((f) => f.isFolder).length}</strong> {filas.filter((f) => f.isFolder).length === 1 ? "cliente" : "clientes"}
+                <span className="text-faint" title="Cada cliente tiene su carpeta en el Drive del estudio; se crea sola al generar su primer documento. Haz clic en una cabecera para ordenar.">
+                  <Icon name="info" size={14} />
                 </span>
               </>
             )}
-          </nav>
-          <form className="relative" role="search">
-            {carpeta && <input type="hidden" name="carpeta" value={carpeta.id} />}
-            <input name="q" defaultValue={q} className="search !min-h-[30px] !w-[150px] !text-[12.5px] focus:!w-[200px]" placeholder={carpeta ? "Buscar archivo…" : "Buscar cliente…"} aria-label="Buscar" autoComplete="off" />
-          </form>
-          {cliente && (
-            <Link href={`/documentos/lvs/${cliente.id}`} className="btn-outline btn-sm shrink-0" title="Abrir el expediente LVS de este cliente">
-              <Icon name="report" size={13} /> Expediente
-            </Link>
-          )}
-        </div>
-
-        <div className="th-band grid items-center gap-x-3 border-b border-line px-3 py-1.5" style={grid} role="row">
-          {columnas.map((c) => {
-            const activa = sort.key === c.key;
-            return (
-              <button key={c.key} type="button" onClick={() => toggleSort(c.key)} className={`th flex items-center gap-1 ${c.align === "right" ? "justify-end" : ""} ${activa ? "!text-fg" : ""}`} role="columnheader" aria-sort={activa ? (sort.dir === 1 ? "ascending" : "descending") : "none"} title={`Ordenar por ${c.label.toLowerCase()}`}>
-                {c.label}
-                <span className={`inline-flex transition-transform ${activa ? "opacity-100" : "opacity-0"} ${activa && sort.dir === -1 ? "-rotate-90" : "rotate-90"}`} aria-hidden>
-                  <Icon name="chevron" size={11} />
-                </span>
-              </button>
-            );
-          })}
-          <span />
-        </div>
-
-        {filas.length === 0 ? (
-          <div className="empty flex-1">
-            <span className="icon-tile">
-              <Icon name={q ? "search" : "folder"} />
-            </span>
-            <span className="empty-title">{q ? "Sin resultados" : carpeta ? "Carpeta vacía" : "Todavía no hay carpetas de clientes"}</span>
-            <span className="empty-text">{q ? "Prueba con otro nombre o RUT." : carpeta ? "Los documentos que generes para este cliente aparecerán aquí." : "Se crean solas al generar el primer documento de cada solicitud LVS."}</span>
-          </div>
-        ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto outline-none" tabIndex={0} onKeyDown={onKey} role="grid" aria-label={carpeta ? "Archivos de la carpeta" : "Carpetas de clientes"}>
-            {filas.map((f) => {
-              const t = tipoDe(f);
-              const c = clientes[f.id];
-              if (f.isFolder)
-                return (
-                  <Link key={f.id} href={`/documentos?carpeta=${encodeURIComponent(f.id)}`} className="row grid min-h-[44px] items-center gap-x-3 px-3 py-1 text-fg" style={grid} role="row" title={`Abrir ${f.name}`}>
-                    <span className="flex min-w-0 items-center gap-2.5" role="gridcell">
-                      {carpeta ? <TipoTile tipo={CARPETA} /> : <span className="avatar h-8 w-8 text-[11px]">{initials(nombreDe(f)) || "?"}</span>}
-                      <span className="flex min-w-0 flex-col">
-                        <span className="truncate text-[13px] font-medium">{nombreDe(f)}</span>
-                        {!carpeta && c && f.name !== c.full_name.toUpperCase() && <span className="truncate text-[11px] text-faint">{f.name}</span>}
-                        {!carpeta && !c && <span className="truncate text-[11px] text-faint">Sin causa enlazada en Jurídico</span>}
-                      </span>
-                    </span>
-                    {carpeta ? (
-                      <>
-                        <span className="text-[12px] text-muted" role="gridcell">Carpeta</span>
-                        <span className="tabnum text-right text-[12px] text-muted" role="gridcell">—</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="tabnum text-[12px] text-soft" role="gridcell">{c?.rut ? formatRut(c.rut) : <span className="text-faint">—</span>}</span>
-                        <span className="tabnum text-[12px] text-soft" role="gridcell">{c?.internal_number ?? <span className="text-faint">—</span>}</span>
-                      </>
-                    )}
-                    <span className="tabnum text-right text-[12px] text-muted" role="gridcell">{fmtDate(f.modifiedTime)}</span>
-                    <span className="flex justify-end text-faint" role="gridcell">
-                      <Icon name="chevron" size={14} />
-                    </span>
-                  </Link>
-                );
-              const active = sel?.id === f.id;
-              return (
-                <button key={f.id} type="button" onClick={() => setSel(f)} className={`row relative grid min-h-[44px] w-full items-center gap-x-3 px-3 py-1 text-left text-fg ${active ? "bg-[color:var(--surface-active)]" : ""}`} style={grid} role="row" aria-selected={active} title={f.name}>
-                  {active && <span className="absolute inset-y-1 left-0 w-[3px] rounded-r" style={{ background: "var(--brand-dark)" }} aria-hidden />}
-                  <span className="flex min-w-0 items-center gap-2.5" role="gridcell">
-                    <TipoTile tipo={t} />
-                    <span className={`truncate text-[13px] ${active ? "font-semibold" : "font-medium"}`}>{f.name}</span>
-                  </span>
-                  <span className="truncate text-[12px] text-muted" role="gridcell">{t.nombre}</span>
-                  <span className="tabnum text-right text-[12px] text-muted" role="gridcell">{fmtSize(f.size)}</span>
-                  <span className="tabnum text-right text-[12px] text-muted" role="gridcell">{fmtDate(f.modifiedTime)}</span>
-                  <span className={`flex justify-end ${active ? "text-accent" : "text-faint"}`} role="gridcell">
-                    <Icon name="eye" size={14} />
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-1.5 text-[11.5px] text-faint" style={{ background: "var(--band)" }}>
-          <span>
-            {carpeta
-              ? `${archivos.length} ${archivos.length === 1 ? "archivo" : "archivos"}${filas.length - archivos.length ? ` · ${filas.length - archivos.length} subcarpetas` : ""}`
-              : `${filas.filter((f) => f.isFolder).length} ${filas.filter((f) => f.isFolder).length === 1 ? "cliente" : "clientes"}${archivos.length ? ` · ${archivos.length} archivos sueltos` : ""}`}
           </span>
-          {archivos.length > 0 && (
-            <span className="hidden items-center gap-1 2xl:flex">
-              <kbd className="kbd">↑</kbd>
-              <kbd className="kbd">↓</kbd> recorrer · <kbd className="kbd">Esc</kbd> cerrar
-            </span>
+          <div className="flex shrink-0 items-center gap-2">
+            {cliente && (
+              <Link href={`/documentos/lvs/${cliente.id}`} className="btn-outline btn-sm whitespace-nowrap" title="Abrir el expediente LVS de este cliente">
+                <Icon name="report" size={13} /> Expediente LVS
+              </Link>
+            )}
+            <form action="/documentos" role="search" className="board-search !w-[220px]">
+              {carpeta && <input type="hidden" name="carpeta" value={carpeta.id} />}
+              <input name="q" defaultValue={q} placeholder={carpeta ? "Buscar archivo…" : "Buscar cliente o RUT…"} aria-label="Buscar" autoComplete="off" />
+              <Icon name="search" size={15} />
+            </form>
+          </div>
+        </div>
+
+        <div className={`grid min-h-0 flex-1 ${sel ? "grid-cols-[minmax(0,1fr)_minmax(0,52%)]" : "grid-cols-1"}`}>
+          {/* Tabla */}
+          <div className="flex min-h-0 min-w-0 flex-col">
+            <div className="th-band grid items-center gap-3 border-y border-line px-4 py-2.5" style={grid} role="row">
+              {cols.map((c) => {
+                const activa = sort.key === c.key;
+                return (
+                  <button key={c.key} type="button" onClick={() => toggleSort(c.key)} className={`th flex items-center gap-1 ${c.align === "right" ? "justify-end" : ""} ${activa ? "!text-fg" : ""}`} role="columnheader" aria-sort={activa ? (sort.dir === 1 ? "ascending" : "descending") : "none"} title={`Ordenar por ${c.label.toLowerCase()}`}>
+                    {c.label}
+                    <span className={`inline-flex transition-transform ${activa ? "opacity-100" : "opacity-0"} ${activa && sort.dir === -1 ? "-rotate-90" : "rotate-90"}`} aria-hidden>
+                      <Icon name="chevron" size={11} />
+                    </span>
+                  </button>
+                );
+              })}
+              <span />
+            </div>
+            {filas.length === 0 ? (
+              <div className="empty flex-1">
+                <span className="icon-tile">
+                  <Icon name={q ? "search" : "folder"} />
+                </span>
+                <span className="empty-title">{q ? "Sin resultados" : carpeta ? "Carpeta vacía" : "Todavía no hay carpetas de clientes"}</span>
+                <span className="empty-text">{q ? "Prueba con otro nombre o RUT." : carpeta ? "Los documentos que generes para este cliente aparecerán aquí." : "Se crean solas al generar el primer documento de cada solicitud LVS."}</span>
+              </div>
+            ) : (
+              <div className="min-h-0 flex-1 overflow-y-auto outline-none" tabIndex={0} onKeyDown={onKey} role="grid" aria-label={carpeta ? "Archivos de la carpeta" : "Carpetas de clientes"}>
+                {filas.map((f) => {
+                  const t = tipoDe(f);
+                  const c = clientes[f.id];
+                  if (f.isFolder)
+                    return (
+                      <Link key={f.id} href={`/documentos?carpeta=${encodeURIComponent(f.id)}`} className="row grid min-h-[54px] items-center gap-3 px-4 py-1.5 text-fg" style={grid} role="row" title={`Abrir ${f.name}`}>
+                        <span className="flex min-w-0 items-center gap-2" role="gridcell">
+                          {carpeta ? <TipoTile tipo={CARPETA} /> : <span className="avatar h-8 w-8 text-[11px]">{initials(nombreDe(f)) || "?"}</span>}
+                          <span className="flex min-w-0 flex-col">
+                            <span className="truncate text-[13px] font-medium leading-4">{nombreDe(f)}</span>
+                            <span className="truncate text-[11px] leading-[14px] text-muted">{carpeta ? "Carpeta" : c ? (f.name !== c.full_name.toUpperCase() ? f.name : "Carpeta del cliente") : "Sin causa enlazada en Jurídico"}</span>
+                          </span>
+                        </span>
+                        {carpeta ? (
+                          <>
+                            {celda({ key: "tipo" }) && <span className="text-[12.5px] text-soft" role="gridcell">Carpeta</span>}
+                            {celda({ key: "tamano" }) && <span className="tabnum text-right text-[12.5px] text-faint" role="gridcell">—</span>}
+                          </>
+                        ) : (
+                          <>
+                            <span className="tabnum text-[13px] text-soft" role="gridcell">{c?.rut ? formatRut(c.rut) : <span className="text-faint">—</span>}</span>
+                            <span className="tabnum text-[13px] text-soft" role="gridcell">{c?.internal_number ?? <span className="text-faint">—</span>}</span>
+                          </>
+                        )}
+                        <span className="tabnum text-right text-[12.5px] text-soft" role="gridcell">{fmtDate(f.modifiedTime)}</span>
+                        <span className="flex justify-end text-faint" role="gridcell">
+                          <Icon name="chevron" size={14} />
+                        </span>
+                      </Link>
+                    );
+                  const active = sel?.id === f.id;
+                  return (
+                    <button key={f.id} type="button" onClick={() => setSel(active ? null : f)} className={`row relative grid min-h-[54px] w-full items-center gap-3 px-4 py-1.5 text-left text-fg ${active ? "bg-[color:var(--surface-active)]" : ""}`} style={grid} role="row" aria-selected={active} title={f.name}>
+                      {active && <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: "var(--brand-dark)" }} aria-hidden />}
+                      <span className="flex min-w-0 items-center gap-2" role="gridcell">
+                        <TipoTile tipo={t} />
+                        <span className="flex min-w-0 flex-col">
+                          <span className={`truncate text-[13px] leading-4 ${active ? "font-semibold" : "font-medium"}`}>{f.name}</span>
+                          {sel && <span className="truncate text-[11px] leading-[14px] text-muted">{t.nombre} · {fmtSize(f.size)}</span>}
+                        </span>
+                      </span>
+                      {celda({ key: "tipo" }) && <span className="truncate text-[12.5px] text-soft" role="gridcell">{t.nombre}</span>}
+                      {celda({ key: "tamano" }) && <span className="tabnum text-right text-[12.5px] text-soft" role="gridcell">{fmtSize(f.size)}</span>}
+                      <span className="tabnum text-right text-[12.5px] text-soft" role="gridcell">{fmtDate(f.modifiedTime)}</span>
+                      <span className={`flex justify-end ${active ? "text-accent" : "text-faint"}`} role="gridcell">
+                        <Icon name="eye" size={14} />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Vista previa, a la derecha de la tabla */}
+          {sel && (
+            <div className="flex min-h-0 min-w-0 flex-col border-l border-line">
+              <VistaPrevia key={sel.id} file={sel} onClose={() => setSel(null)} />
+            </div>
           )}
         </div>
-      </section>
-
-      {/* --------------------------------------------- Vista previa --------------------------------------------- */}
-      <section className="panel flex min-h-0 min-w-0 flex-col overflow-hidden" aria-label="Vista previa" aria-live="polite">
-        {sel ? (
-          <VistaPrevia key={sel.id} file={sel} onClose={() => setSel(null)} />
-        ) : (
-          <div className="flex flex-1 items-center justify-center p-6" style={{ background: "var(--band)" }}>
-            <div className="flex max-w-[360px] flex-col items-center gap-2.5 text-center">
-              <span className="relative mb-2 flex h-[92px] w-[72px] items-end justify-center rounded-md border border-line bg-surface shadow-sm" aria-hidden>
-                <span className="absolute left-3 right-3 top-4 h-1.5 rounded bg-[color:var(--border-soft)]" />
-                <span className="absolute left-3 right-6 top-8 h-1.5 rounded bg-[color:var(--border-soft)]" />
-                <span className="absolute left-3 right-4 top-12 h-1.5 rounded bg-[color:var(--border-soft)]" />
-                <span className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-white" style={{ background: "var(--brand-dark)" }}>
-                  <Icon name="eye" size={14} />
-                </span>
-              </span>
-              <span className="text-[14px] font-semibold text-fg">Vista previa</span>
-              <span className="text-[12.5px] leading-relaxed text-muted">{carpeta ? "Elige un archivo de la lista y se verá aquí, sin salir de la carpeta." : "Elige un cliente a la izquierda y luego un archivo para verlo aquí."}</span>
-              <span className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11.5px] text-faint">
-                <span className="inline-flex items-center gap-1">
-                  <TipoTile tipo={tipoDe({ mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", isFolder: false })} size="sm" /> Word
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <TipoTile tipo={tipoDe({ mimeType: "application/pdf", isFolder: false })} size="sm" /> PDF
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <TipoTile tipo={tipoDe({ mimeType: "image/jpeg", isFolder: false })} size="sm" /> Imágenes
-                </span>
-              </span>
-            </div>
-          </div>
-        )}
       </section>
     </div>
   );
@@ -343,7 +313,7 @@ export function CarpetaUniversal({ raiz, items, carpeta, root, clientes, archivo
 
 const ZOOMS = [0.6, 0.75, 0.9, 1, 1.15, 1.3];
 
-/** Panel derecho: barra con el archivo, zoom y acciones, y el contenido dibujado por la app (Word, PDF, imagen) o por el Drive. */
+/** Vista previa: barra con el archivo, zoom y acciones, y el contenido dibujado por la app (Word, PDF, imagen) o por el Drive. */
 function VistaPrevia({ file, onClose }: { file: DriveFile; onClose: () => void }) {
   const t = tipoDe(file);
   // Empieza ajustado al ancho del panel; +/− recorren los pasos fijos desde el valor efectivo
@@ -355,37 +325,36 @@ function VistaPrevia({ file, onClose }: { file: DriveFile; onClose: () => void }
   const menos = () => setZoom([...ZOOMS].reverse().find((z) => z < efectivo - 0.01) ?? ZOOMS[0]);
   return (
     <>
-      <div className="flex items-center gap-3 border-b border-line px-3 py-2">
-        <TipoTile tipo={t} />
+      <div className="th-band flex items-center gap-2.5 border-y border-line px-3 py-1.5">
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-[13.5px] font-semibold text-fg" title={file.name}>
+          <span className="truncate text-[12.5px] font-semibold text-fg" title={file.name}>
             {file.name}
           </span>
-          <span className="truncate text-[11.5px] text-muted">
+          <span className="truncate text-[11px] text-muted">
             {t.nombre}
             {pages ? ` · ${pages} ${pages === 1 ? "página" : "páginas"}` : ""}
-            {file.size != null ? ` · ${fmtSize(file.size)}` : ""} · modificado {fmtDate(file.modifiedTime).toLowerCase()}
+            {file.size != null ? ` · ${fmtSize(file.size)}` : ""} · {fmtDate(file.modifiedTime).toLowerCase()}
           </span>
         </span>
-        <span className="flex shrink-0 items-center gap-1.5">
+        <span className="flex shrink-0 items-center gap-1">
           {t.render === "word" && (
-            <span className="mr-1 inline-flex items-center rounded-md border border-line" role="group" aria-label="Zoom">
-              <button type="button" className="icon-btn plain !h-7 !w-7" onClick={menos} disabled={efectivo <= ZOOMS[0] + 0.01} aria-label="Alejar" title="Alejar">
+            <span className="mr-1 inline-flex items-center rounded-md border border-line bg-surface" role="group" aria-label="Zoom">
+              <button type="button" className="icon-btn plain !h-6 !w-6 text-[13px]" onClick={menos} disabled={efectivo <= ZOOMS[0] + 0.01} aria-label="Alejar" title="Alejar">
                 −
               </button>
-              <button type="button" className={`tabnum min-w-[48px] px-1 text-[11.5px] ${zoom === "fit" ? "text-accent" : "text-soft"}`} onClick={() => setZoom(zoom === "fit" ? 1 : "fit")} title={zoom === "fit" ? "Ajustado al ancho · clic para tamaño real" : "Clic para ajustar al ancho"}>
+              <button type="button" className={`tabnum min-w-[42px] px-1 text-[11px] ${zoom === "fit" ? "text-accent" : "text-soft"}`} onClick={() => setZoom(zoom === "fit" ? 1 : "fit")} title={zoom === "fit" ? "Ajustado al ancho · clic para tamaño real" : "Clic para ajustar al ancho"}>
                 {Math.round(efectivo * 100)}%
               </button>
-              <button type="button" className="icon-btn plain !h-7 !w-7" onClick={mas} disabled={efectivo >= ZOOMS[ZOOMS.length - 1] - 0.01} aria-label="Acercar" title="Acercar">
+              <button type="button" className="icon-btn plain !h-6 !w-6 text-[13px]" onClick={mas} disabled={efectivo >= ZOOMS[ZOOMS.length - 1] - 0.01} aria-label="Acercar" title="Acercar">
                 +
               </button>
             </span>
           )}
-          <a href={`${fileUrl(file.id)}?descargar=1`} className="btn-secondary btn-sm" title="Descargar el archivo">
-            <Icon name="download" size={13} /> Descargar
+          <a href={`${fileUrl(file.id)}?descargar=1`} className="icon-btn" title="Descargar" aria-label="Descargar">
+            <Icon name="download" size={14} />
           </a>
-          <a href={file.webViewLink} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm" title="Abrir en Google Drive">
-            <Icon name="external" size={13} /> Drive
+          <a href={file.webViewLink} target="_blank" rel="noopener noreferrer" className="icon-btn" title="Abrir en Google Drive" aria-label="Abrir en Google Drive">
+            <Icon name="external" size={14} />
           </a>
           <button type="button" className="icon-btn plain" onClick={onClose} aria-label="Cerrar vista previa" title="Cerrar (Esc)">
             <Icon name="close" size={15} />

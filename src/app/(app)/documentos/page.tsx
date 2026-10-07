@@ -7,6 +7,7 @@ import { driveAccess, driveIdFromUrl, driveState, getFolder, listFolder, type Dr
 import { CarpetaUniversal, type ClienteCarpeta } from "./CarpetaUniversal";
 
 // Carpeta universal: todo lo que hay en el Drive del estudio (una carpeta por cliente) con vista previa al lado.
+// Mismo marco que «Todos los leads» del CRM: cabecera, lateral de filtros (aquí los clientes) y tabla densa.
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Carpeta universal" };
 
@@ -63,32 +64,29 @@ async function DocumentosContent(props: { searchParams: Promise<SP> }) {
       error = (e as Error).message;
     }
   }
+  const nClientes = raiz.filter((f) => f.isFolder).length;
 
   return (
-    <>
-      <div className="page-head">
+    <div className="frame" style={{ height: "calc(100vh - 58px)" }}>
+      {/* Encabezado: ícono, título, descripción y acciones (como «Todos los leads») */}
+      <div className="frame-head">
         <div className="flex min-w-0 items-center gap-3">
           <span className="icon-tile solid">
             <Icon name="folder" size={18} />
           </span>
           <div className="flex min-w-0 flex-col gap-0.5">
             <h1 className="page-title">Carpeta universal</h1>
-            <span className="page-subtitle">
-              {root ? (
-                <>
-                  {raiz.filter((f) => f.isFolder).length} {raiz.filter((f) => f.isFolder).length === 1 ? "cliente" : "clientes"} en el Drive del estudio · cada uno con su carpeta de anexos y solicitud
-                </>
-              ) : (
-                "Los documentos del estudio en el Drive, una carpeta por cliente, con vista previa al lado"
-              )}
-            </span>
+            <span className="page-subtitle">{root ? `${nClientes} ${nClientes === 1 ? "cliente" : "clientes"} en el Drive del estudio · anexos y solicitud de cada uno, con vista previa` : "Los documentos del estudio en el Drive, una carpeta por cliente, con vista previa al lado"}</span>
           </div>
         </div>
-        {root && (
-          <a href={(carpeta ?? root).webViewLink} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm" title="Abrir esta carpeta en Google Drive">
-            <Icon name="external" size={13} /> Abrir en Drive
-          </a>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {root && (
+            <a href={(carpeta ?? root).webViewLink} target="_blank" rel="noopener noreferrer" className="btn-outline" title="Abrir esta carpeta en Google Drive">
+              <Icon name="external" size={14} />
+              Abrir en Drive
+            </a>
+          )}
+        </div>
       </div>
 
       {!state.connected ? (
@@ -100,13 +98,13 @@ async function DocumentosContent(props: { searchParams: Promise<SP> }) {
       ) : (
         <CarpetaUniversal key={carpeta?.id ?? "raiz"} raiz={raiz} items={items} carpeta={carpeta} root={root!} clientes={clientes} archivoId={archivoId} q={q} />
       )}
-    </>
+    </div>
   );
 }
 
 function Vacio({ titulo, texto, accion }: { titulo: string; texto: string; accion: { href: string; label: string } | null }) {
   return (
-    <section className="panel empty">
+    <div className="empty flex-1">
       <span className="icon-tile">
         <Icon name="folder" />
       </span>
@@ -117,6 +115,6 @@ function Vacio({ titulo, texto, accion }: { titulo: string; texto: string; accio
           {accion.label}
         </Link>
       )}
-    </section>
+    </div>
   );
 }
