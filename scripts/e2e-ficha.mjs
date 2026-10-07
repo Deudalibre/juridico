@@ -87,7 +87,9 @@ try {
   ok("Ficha: cabecera con etiqueta, botones y resumen", ficha.status === 200 && /Carpeta del cliente/.test(ficha.text) && /Ficha jurídica/.test(ficha.text) && /Clave Única/.test(ficha.text) && /Abogado a cargo/.test(ficha.text) && /Ingresada el 12 sept?\.? 2026/i.test(ficha.text), String(ficha.status));
   ok("Ficha: la Clave Única aparece oculta, nunca en el HTML", ficha.status === 200 && /••••••••/.test(ficha.text) && !/clave-secreta-789/.test(ficha.html));
   const causa = await page(jur, `/clientes/${id}?tab=Causa`);
-  ok("Ficha: pestaña Causa con los 8 pasos de la liquidación (la preparación la infiere el programa), los comprobantes exigidos y ninguno completado", causa.status === 200 && /Pasos de la causa/.test(causa.text) && /0 de 8 completados/.test(causa.text) && !/Preparación de documentos/.test(causa.text) && /Resolución de término/.test(causa.text) && /Requiere certificado de envío de causa/.test(causa.text) && /Cierra la causa/.test(causa.text) && !/Certificado de ejecutoria/.test(causa.text), `${causa.text.match(/\d+ de \d+ completados/)?.[0]} · prep=${/Preparación de documentos/.test(causa.text)} · ejec=${/Certificado de ejecutoria/.test(causa.text)}`);
+  // Desde el 2026-10-06 la pestaña Causa muestra solo «Apercibimientos y tareas»: el panel de pasos se quitó de la ficha
+  // (los pasos se marcan desde Revisión y siguen en la base con sus comprobantes)
+  ok("Ficha: pestaña Causa con apercibimientos y tareas, sin el panel de pasos (quitado el 2026-10-06)", causa.status === 200 && /Apercibimientos y tareas/.test(causa.text) && !/Pasos de la causa/.test(causa.text), String(causa.status));
   const nuevo = await page(jur, "/clientes/nuevo");
   ok("Alta manual: formulario con procedimiento y fecha de ingreso", nuevo.status === 200 && /Nuevo cliente/.test(nuevo.text) && /Fecha de ingreso/.test(nuevo.text));
   const ejeLista = await page(eje, "/clientes");
@@ -106,24 +108,24 @@ try {
   const cert = await adm.c.from("legal_documents").insert({ client_id: id, name: "Certificado de envío de causa", doc_type: "comprobante", status: "recibido", storage_path: certPath, file_size: certPdf.length, mime: "application/pdf", version: 1 }).select().single();
   const s2 = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Ingreso de demanda", completed_at: "2026-09-14", document_id: cert.data?.id }).select().single();
   ok("Jurídico marca pasos completados; el ingreso de demanda lleva su certificado de envío enlazado", !s1.error && !certUp.error && !cert.error && !s2.error && s2.data?.document_id === cert.data?.id, s1.error?.message ?? certUp.error?.message ?? cert.error?.message ?? s2.error?.message);
-  const causaCert = await page(jur, `/clientes/${id}?tab=Causa`);
-  ok("Pestaña Causa: el paso muestra «Ver certificado de envío de causa»", causaCert.status === 200 && /Ver certificado de envío de causa/.test(causaCert.text));
+  const stepRow = sql(`select s.step, d.name as documento from legal_case_steps s left join legal_documents d on d.id = s.document_id where s.client_id = '${id}' and s.step = 'Ingreso de demanda'`)[0];
+  ok("El paso guarda el certificado de envío enlazado (ya no se lista en la ficha; se ve en Revisión)", stepRow?.documento === "Certificado de envío de causa", JSON.stringify(stepRow));
   const hist = sql(`select summary from legal_case_history where client_id = '${id}' and kind = 'paso' order by at`);
-  ok("Cada paso queda en el historial de la causa", hist.length === 2 && /Preparación/.test(hist[0].summary) && /Ingreso de demanda/.test(hist[1].summary), JSON.stringify(hist.map((h) => h.summary)));
+  // La «Preparación de documentos» ya no es un paso (la infiere el programa desde el 2026-10-05): el historial parte en Apercibimientos
+  ok("Cada paso queda en el historial de la causa", hist.length === 2 && /Apercibimientos/.test(hist[0].summary) && /Ingreso de demanda/.test(hist[1].summary), JSON.stringify(hist.map((h) => h.summary)));
   const upd2 = await jur.c.from("legal_clients").update({ current_step: "Apercibimientos", liquidation_resolution_at: null }).eq("id", id);
   ok("current_step se puede mantener desde la app", !upd2.error, upd2.error?.message);
-  const causa2 = await page(jur, `/clientes/${id}?tab=Causa`);
-  ok("Pestaña Causa: 9 pasos, dos completados y el actual señalado", causa2.status === 200 && /2 de 9 completados/.test(causa2.text) && /Paso actual/.test(causa2.text) && /Apercibimientos y tareas/.test(causa2.text), `${causa2.status} · ${causa2.text.match(/\d+ de \d+ completados/)?.[0]} · actual=${/Paso actual/.test(causa2.text)}`);
   const fichaPaso = await page(jur, `/clientes/${id}`);
-  ok("Cabecera: paso actual y aviso de resolución de liquidación pendiente", /Paso: Apercibimientos/.test(fichaPaso.text) && /Sin resolución de liquidación aún/.test(fichaPaso.text), JSON.stringify(fichaPaso.text.match(/Paso:[^·]{0,40}|Sin resolución[^.]{0,40}/g)));
+  ok("Cabecera: nombre, etiqueta del procedimiento, RUT y rol", fichaPaso.status === 200 && /JUR Ficha Prueba/.test(fichaPaso.text) && /Liquidación voluntaria/.test(fichaPaso.text) && /12\.345\.678-5/.test(fichaPaso.text) && /C-9999-2026/.test(fichaPaso.text), String(fichaPaso.status));
   const ejeStep = await eje.c.from("legal_case_steps").select("id").eq("client_id", id);
   ok("Ejecutivo no ve los pasos de la causa (RLS)", (ejeStep.data ?? []).length === 0);
 
   // Apercibimiento como tarea con vencimiento
   const task = await jur.c.from("legal_tasks").insert({ client_id: id, kind: "apercibimiento", title: "Acompañar certificado de deudas", due_at: "2026-10-03T13:00:00Z" }).select().single();
   ok("Apercibimiento creado como tarea con vencimiento (tipo nuevo admitido)", !task.error, task.error?.message);
-  const listaTarea = await page(jur, "/clientes");
-  ok("Lista: la próxima acción muestra el apercibimiento con su fecha", listaTarea.status === 200 && /Acompañar certificado de deudas/.test(listaTarea.text) && /Apercibimiento/.test(listaTarea.text) && /Paso/.test(listaTarea.text));
+  // La próxima acción ya no va en la lista (2026-10-06): se ve en el resumen de la ficha y en la pestaña Causa
+  const fichaTarea = await page(jur, `/clientes/${id}?tab=Causa`);
+  ok("Ficha: el apercibimiento aparece como próxima acción y en la pestaña Causa", fichaTarea.status === 200 && /Acompañar certificado de deudas/.test(fichaTarea.text) && /Apercibimiento/.test(fichaTarea.text), String(fichaTarea.status));
 
   // Revisión (antes «Mi día») e Historial
   // Con cientos de causas reales en la cola, se mira solo lo del abogado de prueba
@@ -147,21 +149,25 @@ try {
   ok("Pestaña Documentos: carpeta del Drive y almacén, sin checklist en pantalla", docsEmpty.status === 200 && /Carpeta del cliente en el Drive/.test(docsEmpty.text) && /Documentos en el almacén/.test(docsEmpty.text) && !/Checklist de antecedentes/.test(docsEmpty.text), String(docsEmpty.status));
   const pdf = Buffer.from("%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
   const path = `${id}/${crypto.randomUUID()}.pdf`;
-  const up = await jur.c.storage.from("legal-documents").upload(path, pdf, { contentType: "application/pdf" });
-  ok("Jurídico sube un archivo al bucket privado (RLS documents.upload)", !up.error, up.error?.message);
+  // Desde 0033 solo el administrador tiene documents.upload: el abogado tramitador y el ejecutivo no suben al bucket
+  const jurUp = await jur.c.storage.from("legal-documents").upload(`${id}/${crypto.randomUUID()}.pdf`, pdf, { contentType: "application/pdf" });
+  ok("El abogado tramitador no sube al bucket (sin documents.upload desde 0033)", Boolean(jurUp.error), jurUp.error?.message);
+  const up = await adm.c.storage.from("legal-documents").upload(path, pdf, { contentType: "application/pdf" });
+  ok("El administrador sube un archivo al bucket privado (RLS documents.upload)", !up.error, up.error?.message);
   const ejeUp = await eje.c.storage.from("legal-documents").upload(`${id}/${crypto.randomUUID()}.pdf`, pdf, { contentType: "application/pdf" });
   ok("Ejecutivo no puede subir al bucket", Boolean(ejeUp.error), ejeUp.error?.message);
-  const doc = await jur.c.from("legal_documents").insert({ client_id: id, name: item.label, status: "recibido", storage_path: path, file_size: pdf.length, mime: "application/pdf", checklist_item_id: item.id, version: 1 }).select().single();
+  const doc = await adm.c.from("legal_documents").insert({ client_id: id, name: item.label, status: "recibido", storage_path: path, file_size: pdf.length, mime: "application/pdf", checklist_item_id: item.id, version: 1 }).select().single();
   ok("Documento registrado y vinculado al ítem", !doc.error, doc.error?.message);
   const link = await jur.c.from("legal_checklist_items").update({ satisfied: true, document_id: doc.data?.id }).eq("id", item.id).select();
-  const docsOne = await page(jur, `/clientes/${id}?tab=Documentos`);
+  // Los documentos del almacén los ve quien tiene documents.view (el administrador desde 0033)
+  const docsOne = await page(adm, `/clientes/${id}?tab=Documentos`);
   ok(
     "Pestaña Documentos: el archivo subido aparece con versión, tamaño y estado",
     // React separa «v» y «1» con un comentario en el HTML: al quitar etiquetas queda «v 1»
     !link.error && docsOne.status === 200 && /1 KB · v ?1/.test(docsOne.text) && /Recibido/.test(docsOne.text),
     `${link.error?.message ?? ""} status=${docsOne.status}`
   );
-  const signed = await jur.c.storage.from("legal-documents").createSignedUrl(path, 60);
+  const signed = await adm.c.storage.from("legal-documents").createSignedUrl(path, 60);
   ok("Enlace firmado temporal para ver el documento", !signed.error && /token=/.test(signed.data?.signedUrl ?? ""), signed.error?.message);
   const ejeDocs = await eje.c.from("legal_documents").select("id").eq("client_id", id);
   ok("Ejecutivo no ve los documentos (RLS)", (ejeDocs.data ?? []).length === 0);
@@ -197,7 +203,7 @@ try {
   ok("Drive: carpeta raíz guardada y visible", !root.error && st2.data?.[0]?.root_folder_name === "Clientes", root.error?.message);
   const docsDrive = await page(jur, `/clientes/${id}?tab=Documentos`);
   ok("Pestaña Documentos: panel de la carpeta del Drive (conexión de prueba, sin acceso real)", docsDrive.status === 200 && /Carpeta del cliente en el Drive/.test(docsDrive.text), String(docsDrive.status));
-  const dl = await jur.c.from("legal_documents").insert({ client_id: id, name: "Cédula (Drive)", status: "recibido", mime: "application/pdf", drive_file_id: "1XyZdriveFileId12345", drive_link: "https://drive.google.com/file/d/1XyZdriveFileId12345/view", version: 1 }).select().single();
+  const dl = await adm.c.from("legal_documents").insert({ client_id: id, name: "Cédula (Drive)", status: "recibido", mime: "application/pdf", drive_file_id: "1XyZdriveFileId12345", drive_link: "https://drive.google.com/file/d/1XyZdriveFileId12345/view", version: 1 }).select().single();
   ok("Documento vinculado a un archivo del Drive (sin copia en el almacén)", !dl.error && dl.data?.storage_path === null, dl.error?.message);
   const disc = await adm.c.rpc("drive_disconnect");
   const driveSecretGone = sql(`select count(*)::int as n from vault.secrets where name = 'google_drive_refresh'`)[0];
@@ -221,8 +227,8 @@ try {
 
   // Resolución de término: con su comprobante, la causa se cierra sola como «Causa terminada»
   const resPath = `${id}/${crypto.randomUUID()}.pdf`;
-  await jur.c.storage.from("legal-documents").upload(resPath, certPdf, { contentType: "application/pdf" });
-  const res = await jur.c.from("legal_documents").insert({ client_id: id, name: "Resolución de término", doc_type: "comprobante", status: "recibido", storage_path: resPath, file_size: certPdf.length, mime: "application/pdf", version: 1 }).select().single();
+  await adm.c.storage.from("legal-documents").upload(resPath, certPdf, { contentType: "application/pdf" });
+  const res = await adm.c.from("legal_documents").insert({ client_id: id, name: "Resolución de término", doc_type: "comprobante", status: "recibido", storage_path: resPath, file_size: certPdf.length, mime: "application/pdf", version: 1 }).select().single();
   const sinRes = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Resolución de término", completed_at: "2026-09-29" }).select();
   ok("La base no acepta la resolución de término sin el documento", Boolean(sinRes.error));
   const term = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Resolución de término", completed_at: "2026-09-29", document_id: res.data?.id }).select().single();
@@ -231,7 +237,8 @@ try {
   const cerradasTerm = await page(jur, "/clientes?estado=cerradas");
   ok("Lista de cerradas: la causa terminada aparece con su etiqueta", cerradasTerm.status === 200 && /JUR Ficha Prueba/.test(cerradasTerm.text) && /Causa terminada/.test(cerradasTerm.text));
   const fichaTerm = await page(jur, `/clientes/${id}`);
-  ok("Ficha: cabecera «Causa terminada» con el detalle de la resolución", /Causa terminada/.test(fichaTerm.text) && /Resolución de término del 29\/09\/2026/.test(fichaTerm.text));
+  // El detalle («Resolución de término del 29/09/2026») queda en close_detail (comprobado arriba); la cabecera lleva la etiqueta
+  ok("Ficha: cabecera con la etiqueta «Causa terminada»", fichaTerm.status === 200 && /Causa terminada/.test(fichaTerm.text), String(fichaTerm.status));
 } catch (e) {
   fails++;
   console.log("ERROR " + e.message);
