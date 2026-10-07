@@ -28,6 +28,7 @@ export function WeekCalendar({
   nextHref,
   todayHref,
   rangeLabel,
+  now,
 }: {
   days: string[]; // YYYY-MM-DD en la zona del perfil (lunes a domingo)
   tasks: (CalTask & { dayKey: string })[];
@@ -38,8 +39,9 @@ export function WeekCalendar({
   nextHref: string;
   todayHref: string;
   rangeLabel: string;
+  /** Hora del servidor al renderizar (ms): decide qué tareas van vencidas sin leer el reloj durante el render */
+  now: number;
 }) {
-  const now = Date.now();
   return (
     <section className="panel overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">

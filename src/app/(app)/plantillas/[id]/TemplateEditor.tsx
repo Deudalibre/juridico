@@ -407,7 +407,8 @@ export function TemplateEditor({ template, doc: initialDoc, docError, clients, c
               {(sel || caret) && (
                 <div
                   className="panel absolute z-30 w-[320px] p-3 shadow-lg"
-                  style={{ left: Math.min((sel ?? caret)!.x, (docRef.current?.clientWidth ?? 800) - 340), top: (sel ?? caret)!.y + 12 }}
+                  // El tope derecho lo pone CSS con el ancho del marco (sin leer refs durante el render)
+                  style={{ left: `min(${(sel ?? caret)!.x}px, calc(100% - 340px))`, top: (sel ?? caret)!.y + 12 }}
                   role="dialog"
                   aria-label={sel ? "Convertir en variable" : "Insertar variable"}
                   onMouseUp={(e) => e.stopPropagation()}

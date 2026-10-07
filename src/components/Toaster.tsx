@@ -37,10 +37,13 @@ export function Toaster() {
   const fromUrl = params.get("toast");
   useEffect(() => {
     if (!fromUrl) return;
-    show({ message: fromUrl, error: fromUrl.startsWith("No se pudo") });
+    // El aviso que viene en la URL (tras una redirección del servidor) se muestra en el siguiente tick, no en el
+    // cuerpo del efecto, y la URL se limpia para que no vuelva a salir al recargar
+    const id = window.setTimeout(() => show({ message: fromUrl, error: fromUrl.startsWith("No se pudo") }), 0);
     const rest = new URLSearchParams(params.toString());
     rest.delete("toast");
     router.replace(rest.size ? `${path}?${rest}` : path, { scroll: false });
+    return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromUrl]);
 

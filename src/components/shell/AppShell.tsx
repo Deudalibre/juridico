@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ViewTransition, useEffect, useState, type ReactNode } from "react";
+import { ViewTransition, useState, type ReactNode } from "react";
 import { Icon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/Menu";
@@ -211,7 +211,12 @@ export function AppShell({ children, userId, name, role, permissions, badge, crm
   const path = usePathname();
   const search = useSearchParams();
   const [menuOpen, setMenuOpen] = useState(false);
-  useEffect(() => setMenuOpen(false), [path]);
+  // Al cambiar de pantalla se cierra el submenú (estado ajustado durante el render, sin efecto)
+  const [menuPath, setMenuPath] = useState(path);
+  if (path !== menuPath) {
+    setMenuPath(path);
+    setMenuOpen(false);
+  }
   const can = (p: Permission) => permissions.includes(p);
 
   const nav: NavLink[] = [

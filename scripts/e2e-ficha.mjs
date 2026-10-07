@@ -79,14 +79,15 @@ try {
 
   // Pantallas
   const lista = await page(jur, "/clientes");
-  ok("Lista: cabecera, procedimiento como etiqueta, rol, tribunal, paso y acciones", lista.status === 200 && /JUR Ficha Prueba/.test(lista.text) && /Liquidación voluntaria/.test(lista.text) && /C-9999-2026/.test(lista.text) && /Carpeta/.test(lista.text) && /Ficha jurídica/.test(lista.text) && /Ingreso de demanda/.test(lista.text), String(lista.status));
+  // Desde el 2026-10-06 la lista es un listado de causas (nombre, procedimiento, rol, tribunal, abogado, acciones); el paso actual vive en Revisión
+  ok("Lista: cabecera, procedimiento como etiqueta, rol, tribunal y acciones", lista.status === 200 && /JUR Ficha Prueba/.test(lista.text) && /Liquidación voluntaria/.test(lista.text) && /C-9999-2026/.test(lista.text) && /Carpeta/.test(lista.html) && /Ficha jurídica/.test(lista.html), `${lista.status} · ${JSON.stringify(lista.text.slice(lista.text.indexOf("JUR Ficha Prueba"), lista.text.indexOf("JUR Ficha Prueba") + 160))}`);
   const busca = await page(jur, "/clientes?q=C-9999");
   ok("Lista: búsqueda por rol", busca.status === 200 && /JUR Ficha Prueba/.test(busca.text) && /1 coinciden/.test(busca.text));
   const ficha = await page(jur, `/clientes/${id}`);
   ok("Ficha: cabecera con etiqueta, botones y resumen", ficha.status === 200 && /Carpeta del cliente/.test(ficha.text) && /Ficha jurídica/.test(ficha.text) && /Clave Única/.test(ficha.text) && /Abogado a cargo/.test(ficha.text) && /Ingresada el 12 sept?\.? 2026/i.test(ficha.text), String(ficha.status));
   ok("Ficha: la Clave Única aparece oculta, nunca en el HTML", ficha.status === 200 && /••••••••/.test(ficha.text) && !/clave-secreta-789/.test(ficha.html));
   const causa = await page(jur, `/clientes/${id}?tab=Causa`);
-  ok("Ficha: pestaña Causa con los 8 pasos de la liquidación (la preparación la infiere el programa), los comprobantes exigidos y ninguno completado", causa.status === 200 && /Pasos de la causa/.test(causa.text) && /0 de 8 completados/.test(causa.text) && !/Preparación de documentos/.test(causa.text) && /Resolución de término/.test(causa.text) && /Requiere certificado de envío de causa/.test(causa.text) && /Cierra la causa/.test(causa.text) && !/Certificado de ejecutoria/.test(causa.text));
+  ok("Ficha: pestaña Causa con los 8 pasos de la liquidación (la preparación la infiere el programa), los comprobantes exigidos y ninguno completado", causa.status === 200 && /Pasos de la causa/.test(causa.text) && /0 de 8 completados/.test(causa.text) && !/Preparación de documentos/.test(causa.text) && /Resolución de término/.test(causa.text) && /Requiere certificado de envío de causa/.test(causa.text) && /Cierra la causa/.test(causa.text) && !/Certificado de ejecutoria/.test(causa.text), `${causa.text.match(/\d+ de \d+ completados/)?.[0]} · prep=${/Preparación de documentos/.test(causa.text)} · ejec=${/Certificado de ejecutoria/.test(causa.text)}`);
   const nuevo = await page(jur, "/clientes/nuevo");
   ok("Alta manual: formulario con procedimiento y fecha de ingreso", nuevo.status === 200 && /Nuevo cliente/.test(nuevo.text) && /Fecha de ingreso/.test(nuevo.text));
   const ejeLista = await page(eje, "/clientes");
@@ -98,8 +99,11 @@ try {
   ok("La base no acepta «Ingreso de demanda» sin su certificado de envío (trigger)", Boolean(sinCert.error) && /comprobante/.test(sinCert.error?.message ?? ""), sinCert.error?.message);
   const certPdf = Buffer.from("%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
   const certPath = `${id}/${crypto.randomUUID()}.pdf`;
-  const certUp = await jur.c.storage.from("legal-documents").upload(certPath, certPdf, { contentType: "application/pdf" });
-  const cert = await jur.c.from("legal_documents").insert({ client_id: id, name: "Certificado de envío de causa", doc_type: "comprobante", status: "recibido", storage_path: certPath, file_size: certPdf.length, mime: "application/pdf", version: 1 }).select().single();
+  // OJO (2026-10-07): desde 0033 el rol juridico no tiene documents.upload, así que NO puede subir el certificado ni
+  // registrarlo en legal_documents (RLS). Aquí lo sube el administrador para seguir probando los pasos; queda
+  // pendiente decidir si el abogado tramitador debe recuperar documents.upload (lo exige applyStep al marcar el paso).
+  const certUp = await adm.c.storage.from("legal-documents").upload(certPath, certPdf, { contentType: "application/pdf" });
+  const cert = await adm.c.from("legal_documents").insert({ client_id: id, name: "Certificado de envío de causa", doc_type: "comprobante", status: "recibido", storage_path: certPath, file_size: certPdf.length, mime: "application/pdf", version: 1 }).select().single();
   const s2 = await jur.c.from("legal_case_steps").insert({ client_id: id, step: "Ingreso de demanda", completed_at: "2026-09-14", document_id: cert.data?.id }).select().single();
   ok("Jurídico marca pasos completados; el ingreso de demanda lleva su certificado de envío enlazado", !s1.error && !certUp.error && !cert.error && !s2.error && s2.data?.document_id === cert.data?.id, s1.error?.message ?? certUp.error?.message ?? cert.error?.message ?? s2.error?.message);
   const causaCert = await page(jur, `/clientes/${id}?tab=Causa`);
@@ -109,9 +113,9 @@ try {
   const upd2 = await jur.c.from("legal_clients").update({ current_step: "Apercibimientos", liquidation_resolution_at: null }).eq("id", id);
   ok("current_step se puede mantener desde la app", !upd2.error, upd2.error?.message);
   const causa2 = await page(jur, `/clientes/${id}?tab=Causa`);
-  ok("Pestaña Causa: 9 pasos, dos completados y el actual señalado", causa2.status === 200 && /2 de 9 completados/.test(causa2.text) && /Paso actual/.test(causa2.text) && /Apercibimientos y tareas/.test(causa2.text), String(causa2.status));
+  ok("Pestaña Causa: 9 pasos, dos completados y el actual señalado", causa2.status === 200 && /2 de 9 completados/.test(causa2.text) && /Paso actual/.test(causa2.text) && /Apercibimientos y tareas/.test(causa2.text), `${causa2.status} · ${causa2.text.match(/\d+ de \d+ completados/)?.[0]} · actual=${/Paso actual/.test(causa2.text)}`);
   const fichaPaso = await page(jur, `/clientes/${id}`);
-  ok("Cabecera: paso actual y aviso de resolución de liquidación pendiente", /Paso: Apercibimientos/.test(fichaPaso.text) && /Sin resolución de liquidación aún/.test(fichaPaso.text));
+  ok("Cabecera: paso actual y aviso de resolución de liquidación pendiente", /Paso: Apercibimientos/.test(fichaPaso.text) && /Sin resolución de liquidación aún/.test(fichaPaso.text), JSON.stringify(fichaPaso.text.match(/Paso:[^·]{0,40}|Sin resolución[^.]{0,40}/g)));
   const ejeStep = await eje.c.from("legal_case_steps").select("id").eq("client_id", id);
   ok("Ejecutivo no ve los pasos de la causa (RLS)", (ejeStep.data ?? []).length === 0);
 

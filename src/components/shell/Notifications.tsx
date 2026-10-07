@@ -33,7 +33,8 @@ export function Notifications({ userId }: { userId: string }) {
   }, []);
 
   useEffect(() => {
-    load();
+    // Primera carga fuera del cuerpo del efecto (la suscripción de abajo trae las siguientes)
+    queueMicrotask(load);
     const supabase = createClient();
     const channel = supabase
       .channel(`notif-${userId}`)

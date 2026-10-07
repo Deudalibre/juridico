@@ -18,6 +18,9 @@ const nextConfig = {
   // Cache Components (Next 16): cáscara estática prerenderizada + streaming de lo dinámico, «use cache» y
   // conservación del estado de las pantallas al navegar (Activity). Los layouts/páginas ya no llevan force-dynamic.
   cacheComponents: true,
+  // partialPrefetching (Next 16) se probó el 2026-10-07 y se dejó fuera: al prerenderizar la cáscara de cada ruta, la
+  // verificación del JWT dentro de la sesión en caché privada (getClaims lee el reloj) hace saltar «unstable value
+  // Date.now()» en todas las pantallas. Volver a intentarlo cuando la sesión se lea fuera de la cáscara.
   // Sin React Compiler: probado el 2026-10-02 (versión Rust de Turbopack y plugin Babel): memorizaba de más y un
   // formulario con campos controlados (catálogo de variables) dejaba de actualizar su estado. La ganancia era marginal.
   experimental: {

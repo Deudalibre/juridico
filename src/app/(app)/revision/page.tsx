@@ -106,10 +106,14 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
     return s ? `/revision?${s}` : "/revision";
   };
 
+  // Hora del servidor al renderizar: una sola lectura del reloj para «hoy», la semana y las tareas vencidas
+  // eslint-disable-next-line react-hooks/purity -- componente de servidor: la hora actual es parte del dato
+  const now = Date.now();
+
   // ---------- Calendario: apercibimientos, audiencias y tareas con fecha, por semana ----------
   let calendar: ReactNode = null;
   if (modo === "calendario") {
-    const todayKey = dayKey(new Date(), tz);
+    const todayKey = dayKey(new Date(now), tz);
     const start = mondayOf(/^\d{4}-\d{2}-\d{2}$/.test(sp.semana ?? "") ? sp.semana! : todayKey);
     const days = Array.from({ length: 7 }, (_, i) => addDaysKey(start, i));
     let tq = supabase
@@ -144,6 +148,7 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
         tasks={rows}
         tz={tz}
         todayKey={todayKey}
+        now={now}
         showAssignee={view !== "mios"}
         prevHref={link({ semana: addDaysKey(start, -7) })}
         nextHref={link({ semana: addDaysKey(start, 7) })}
@@ -180,7 +185,6 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
   }
   const nextTask = new Map<string, LegalTask>();
   const overdueTasks = new Map<string, LegalTask>();
-  const now = Date.now();
   for (const t of tasks) {
     if (!nextTask.has(t.client_id)) nextTask.set(t.client_id, t);
     if (t.due_at && Date.parse(t.due_at) < now && !overdueTasks.has(t.client_id)) overdueTasks.set(t.client_id, t);
@@ -235,7 +239,7 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
   const withOverdue = visible.filter((c) => overdueTasks.has(c.id)).sort(chrono);
   // Urgencias de la selección: lo primero que mira el abogado al abrir el día
   const withApercibimiento = visible.filter((c) => nextTask.get(c.id)?.kind === "apercibimiento");
-  const todayKeyList = dayKey(new Date(), tz);
+  const todayKeyList = dayKey(new Date(now), tz);
   const dueToday = visible.filter((c) => {
     const t = nextTask.get(c.id);
     return t?.due_at && dayKey(t.due_at, tz) === todayKeyList;
