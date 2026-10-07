@@ -8,7 +8,7 @@ import { dateTime } from "@/lib/format";
 import type { LvsFicha } from "@/lib/lvs";
 import { CATEGORIAS } from "@/lib/lvs-bienes";
 import { ANEXO_CATEGORIA, GENERADOS, type GeneradoTipo, type LvsGenerado } from "@/lib/lvs-generados";
-import { generadoUrl, generarLvs, previsualizarLvs, setGeneradoEstado } from "../generar-actions";
+import { generadoUrl, generarLvs, previsualizarLvs } from "../generar-actions";
 import { PreviewDialog } from "./PreviewDialog";
 
 type Props = { clientId: string; ficha: LvsFicha; generados: LvsGenerado[]; bienes: Record<string, number>; totalDeudas: number; plantillas: Record<string, { version: number } | null>; canEdit: boolean; driveFolderUrl: string | null };
@@ -19,8 +19,8 @@ type Preview = { tipo: GeneradoTipo; url: string; fileName: string; advertencias
 
 /**
  * Documentos que produce la app desde las plantillas Word: un botón por documento (cada uno por separado), la lupa
- * para verlo antes de generarlo, la versión vigente con descarga, enlace al Drive y estado borrador/final, y las
- * versiones reemplazadas plegadas.
+ * para verlo antes de generarlo, la versión vigente con descarga y enlace al Drive, y las versiones reemplazadas
+ * plegadas. Sin «marcar final»: si no gusta, se genera de nuevo.
  */
 export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, plantillas, canEdit, driveFolderUrl }: Props) {
   const router = useRouter();
@@ -56,12 +56,6 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
       const r = await generadoUrl(clientId, g.id);
       if (r.error || !r.url) toast(r.error ?? "Sin enlace", true);
       else window.open(r.url, "_blank", "noopener");
-    });
-  const estado = (g: LvsGenerado, e: "borrador" | "final") =>
-    start(async () => {
-      const r = await setGeneradoEstado(clientId, g.id, e);
-      if (r.error) toast(r.error, true);
-      else router.refresh();
     });
 
   /** Por qué no se puede generar todavía (texto corto) o null si se puede. */
@@ -130,7 +124,9 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
           return (
             <div key={tipo} className="row flex min-h-[46px] flex-wrap items-center gap-3 px-4 py-1.5" title={detalle}>
               <span className="flex min-w-0 flex-1 items-center gap-2">
-                <span className={`h-2 w-2 shrink-0 rounded-full ${g ? (g.estado === "final" ? "bg-success" : "bg-brand") : why ? "bg-line-strong" : "bg-warning"}`} aria-hidden />
+                {/* Verde: generado · ámbar: listo para generar · gris: falta algo. Sin estados borrador/final (2026-10-06):
+                    si al operador no le gusta, genera de nuevo y listo */}
+                <span className={`h-2 w-2 shrink-0 rounded-full ${g ? "bg-success" : why ? "bg-line-strong" : "bg-warning"}`} aria-hidden />
                 <span className="truncate text-[13px] font-medium text-fg">{def.nombre}</span>
                 {g?.advertencias?.length ? (
                   <span className="text-warning" title={g.advertencias.join(" · ")} aria-label="Con advertencias">
@@ -160,15 +156,6 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
                     <button className="btn-secondary btn-sm" disabled={pending} onClick={() => descargar(g)}>
                       <Icon name="download" size={13} /> Descargar
                     </button>
-                    {canEdit && (g.estado === "final" ? (
-                      <button className="btn-ghost btn-sm" disabled={pending} onClick={() => estado(g, "borrador")}>
-                        Volver a borrador
-                      </button>
-                    ) : (
-                      <button className="btn-ghost btn-sm" disabled={pending} onClick={() => estado(g, "final")}>
-                        <Icon name="check" size={13} /> Marcar final
-                      </button>
-                    ))}
                   </>
                 )}
                 {canEdit && (

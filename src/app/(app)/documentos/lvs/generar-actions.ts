@@ -86,16 +86,7 @@ export async function previsualizarLvs(clientId: string, tipo: GeneradoTipo): Pr
   return { url: data.signedUrl, fileName: nombreArchivo(p.c, tipo), advertencias: p.advertencias };
 }
 
-/** Marca una versión como final (o la devuelve a borrador). */
-export async function setGeneradoEstado(clientId: string, id: string, estado: "borrador" | "final"): Promise<Result> {
-  const { supabase, can } = await getContext();
-  if (!can("documents.edit")) return { error: "No tienes permiso para editar documentos." };
-  if (!isUuid(clientId) || !isUuid(id)) return { error: "Datos no válidos." };
-  const { error } = await supabase.from("legal_lvs_generados").update({ estado }).eq("id", id).eq("client_id", clientId).neq("estado", "reemplazado");
-  if (error) return { error: error.message };
-  revalidatePath(`/documentos/lvs/${clientId}`);
-  return {};
-}
+// (Marcar final / volver a borrador se quitó el 2026-10-06: era doble trabajo; si no gusta, se genera de nuevo.)
 
 /** Enlace temporal de descarga del Word generado. */
 export async function generadoUrl(clientId: string, id: string): Promise<Result & { url?: string }> {
