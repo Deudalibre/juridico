@@ -500,3 +500,43 @@ export function cloneParagraphAfter(buf: Uint8Array, index: number, texts: strin
   const clones = texts.map((text) => openTag + pPr + runXml(rPr, text) + "</w:p>").join("");
   return save(zip, xml.slice(0, end) + clones + xml.slice(end));
 }
+
+/* ---------- Formato uniforme del estudio ---------- */
+
+/**
+ * Deja un Word con el mismo formato que los anexos oficiales de la Superir (2026-10-07, pedido del estudio para la
+ * Solicitud LVS, que venía en otro formato): página carta con los márgenes de los anexos (2,5 cm arriba y abajo,
+ * 3 cm a los lados), fuente Verdana en todo el documento (texto, estilos y predeterminados), tamaño 10 pt donde el
+ * modelo tenía 11 y el interlineado 1,15 de los anexos donde el modelo tenía 1,5. Se quitan las fuentes incrustadas
+ * (Open Sans, Lato…), que pesaban 5 MB y ya no se usan. No toca el texto ni las marcas.
+ */
+export function formatoDeLosAnexos(buf: Uint8Array): Buffer {
+  const zip = new PizZip(buf);
+  const FONTS = `<w:rFonts w:ascii="${FUENTE_DATOS}" w:hAnsi="${FUENTE_DATOS}" w:cs="${FUENTE_DATOS}" w:eastAsia="${FUENTE_DATOS}"/>`;
+  const edit = (path: string, fn: (xml: string) => string) => {
+    const f = zip.file(path);
+    if (f) zip.file(path, fn(f.asText()));
+  };
+  edit(DOC_PATH, (xml) =>
+    xml
+      .replace(/<w:pgSz [^>]*\/>/g, '<w:pgSz w:w="12240" w:h="15840"/>')
+      .replace(/<w:pgMar [^>]*\/>/g, '<w:pgMar w:top="1417" w:right="1701" w:bottom="1417" w:left="1701" w:header="708" w:footer="708" w:gutter="0"/>')
+      .replace(/<w:rFonts [^>]*\/>/g, FONTS)
+      .replace(/<w:sz w:val="22"\/>/g, '<w:sz w:val="20"/>')
+      .replace(/<w:szCs w:val="22"\/>/g, '<w:szCs w:val="20"/>')
+      .replace(/<w:spacing w:line="360" w:lineRule="auto"\/>/g, '<w:spacing w:line="278" w:lineRule="auto"/>'),
+  );
+  edit("word/styles.xml", (xml) =>
+    xml
+      .replace(/<w:rFonts [^>]*\/>/g, FONTS)
+      .replace(/<w:sz w:val="2[24]"\/>/g, '<w:sz w:val="20"/>')
+      .replace(/<w:szCs w:val="2[24]"\/>/g, '<w:szCs w:val="20"/>'),
+  );
+  // Fuentes incrustadas fuera: archivos, referencias de la tabla de fuentes, relaciones, tipos de contenido y ajustes
+  for (const name of Object.keys(zip.files)) if (name.startsWith("word/fonts/")) zip.remove(name);
+  edit("word/fontTable.xml", (xml) => xml.replace(/<w:embed(Regular|Bold|Italic|BoldItalic)\b[^>]*\/>/g, ""));
+  edit("word/_rels/fontTable.xml.rels", (xml) => xml.replace(/<Relationship\b[^>]*\/relationships\/font"[^>]*\/>/g, ""));
+  edit("[Content_Types].xml", (xml) => xml.replace(/<Default Extension="odttf"[^>]*\/>/g, ""));
+  edit("word/settings.xml", (xml) => xml.replace(/<w:(embedTrueTypeFonts|saveSubsetFonts|embedSystemFonts)\b[^>]*\/>/g, ""));
+  return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+}

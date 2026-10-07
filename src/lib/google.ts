@@ -1,7 +1,9 @@
 // Solo se usa desde el servidor (route handlers, server actions y páginas): contiene el client secret.
 // Integración con el Google Drive del estudio: una conexión para todos, carpetas por cliente.
-// Permisos pedidos: leer el Drive (listar y previsualizar) y crear archivos en las carpetas (subidas
-// desde la app). Nunca se borra nada en el Drive desde aquí.
+// Permisos pedidos: leer el Drive (listar y previsualizar) y crear archivos y carpetas desde la app (la carpeta
+// universal, una carpeta por cliente y los documentos generados dentro). Con «drive.file» la app solo escribe en lo
+// que ella misma creó: por eso la carpeta universal la crea la app desde Configuración. Nunca se borra nada en el
+// Drive desde aquí.
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -117,6 +119,82 @@ export function driveIdFromUrl(input: string | null | undefined): string | null 
 }
 
 /** Vista previa incrustable de un archivo (el Drive la sirve para quien tiene acceso). */
+export const drivePreviewUrl = (fileId: string) => `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview`;
+
+/** Subcarpeta con ese nombre exacto dentro de una carpeta (la más antigua si hubiera repetidas). */
+export async function findChildFolder(access: string, parentId: string, name: string): Promise<DriveFolder | null> {
+  const q = `'${esc(parentId)}' in parents and mimeType = '${FOLDER}' and name = '${esc(name)}' and trashed = false`;
+  const p = new URLSearchParams({ q, fields: "files(id,name,webViewLink)", pageSize: "5", supportsAllDrives: "true", includeItemsFromAllDrives: "true", orderBy: "createdTime" });
+  const json = await gapi(access, `https://www.googleapis.com/drive/v3/files?${p}`);
+  const f = (json.files ?? [])[0];
+  return f ? { id: f.id, name: f.name, webViewLink: f.webViewLink } : null;
+}
+
+/** Crea una carpeta (en «Mi unidad» si no se indica carpeta madre). */
+export async function createFolder(access: string, name: string, parentId: string | null): Promise<DriveFolder> {
+  const body: Record<string, unknown> = { name, mimeType: FOLDER };
+  if (parentId) body.parents = [parentId];
+  const f = await gapi(access, "https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink&supportsAllDrives=true", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { id: f.id, name: f.name, webViewLink: f.webViewLink };
+}
+
+/** La subcarpeta con ese nombre, creándola si no existe. */
+export async function ensureFolder(access: string, parentId: string, name: string): Promise<DriveFolder> {
+  return (await findChildFolder(access, parentId, name)) ?? createFolder(access, name, parentId);
+}
+
+export type DriveUpload = { id: string; name: string; webViewLink: string };
+
+/**
+ * Guarda un archivo en una carpeta. Con el id de un archivo ya existente reemplaza su contenido (mismo enlace; el
+ * Drive conserva las versiones anteriores en su historial). Si ese archivo ya no existe, crea uno nuevo.
+ */
+export async function uploadFile(access: string, parentId: string, name: string, content: Uint8Array, mime: string, existingId: string | null): Promise<DriveUpload> {
+  const fields = "id,name,webViewLink";
+  if (existingId) {
+    try {
+      const f = await gapi(access, `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(existingId)}?uploadType=media&fields=${fields}&supportsAllDrives=true`, {
+        method: "PATCH",
+        headers: { "Content-Type": mime },
+        body: content as BodyInit,
+      });
+      // El nombre puede haber cambiado (se corrigió el nombre del cliente): se alinea sin crear otro archivo
+      if (f.name !== name)
+        await gapi(access, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(existingId)}?fields=${fields}&supportsAllDrives=true`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+      return { id: f.id, name, webViewLink: f.webViewLink };
+    } catch (e) {
+      if ((e as { status?: number }).status !== 404) throw e;
+    }
+  }
+  const boundary = `dl${Date.now().toString(36)}`;
+  const meta = JSON.stringify({ name, parents: [parentId] });
+  const head = Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`);
+  const tail = Buffer.from(`\r\n--${boundary}--`);
+  const body = Buffer.concat([head, Buffer.from(content), tail]);
+  const f = await gapi(access, `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=${fields}&supportsAllDrives=true`, {
+    method: "POST",
+    headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+    body: body as BodyInit,
+  });
+  return { id: f.id, name: f.name, webViewLink: f.webViewLink };
+}
+
+/** Mensaje para el operador cuando Google rechaza una escritura (carpeta que la app no creó o permiso insuficiente). */
+export function driveWriteError(e: unknown): string {
+  const st = (e as { status?: number }).status;
+  const msg = (e as Error).message ?? String(e);
+  if (st === 403 || st === 404 || /insufficient/i.test(msg)) return `${msg}. La app solo puede escribir en la carpeta universal que ella misma creó desde Configuración.`;
+  return msg;
+}
+
 export type DriveState = { connected: boolean; email: string | null; rootId: string | null; rootName: string | null; error: string | null };
 
 /** Estado de la conexión (sin secretos). */

@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getContext } from "@/lib/data";
 
 /**
@@ -6,6 +7,9 @@ import { getContext } from "@/lib/data";
  */
 export async function AlertsBadge() {
   const { supabase } = await getContext();
+  // La sesión viene de la caché privada, así que nada antes de esta línea es dinámico: se declara que la insignia se
+  // calcula en cada petición (Cache Components) antes de leer el reloj; si no, Next la marca como valor inestable
+  await connection();
   const now = new Date().toISOString();
   const [{ count: toReview }, { count: overdue }] = await Promise.all([
     supabase.from("legal_clients").select("id", { count: "exact", head: true }).is("archived_at", null).or(`next_review_at.is.null,next_review_at.lte.${now}`),

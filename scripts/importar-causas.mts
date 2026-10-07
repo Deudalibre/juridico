@@ -379,6 +379,8 @@ for (const r of rows) {
         console.log(`    tarea ya registrada: ${t.title}`);
         continue;
       }
+      // También evita repetirla dentro de la misma corrida (dos filas de la planilla unidas en una causa, 2026-10-07)
+      titles.add(t.title);
       console.log(`    tarea ${t.status === "completada" ? "✓ completada" : "○ pendiente"} [${t.kind}] ${t.title}${t.due ? ` · vence en ${diasVence} días` : ""}`);
       if (simular || !clientId) continue;
       const now = new Date().toISOString();

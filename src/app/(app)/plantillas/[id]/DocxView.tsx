@@ -130,9 +130,9 @@ export function DocxView({ version, doc, mode, chip, chipKey, canSelect, getUrl,
   // Carga y dibuja el Word cada vez que cambia la versión (o se pide reintentar)
   useEffect(() => {
     let cancelled = false;
-    setSlow(false);
     const slowTimer = setTimeout(() => setSlow(true), 15000);
     (async () => {
+      setSlow(false);
       setStatus("loading");
       setError(null);
       try {

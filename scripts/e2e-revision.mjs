@@ -47,7 +47,8 @@ try {
   const prepPos = portada.text.indexOf("En preparación");
   ok("Portada: el cliente sin rol va aparte en «En preparación», con «Ingresar demanda» y sin «Sin movimiento»", prepPos > 0 && portada.text.indexOf("JUR Revisión Preparación") > prepPos && /Ingresar demanda/.test(portada.text.slice(prepPos)) && !/Sin movimiento/.test(portada.text.slice(prepPos)), String(prepPos));
   const rev = await page(jur, `/revision?ver=${abo.id}&anio=2026`);
-  ok("Marco: barra lateral con Revisión, Clientes, Plantillas, Documentos y CRM; migas «Revisión › Por revisar»", rev.status === 200 && /Revisión/.test(rev.text) && /Plantillas/.test(rev.text) && /CRM/.test(rev.text) && /Por revisar/.test(rev.text), String(rev.status));
+  // Desde 0033 (2026-10-05) el abogado tramitador (rol juridico) solo ve Revisión y Clientes: Plantillas y Documentos son del administrador
+  ok("Marco: barra lateral con Revisión, Clientes y CRM (sin Plantillas ni Documentos para el rol juridico); migas «Revisión › Por revisar»", rev.status === 200 && /Revisión/.test(rev.text) && /Clientes/.test(rev.text) && !/Plantillas/.test(rev.text) && /CRM/.test(rev.text) && /Por revisar/.test(rev.text), String(rev.status));
   ok("Marco: submenú de la sección (Historial de revisiones) y campana de notificaciones", /Historial de revisiones/.test(rev.text) && /aria-label="Notificaciones/.test(rev.html));
   const posA = rev.text.indexOf("JUR Revisión Antigua");
   const posB = rev.text.indexOf("JUR Revisión Nueva");

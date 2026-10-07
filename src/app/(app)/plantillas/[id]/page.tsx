@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import Loading from "@/app/(app)/loading";
 import { requirePermission } from "@/lib/data";
 import { readDocx, type DocModel } from "@/lib/docx";
 import { TEMPLATE_BUCKET, type LegalTemplate } from "@/lib/templates";
@@ -11,7 +13,19 @@ import type { CatalogVariable } from "@/lib/templates";
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Plantilla" };
 
-export default async function PlantillaPage(props: { params: Promise<{ id: string }> }) {
+/**
+ * La carga de datos vive en PlantillaContent, dentro de un <Suspense> con el esqueleto de loading.tsx: la navegación al
+ * editor es instantánea (Next 16 lo valida en desarrollo) y el Word entra en streaming.
+ */
+export default function PlantillaPage(props: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <PlantillaContent params={props.params} />
+    </Suspense>
+  );
+}
+
+async function PlantillaContent(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
   const { supabase, can } = await requirePermission("documents.view");
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();

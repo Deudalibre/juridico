@@ -2,7 +2,7 @@
 // cada párrafo que depende de la ficha se desdobla en variantes {#x}…{/x} / {^x}…{/x}. Las redacciones que el modelo
 // no traía están en REDACCIONES, todas juntas, para que el abogado las revise y corrija en un solo lugar.
 // Solo servidor (usa docx.ts).
-import { cloneParagraphAfter, readDocx, replaceText, setParagraphText, templateError, type Block, type Para } from "./docx";
+import { cloneParagraphAfter, formatoDeLosAnexos, readDocx, replaceText, setParagraphText, templateError, type Block, type Para } from "./docx";
 
 /**
  * Textos que el modelo no traía (el modelo trae un solo caso por bloque). Siguen la forma de los párrafos vecinos del
@@ -138,6 +138,9 @@ export function prepararDemanda(original: Buffer): Buffer {
   buf = desdoblar(buf, "Vehículos y otros bienes registrables: La parte deudora", "tiene_vehiculos", [R.vehiculos_si], [veh.text]);
   const rai = buscar(buf, "Bienes raíces: La parte deudora");
   buf = desdoblar(buf, "Bienes raíces: La parte deudora", "tiene_bienes_raices", [R.raices_si], [rai.text]);
+
+  // Mismo formato que los anexos oficiales: carta, márgenes, Verdana e interlineado (pedido del estudio, 2026-10-07)
+  buf = formatoDeLosAnexos(buf);
 
   const err = templateError(buf);
   if (err) throw new Error(`La Solicitud preparada no compila: ${err}`);

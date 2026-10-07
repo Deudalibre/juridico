@@ -12,6 +12,7 @@ import { lvsValues } from "./lvs";
 import { clientValues } from "./templates";
 import { DOCX_MIME, TEMPLATE_BUCKET } from "./templates";
 import { formatRut } from "./rut";
+import { driveAccess, driveIdFromUrl, driveState, driveWriteError, ensureFolder, getFolder, uploadFile, type DriveFolder, type DriveUpload } from "./google";
 
 import { ANEXO_CATEGORIA, GENERADOS, type GeneradoTipo } from "./lvs-generados";
 export { GENERADOS, type GeneradoTipo, type LvsGenerado } from "./lvs-generados";
@@ -360,37 +361,54 @@ export function datosDeclaracion(c: LegalClient, f: LvsFicha, lawyer: string | n
   return { data, errores, advertencias: [] as string[] };
 }
 
-/**
- * Genera un documento LVS: toma la plantilla del slot, la rellena, guarda el Word en el bucket de documentos de la
- * causa, lo registra como documento (y como generado).
- * Si ya había una versión, la anterior pasa a «reemplazado».
- */
-export async function generarDocumento(supabase: SupabaseClient, userId: string, c: LegalClient, tipo: GeneradoTipo, data: Record<string, unknown>, advertencias: string[]): Promise<{ error?: string; id?: string }> {
+/** Nombre del Word tal como queda en el Drive y en la descarga: «Anexo N.º 8 - Nombre-Apellido 12.345.678-9.docx». */
+export const nombreArchivo = (c: LegalClient, tipo: GeneradoTipo) => `${GENERADOS[tipo].nombre.split(" · ")[0]} - ${slug(c.full_name)}${c.rut ? ` ${formatRut(c.rut)}` : ""}.docx`;
+
+type Plantilla = { id: string; version: number; storage_path: string; name: string };
+
+/** Rellena la plantilla del slot con los datos ya calculados. Es lo que comparten la vista previa (lupa) y la generación. */
+export async function renderizarLvs(supabase: SupabaseClient, tipo: GeneradoTipo, data: Record<string, unknown>): Promise<{ error?: string; out?: Buffer; tpl?: Plantilla }> {
   const { data: tpl } = await supabase.from("legal_templates").select("id, version, storage_path, name").eq("slot", tipo).eq("active", true).maybeSingle();
   if (!tpl) return { error: `No hay plantilla cargada para «${GENERADOS[tipo].nombre}». Súbela en Plantillas con el papel ${tipo}.` };
   const dl = await supabase.storage.from(TEMPLATE_BUCKET).download(tpl.storage_path);
   if (dl.error || !dl.data) return { error: `No se pudo leer la plantilla: ${dl.error?.message ?? "sin archivo"}` };
-  let out: Buffer;
   try {
-    out = renderDocx(Buffer.from(await dl.data.arrayBuffer()), data, { textoFijo: [...TEXTO_SEGUN_GENERO, ...TEXTO_FIJO_DEMANDA] });
+    return { out: renderDocx(Buffer.from(await dl.data.arrayBuffer()), data, { textoFijo: [...TEXTO_SEGUN_GENERO, ...TEXTO_FIJO_DEMANDA] }), tpl: tpl as Plantilla };
   } catch (e) {
     return { error: `La plantilla no se pudo rellenar: ${(e as Error).message}` };
   }
-  const fileName = `${GENERADOS[tipo].nombre.split(" · ")[0]} - ${slug(c.full_name)}${c.rut ? ` ${formatRut(c.rut)}` : ""}.docx`;
+}
+
+/**
+ * Genera un documento LVS: toma la plantilla del slot, la rellena, guarda el Word en el bucket de documentos de la
+ * causa, lo registra como documento (y como generado) y lo sube a la carpeta del cliente en el Drive del estudio.
+ * Si ya había una versión, la anterior pasa a «reemplazado» y en el Drive se reemplaza el mismo archivo.
+ * Si el Drive falla o no está configurado, el documento se genera igual y queda una advertencia.
+ */
+export async function generarDocumento(supabase: SupabaseClient, userId: string, c: LegalClient, tipo: GeneradoTipo, data: Record<string, unknown>, advertencias: string[]): Promise<{ error?: string; id?: string; driveLink?: string | null; advertencias?: string[] }> {
+  const r = await renderizarLvs(supabase, tipo, data);
+  if (r.error || !r.out || !r.tpl) return { error: r.error ?? "No se pudo generar." };
+  const { out, tpl } = r;
+  const fileName = nombreArchivo(c, tipo);
   const path = `${c.id}/generados/${randomUUID()}.docx`;
   const up = await supabase.storage.from("legal-documents").upload(path, out, { contentType: DOCX_MIME, cacheControl: "0", upsert: false });
   if (up.error) return { error: `No se pudo guardar el Word: ${up.error.message}` };
 
-  const { data: prev } = await supabase.from("legal_lvs_generados").select("id, document_id").eq("client_id", c.id).eq("tipo", tipo).neq("estado", "reemplazado").order("generado_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: prev } = await supabase.from("legal_lvs_generados").select("id, document_id, drive_file_id").eq("client_id", c.id).eq("tipo", tipo).neq("estado", "reemplazado").order("generado_at", { ascending: false }).limit(1).maybeSingle();
+
+  // Al Drive: carpeta universal → carpeta del cliente → el Word (mismo archivo si ya existía)
+  const drive = await guardarEnDrive(supabase, c, fileName, out, prev?.drive_file_id ?? null);
+  const avisos = drive.error ? [...advertencias, `No se guardó en el Drive: ${drive.error}`] : advertencias;
+
   const { data: doc, error: docErr } = await supabase
     .from("legal_documents")
-    .insert({ client_id: c.id, name: GENERADOS[tipo].nombre, doc_type: tipo, status: "preparado", storage_path: path, file_size: out.length, mime: DOCX_MIME, version: 1, replaces_id: prev?.document_id ?? null })
+    .insert({ client_id: c.id, name: GENERADOS[tipo].nombre, doc_type: tipo, status: "preparado", storage_path: path, file_size: out.length, mime: DOCX_MIME, version: 1, replaces_id: prev?.document_id ?? null, drive_file_id: drive.file?.id ?? null, drive_link: drive.file?.webViewLink ?? null })
     .select("id")
     .single();
   if (docErr) return { error: docErr.message };
   const { data: gen, error } = await supabase
     .from("legal_lvs_generados")
-    .insert({ client_id: c.id, tipo, template_id: tpl.id, template_version: tpl.version, document_id: doc.id, storage_path: path, file_name: fileName, replaces_id: prev?.id ?? null, datos: data, advertencias, generado_por: userId })
+    .insert({ client_id: c.id, tipo, template_id: tpl.id, template_version: tpl.version, document_id: doc.id, storage_path: path, file_name: fileName, replaces_id: prev?.id ?? null, datos: data, advertencias: avisos, generado_por: userId, drive_file_id: drive.file?.id ?? null, drive_link: drive.file?.webViewLink ?? null })
     .select("id")
     .single();
   if (error) return { error: error.message };
@@ -398,5 +416,34 @@ export async function generarDocumento(supabase: SupabaseClient, userId: string,
     await supabase.from("legal_lvs_generados").update({ estado: "reemplazado" }).eq("id", prev.id);
     if (prev.document_id) await supabase.from("legal_documents").update({ is_current: false, status: "reemplazado" }).eq("id", prev.document_id);
   }
-  return { id: gen.id as string };
+  return { id: gen.id as string, driveLink: drive.file?.webViewLink ?? null, advertencias: avisos };
 }
+
+/**
+ * Sube el Word a la carpeta del cliente en el Drive. La carpeta del cliente se llama como él (en mayúsculas) y cuelga
+ * de la carpeta universal fijada en Configuración; se crea la primera vez y queda enlazada en la causa.
+ * Devuelve el archivo o el motivo por el que no se pudo (nunca lanza: generar no depende del Drive).
+ */
+async function guardarEnDrive(supabase: SupabaseClient, c: LegalClient, fileName: string, out: Buffer, existingId: string | null): Promise<{ file?: DriveUpload; error?: string }> {
+  try {
+    const state = await driveState(supabase);
+    if (!state.connected) return { error: "Google Drive no está conectado (Configuración)." };
+    if (!state.rootId) return { error: "falta la carpeta universal (Configuración → Google Drive)." };
+    const access = await driveAccess(supabase);
+    if (!access) return { error: "sin acceso al Drive." };
+    let folder: DriveFolder | null = null;
+    const linked = driveIdFromUrl(c.drive_folder_url);
+    if (linked) folder = await getFolder(access, linked);
+    if (!folder) {
+      folder = await ensureFolder(access, state.rootId, nombreCarpeta(c));
+      await supabase.from("legal_clients").update({ drive_folder_url: folder.webViewLink }).eq("id", c.id);
+    }
+    const file = await uploadFile(access, folder.id, fileName, out, DOCX_MIME, existingId);
+    return { file };
+  } catch (e) {
+    return { error: driveWriteError(e) };
+  }
+}
+
+/** Nombre de la carpeta del cliente en el Drive: «IGNACIO FIGUEROA SOTO» (con el N° interno delante si lo tiene). */
+export const nombreCarpeta = (c: Pick<LegalClient, "full_name" | "internal_number">) => `${c.internal_number ? `${c.internal_number}.- ` : ""}${c.full_name.trim().replace(/\s+/g, " ").toUpperCase()}`;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ViewTransition, type ReactNode } from "react";
+import { Suspense, ViewTransition, type ReactNode } from "react";
+import Loading from "@/app/(app)/loading";
 import {
   getMembers,
   requirePermission,
@@ -64,7 +65,20 @@ function ExternalButton({ icon, label, url }: { icon: string; label: string; url
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Ficha de la causa" };
 
-export default async function ClientePage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
+/**
+ * La carga de datos vive en ClienteContent, dentro de un <Suspense> con el esqueleto de loading.tsx: la navegación a la
+ * ficha es instantánea (Next 16 lo valida en desarrollo) y los datos entran en streaming. loading.tsx solo cubre la
+ * carga directa, no la navegación entre pantallas.
+ */
+export default function ClientePage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ClienteContent params={props.params} searchParams={props.searchParams} />
+    </Suspense>
+  );
+}
+
+async function ClienteContent(props: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
   const { supabase, tz, can } = await requirePermission("legal.view");
