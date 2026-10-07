@@ -30,13 +30,14 @@ async function DocumentosContent(props: { searchParams: Promise<SP> }) {
   const sp = await props.searchParams;
   const state = await driveState(supabase);
   const q = (sp.q ?? "").trim();
-  const carpetaId = /^[A-Za-z0-9_-]{10,}$/.test(sp.carpeta ?? "") ? sp.carpeta! : null;
+  const carpetaId = /^[A-Za-z0-9_-]{10,}$/.test(sp.carpeta ?? "") && sp.carpeta !== state.rootId ? sp.carpeta! : null;
   const archivoId = /^[A-Za-z0-9_-]{10,}$/.test(sp.archivo ?? "") ? sp.archivo! : null;
 
   let error: string | null = null;
   let root: DriveFolder | null = null;
   let carpeta: DriveFolder | null = null;
-  let items: DriveFile[] = [];
+  let raiz: DriveFile[] = []; // carpetas de clientes (y archivos sueltos) en la carpeta universal
+  let items: DriveFile[] = []; // lo que hay en la carpeta abierta
   // Qué carpeta del Drive es de qué causa (para mostrar RUT y N° y enlazar al expediente desde la lista)
   const clientes: Record<string, ClienteCarpeta> = {};
   if (state.connected && state.rootId) {
@@ -44,14 +45,15 @@ async function DocumentosContent(props: { searchParams: Promise<SP> }) {
       const access = await driveAccess(supabase);
       if (access) {
         root = { id: state.rootId, name: state.rootName ?? "Carpeta universal", webViewLink: `https://drive.google.com/drive/folders/${state.rootId}` };
-        const [c, lista, { data: causas }] = await Promise.all([
-          carpetaId && carpetaId !== state.rootId ? getFolder(access, carpetaId) : Promise.resolve(null),
-          listFolder(access, carpetaId && carpetaId !== state.rootId ? carpetaId : state.rootId),
+        const [c, listaRaiz, listaCarpeta, { data: causas }] = await Promise.all([
+          carpetaId ? getFolder(access, carpetaId) : Promise.resolve(null),
+          listFolder(access, state.rootId),
+          carpetaId ? listFolder(access, carpetaId).catch(() => [] as DriveFile[]) : Promise.resolve([] as DriveFile[]),
           supabase.from("legal_clients").select("id, full_name, rut, internal_number, drive_folder_url, archived_at").not("drive_folder_url", "is", null).limit(2000),
         ]);
         carpeta = c;
-        // Si la carpeta pedida no existe o no es accesible, se vuelve a la raíz (la lista ya es la de la raíz)
-        items = carpetaId && carpetaId !== state.rootId && !c ? await listFolder(access, state.rootId) : lista;
+        raiz = listaRaiz;
+        items = c ? listaCarpeta : listaRaiz;
         for (const row of causas ?? []) {
           const id = driveIdFromUrl(row.drive_folder_url as string | null);
           if (id) clientes[id] = { id: row.id as string, full_name: row.full_name as string, rut: (row.rut as string | null) ?? null, internal_number: (row.internal_number as string | null) ?? null, cerrada: Boolean(row.archived_at) };
@@ -60,10 +62,6 @@ async function DocumentosContent(props: { searchParams: Promise<SP> }) {
     } catch (e) {
       error = (e as Error).message;
     }
-  }
-  if (q) {
-    const n = q.toLowerCase();
-    items = items.filter((f) => f.name.toLowerCase().includes(n) || (clientes[f.id]?.rut ?? "").includes(n.replace(/[^0-9k]/gi, "")));
   }
 
   return (
@@ -75,20 +73,22 @@ async function DocumentosContent(props: { searchParams: Promise<SP> }) {
           </span>
           <div className="flex min-w-0 flex-col gap-0.5">
             <h1 className="page-title">Carpeta universal</h1>
-            <span className="page-subtitle">Los documentos del estudio en el Drive, una carpeta por cliente, con vista previa al lado</span>
+            <span className="page-subtitle">
+              {root ? (
+                <>
+                  {raiz.filter((f) => f.isFolder).length} {raiz.filter((f) => f.isFolder).length === 1 ? "cliente" : "clientes"} en el Drive del estudio · cada uno con su carpeta de anexos y solicitud
+                </>
+              ) : (
+                "Los documentos del estudio en el Drive, una carpeta por cliente, con vista previa al lado"
+              )}
+            </span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <form className="relative" role="search">
-            {carpeta && <input type="hidden" name="carpeta" value={carpeta.id} />}
-            <input name="q" defaultValue={q} className="search" placeholder={carpeta ? "Buscar archivo…" : "Buscar cliente o RUT…"} aria-label="Buscar en la carpeta" autoComplete="off" />
-          </form>
-          {root && (
-            <a href={(carpeta ?? root).webViewLink} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm" title="Abrir esta carpeta en Google Drive">
-              <Icon name="external" size={13} /> Abrir en Drive
-            </a>
-          )}
-        </div>
+        {root && (
+          <a href={(carpeta ?? root).webViewLink} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm" title="Abrir esta carpeta en Google Drive">
+            <Icon name="external" size={13} /> Abrir en Drive
+          </a>
+        )}
       </div>
 
       {!state.connected ? (
@@ -98,7 +98,7 @@ async function DocumentosContent(props: { searchParams: Promise<SP> }) {
       ) : error ? (
         <Vacio titulo="No se pudo leer el Drive" texto={error} accion={null} />
       ) : (
-        <CarpetaUniversal key={carpeta?.id ?? "raiz"} items={items} carpeta={carpeta} root={root!} clientes={clientes} archivoId={archivoId} q={q} />
+        <CarpetaUniversal key={carpeta?.id ?? "raiz"} raiz={raiz} items={items} carpeta={carpeta} root={root!} clientes={clientes} archivoId={archivoId} q={q} />
       )}
     </>
   );
