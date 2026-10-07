@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
 import { cleanRut, isValidRut } from "@/lib/rut";
 import { ESTADOS_CIVILES, PREGUNTAS_273A, lvsProgress, type LvsFicha } from "@/lib/lvs";
+import { tribunalPara } from "@/lib/tribunales";
 
 type Result = { error?: string };
 const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
@@ -99,6 +100,9 @@ export async function saveLvs(clientId: string, fd: FormData): Promise<Result & 
   if (genero && genero !== "F" && genero !== "M") return { error: "Género no válido." };
   const relacion = yesNo(fd, "relacion_laboral");
 
+  // Tribunal según la comuna del domicilio (Código Orgánico de Tribunales): rellena lo que el operador dejó vacío
+  const tribunal = tribunalPara(text(fd, "comuna", 80));
+  const comunaTribunal = text(fd, "comuna_tribunal", 80) ?? tribunal?.asiento ?? null;
   const lvs: Partial<LvsFicha> = {
     genero: (genero as "F" | "M" | null) ?? null,
     nacionalidad: text(fd, "nacionalidad", 60) ?? "Chilena",
@@ -106,13 +110,13 @@ export async function saveLvs(clientId: string, fd: FormData): Promise<Result & 
     profesion_oficio: text(fd, "profesion_oficio"),
     domicilio: text(fd, "domicilio", 300),
     comuna: text(fd, "comuna", 80),
-    region: text(fd, "region", 80),
+    region: text(fd, "region", 80) ?? tribunal?.region ?? null,
     relacion_laboral: relacion,
     empleador: relacion ? text(fd, "empleador") : null,
     rut_empleador: relacion && rutEmp ? cleanRut(rutEmp) : null,
-    comuna_tribunal: text(fd, "comuna_tribunal", 80),
-    // Si no se escribe el encabezado, se arma con la comuna del tribunal (se puede corregir después)
-    sj_comuna: text(fd, "sj_comuna", 200) ?? (text(fd, "comuna_tribunal", 80) ? `S.J.L. Civil de ${text(fd, "comuna_tribunal", 80)}` : null),
+    comuna_tribunal: comunaTribunal,
+    // Si no se escribe el encabezado: el de la tabla cuando la comuna está en ella; si no, se arma con la comuna del tribunal
+    sj_comuna: text(fd, "sj_comuna", 200) ?? tribunal?.encabezado ?? (comunaTribunal ? `S.J.L. Civil de ${comunaTribunal}` : null),
     carta_original: text(fd, "carta_original", 20000),
     carta_demanda: text(fd, "carta_demanda", 20000),
   };

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { COMUNAS, tribunalPara } from "@/lib/tribunales";
 import { Field, toast } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import type { LegalClient } from "@/lib/data";
@@ -157,6 +158,27 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
   const [relacion, setRelacion] = useState<YN>(yn(f.relacion_laboral));
   const [answers, setAnswers] = useState<Record<Pregunta273A, YN>>(() => Object.fromEntries(PREGUNTAS_273A.map((q) => [q.key, yn(f[q.key])])) as Record<Pregunta273A, YN>);
   const [genero, setGenero] = useState<"F" | "M" | "">(f.genero ?? "");
+  // Tribunal deducido de la comuna del domicilio: rellena región, comuna del tribunal y encabezado (editables después)
+  const [tribunalNota, setTribunalNota] = useState<string>(() => {
+    const t = tribunalPara(f.comuna);
+    return t ? `Según el Código Orgánico de Tribunales, ${f.comuna} corresponde al ${t.tipo === "civil" ? "juzgado civil" : "juzgado de letras"} de ${t.asiento}.` : "Se deduce de la comuna del domicilio (Código Orgánico de Tribunales); si la comuna no está en la tabla, escríbelo a mano.";
+  });
+  const deducirTribunal = (comuna: string) => {
+    const t = tribunalPara(comuna);
+    const form = formRef.current;
+    if (!t || !form) {
+      if (comuna.trim() && !t) setTribunalNota(`«${comuna.trim()}» no está en la tabla de tribunales: revisa la comuna o escribe el tribunal a mano.`);
+      return;
+    }
+    const set = (name: string, value: string) => {
+      const el = form.elements.namedItem(name) as HTMLInputElement | null;
+      if (el) el.value = value;
+    };
+    set("region", t.region);
+    set("comuna_tribunal", t.asiento);
+    set("sj_comuna", t.encabezado);
+    setTribunalNota(`Según el Código Orgánico de Tribunales, ${comuna.trim()} corresponde al ${t.tipo === "civil" ? "juzgado civil" : "juzgado de letras"} de ${t.asiento}.`);
+  };
   const cartaOriginal = useRef<HTMLTextAreaElement>(null);
   const cartaDemanda = useRef<HTMLTextAreaElement>(null);
 
@@ -257,8 +279,15 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
               <input name="domicilio" className="input" defaultValue={f.domicilio ?? ""} placeholder="calle, número, depto o casa" autoComplete="off" />
             </Field>
 
+            {/* La comuna del domicilio decide región, comuna del tribunal y encabezado (Código Orgánico de Tribunales, arts. 28 a 40):
+                al elegirla se rellenan solos; el operador puede corregirlos a mano */}
             <Field label={lab("Comuna", "comuna")} className="sm:col-span-2">
-              <input name="comuna" className="input" defaultValue={f.comuna ?? ""} autoComplete="off" />
+              <input name="comuna" className="input" defaultValue={f.comuna ?? ""} autoComplete="off" list="lvs-comunas" onChange={(e) => deducirTribunal(e.target.value)} onBlur={(e) => deducirTribunal(e.target.value)} />
+              <datalist id="lvs-comunas">
+                {COMUNAS.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
             </Field>
             <Field label={lab("Región", "región")} className="sm:col-span-2">
               <input name="region" className="input" defaultValue={f.region ?? ""} placeholder="Metropolitana" autoComplete="off" />
@@ -268,6 +297,7 @@ export function FichaForm({ client: c, ficha: f, canEdit, progress, bienes, deud
             </Field>
             <Field label={lab("Encabezado de la demanda (S.J.L.)", "tribunal")} className="sm:col-span-3">
               <input name="sj_comuna" className="input" defaultValue={f.sj_comuna ?? ""} placeholder="S.J.L. Civil de Santiago" autoComplete="off" />
+              <span className="text-[11.5px] text-faint">{tribunalNota}</span>
             </Field>
 
             {/* Trabajo: la pregunta y, si trabaja, el empleador en la misma fila */}

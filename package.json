@@ -13,6 +13,7 @@
     "test:revision": "node scripts/e2e-revision.mjs",
     "test:ficha": "node scripts/e2e-ficha.mjs",
     "test:plantillas": "node scripts/e2e-plantillas.mjs",
+    "test:tribunales": "npx -y tsx scripts/test-tribunales.mts",
     "test:lvs": "node scripts/e2e-lvs.mjs"
   },
   "dependencies": {
