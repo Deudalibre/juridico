@@ -62,7 +62,8 @@ try {
   const rm = replaceVariable(ren.buf, "rut_deudor", "RUT del deudor");
   ok("Quitar variable devuelve el texto de la etiqueta", rm.count === 1 && readDocx(rm.buf).blocks[1].text.includes("N° RUT del deudor,"));
   const out = readDocx(renderDocx(b4, { nombre_completo: "Ana Muñoz", rut: "12.345.678-5", fecha_hoy: "1 de octubre de 2026", acreedor: "Banco Prueba" }));
-  ok("Genera el Word con datos", out.blocks[1].text.startsWith("Yo, Ana Muñoz, cédula de identidad N° 12.345.678-5") && out.blocks[5].text === "Firmado en Santiago, a 1 de octubre de 2026." && out.blocks[3].rows[1][0][0].text === "Banco Prueba");
+  // Desde c863f03 (2026-10-03) los datos rellenados salen en MAYÚSCULAS y en Verdana (uniformes en todos los documentos)
+  ok("Genera el Word con datos (en mayúsculas)", out.blocks[1].text.startsWith("Yo, ANA MUÑOZ, cédula de identidad N° 12.345.678-5") && out.blocks[5].text === "Firmado en Santiago, a 1 DE OCTUBRE DE 2026." && out.blocks[3].rows[1][0][0].text === "BANCO PRUEBA", `${JSON.stringify(out.blocks[1].text.slice(0, 60))} · ${JSON.stringify(out.blocks[5].text)} · ${JSON.stringify(out.blocks[3].rows[1][0][0].text)}`);
   let err = "";
   try {
     markVariable(buf, 1, 0, 9999, "x");
@@ -133,7 +134,8 @@ try {
   const delCat = await abo.c.from("legal_variables").delete().eq("name", "jur_domicilio").select();
   ok("El abogado tramitador no quita variables del catálogo (sin documents.*)", !delCat.error && (delCat.data ?? []).length === 0);
   const aboList = await page(abo, "/plantillas");
-  ok("El abogado tramitador no entra a Plantillas", aboList.status === 307 || /Sin acceso/.test(aboList.text), String(aboList.status));
+  // Con loading.tsx la redirección a /sin-acceso llega dentro del streaming (estado 200 + NEXT_REDIRECT), igual que en smoke.mjs
+  ok("El abogado tramitador no entra a Plantillas", aboList.status === 307 || /NEXT_REDIRECT|Sin acceso/.test(aboList.html), String(aboList.status));
   const ejeList = await page(eje, "/plantillas");
   ok("Un ejecutivo no entra a Plantillas", ejeList.status === 307 || /Sin acceso/.test(ejeList.text), String(ejeList.status));
   const bad = await page(jur, `/plantillas/${crypto.randomUUID()}`);

@@ -120,6 +120,8 @@ export function prepararAnexo9(original: Buffer): Buffer {
 export function prepararDeclaracion(original: Buffer): Buffer {
   let buf = original;
   for (const [de, a] of [
+    // El modelo oficial titula «MODELO DE DECLARACIÓN JURADA…»; el documento del cliente es la declaración misma (2026-10-06)
+    ["MODELO DE DECLARACIÓN JURADA", "DECLARACIÓN JURADA"],
     ["[nombre] [apellidos]", "{nombre_completo}"],
     ["[profesión u oficio]", "{profesion_oficio}"],
     ["[nacionalidad]", "{nacionalidad}"],
