@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Iconos del sprite (src/components/Icon.tsx): un solo trazo y el color del texto para toda la app */
+svg.sprite {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* ============================================================
    Identidad Deuda Libre: blanco, turquesa y gris grafito.
    Todos los colores de la app salen de estas variables.
