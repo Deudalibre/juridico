@@ -33,7 +33,11 @@ const nextConfig = {
     return [{ source: "/hoy", destination: "/revision", permanent: true }];
   },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      // El sprite de iconos lleva la versión en la URL (npm run icons): se puede guardar en caché para siempre
+      { source: "/icons.svg", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
+    ];
   },
 };
 
