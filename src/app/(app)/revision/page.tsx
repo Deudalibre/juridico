@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import Loading from "@/app/(app)/loading";
 import { getMembers, requirePermission, type LegalClient, type LegalReview, type LegalTask } from "@/lib/data";
-import { addDaysKey, dayKey, hourIn, longToday, mondayOf, relativeDays, zonedToIso } from "@/lib/format";
+import { addDaysKey, dayKey, mondayOf, relativeDays, zonedToIso } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
 import { PROCEDURES, reviewCadence } from "@/lib/legal";
 import { Icon } from "@/components/icons";
@@ -39,7 +39,7 @@ export default function RevisionPage(props: { searchParams: Promise<{ ver?: stri
 
 async function RevisionContent(props: { searchParams: Promise<{ ver?: string; proc?: string; modo?: string; semana?: string; anio?: string; mes?: string; q?: string }> }) {
   const sp = await props.searchParams;
-  const { supabase, user, profile, tz, can } = await requirePermission("legal.view");
+  const { supabase, user, tz, can } = await requirePermission("legal.view");
   // Abogados y causas activas a la vez (el filtro por abogado se aplica aquí: son pocas filas y ahorra un viaje)
   const procWanted = (PROCEDURES as readonly string[]).includes(sp.proc ?? "") ? sp.proc! : "";
   let cq = supabase.from("legal_clients").select("*").is("archived_at", null).limit(2000);
@@ -199,8 +199,6 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
       months,
     };
   });
-  const totalPending = filed.filter(isPending).length;
-  const totalOverdue = filed.filter((c) => overdueTasks.has(c.id)).length;
 
   // Selección: un año (y opcionalmente un mes), o el resultado de la búsqueda
   const visible = q ? filed.filter(matches) : anio ? filed.filter((c) => yearOf(c) === anio && (!mes || monthOf(c) === mes)) : [];
@@ -217,9 +215,6 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
 
   const nameOf = (id: string | null) => (id ? (members.find((m) => m.id === id)?.full_name ?? null) : null);
   const showLawyer = view === "equipo";
-  const h = hourIn(tz);
-  const greeting = h < 13 ? "Buenos días" : h < 21 ? "Buenas tardes" : "Buenas noches";
-  const firstName = profile.full_name.split(" ")[0];
   const canReview = can("legal.edit");
   const canTasks = can("legal.tasks");
   const lawyerOpts = lawyers.map((m) => ({ id: m.id, name: m.full_name || m.email }));
@@ -269,17 +264,8 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
           <span className="icon-tile solid">
             <Icon name="today" size={18} />
           </span>
-          <div className="flex flex-col gap-0.5">
-            <h1 className="page-title">
-              {greeting}
-              {firstName ? `, ${firstName}` : ""}
-            </h1>
-            <span className="page-subtitle">
-              {longToday(tz)} · <strong className={`tabnum font-semibold ${totalPending ? "text-fg" : "text-success"}`}>{totalPending === 0 ? "nada por revisar" : `${totalPending} por revisar`}</strong>
-              {totalOverdue > 0 ? ` · ${totalOverdue} ${totalOverdue === 1 ? "tarea vencida" : "tareas vencidas"}` : ""}
-              {prep.length > 0 ? ` · ${prep.length} en preparación` : ""} · {filed.length} {filed.length === 1 ? "causa en tramitación" : "causas en tramitación"}
-            </span>
-          </div>
+          {/* Sin saludo ni cifras: las cifras que importan están en cada mes y en cada fila */}
+          <h1 className="page-title">Revisión</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* De izquierda a derecha: buscar, acotar (equipo y procedimiento), cómo verlo (lista o calendario) y la acción principal */}
