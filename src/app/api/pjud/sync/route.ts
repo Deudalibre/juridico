@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   if (!autorizado(req)) {
     // Diagnóstico sin revelar el secreto: si falta la variable en el despliegue o si el valor enviado no calza
     const s = process.env.CRON_SECRET;
-    return NextResponse.json({ error: "No autorizado", secretoConfigurado: Boolean(s), largoConfigurado: s?.length ?? 0 }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado", secretoConfigurado: Boolean(s), largoConfigurado: s?.length ?? 0, servicioConfigurado: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY), region: process.env.VERCEL_REGION ?? null, entorno: process.env.VERCEL_ENV ?? null }, { status: 401 });
   }
   const url = new URL(req.url);
   const inicio = Date.now();
