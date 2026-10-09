@@ -207,7 +207,6 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
   // Selección: un año (y opcionalmente un mes), o el resultado de la búsqueda
   const visible = q ? filed.filter(matches) : anio ? filed.filter((c) => yearOf(c) === anio && (!mes || monthOf(c) === mes)) : [];
   const queue = visible.filter(isPending).sort(chrono);
-  const upToDate = visible.filter((c) => !isPending(c)).sort(chrono);
   const withOverdue = visible.filter((c) => overdueTasks.has(c.id)).sort(chrono);
   // Urgencias de la selección: lo primero que mira el abogado al abrir el día
   const withApercibimiento = visible.filter((c) => nextTask.get(c.id)?.kind === "apercibimiento");
@@ -456,15 +455,15 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
               </Link>
             </div>
           </section>
-          {/* Un solo cuadro y una sola tabla: cada fila ya muestra su estado, su última revisión y su tarea. En el mes, primero
-              las causas con tarea vencida, luego las pendientes y al final las al día; en el año completo, en orden cronológico
-              (las filas de mes las pone la tabla). */}
+          {/* Un solo cuadro y una sola tabla, por número de causa: cada fila ya muestra su estado, su última revisión y su
+              tarea (en el año completo, las filas de mes las pone la tabla). */}
           <section className="panel overflow-hidden">
             <ReviewHeader />
             {visible.length === 0 ? (
               <div className="px-5 py-6 text-center text-[12.5px] text-faint">Nada en esta selección.</div>
             ) : (
-              table(mes ? [...withOverdue, ...queue.filter((c) => !overdueTasks.has(c.id)), ...upToDate.filter((c) => !overdueTasks.has(c.id))] : visible.slice().sort(chrono), (c) => overdueTasks.get(c.id) ?? nextTask.get(c.id) ?? null)
+              // Por número de causa (el N° de la fila), pedido por el estudio: el estado y la tarea ya dicen qué urge
+              table(visible.slice().sort((a, b) => (seq.get(a.id) ?? 1e9) - (seq.get(b.id) ?? 1e9) || chrono(a, b)), (c) => overdueTasks.get(c.id) ?? nextTask.get(c.id) ?? null)
             )}
           </section>
         </ReviewQueueProvider>

@@ -217,6 +217,29 @@ export async function addTask(id: string, fd: FormData): Promise<Result> {
   return {};
 }
 
+/** Edita una tarea pendiente en el sitio (tipo, título, plazo y detalle); las cerradas no se tocan. */
+export async function updateTask(taskId: string, clientId: string, fd: FormData): Promise<Result> {
+  const { supabase, can, tz } = await getContext();
+  if (!can("legal.tasks")) return { error: "No tienes permiso para editar tareas." };
+  if (!isUuid(taskId) || !isUuid(clientId)) return { error: "Datos no válidos." };
+  const kind = text(fd, "kind") ?? "otra";
+  if (!(kind in TASK_KINDS)) return { error: "Tipo de tarea no reconocido." };
+  const title = text(fd, "title");
+  if (!title) return { error: "Indica de qué se trata." };
+  const local = text(fd, "due_at");
+  const due = local ? zonedToIso(local, tz) : null;
+  if (local && !due) return { error: "La fecha de vencimiento no es válida." };
+  if (kind === "apercibimiento" && !due) return { error: "Un apercibimiento necesita fecha de vencimiento." };
+  const { data, error } = await supabase.from("legal_tasks").update({ kind, title, due_at: due, description: text(fd, "description") }).eq("id", taskId).eq("client_id", clientId).eq("status", "pendiente").select("id");
+  if (error) return { error: error.message };
+  if (!data?.length) return { error: "La tarea ya no está pendiente." };
+  revalidatePath(`/clientes/${clientId}`);
+  revalidatePath("/clientes");
+  revalidatePath("/revision");
+  revalidatePath("/revision/tareas");
+  return {};
+}
+
 /**
  * Completa o cancela una tarea. Pide siempre un resultado corto (o el motivo) y guarda quién la cerró: el trigger
  * deja la entrada en el historial de la causa para supervisión. Solo se cierran tareas pendientes.

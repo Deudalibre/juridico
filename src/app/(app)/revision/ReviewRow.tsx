@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ContactButtons } from "@/components/ContactButtons";
 import { Icon } from "@/components/icons";
 import { TaskClose } from "@/components/TaskClose";
+import { TaskEdit } from "@/components/TaskEdit";
 import { dateTime, dueLabel, initials, relativeDays, shortDate, timeOf } from "@/lib/format";
 import { SEMAFORO, TASK_KINDS, isSemaforo, reviewCadence, semaforoStyle } from "@/lib/legal";
 import type { LegalClient, LegalReview, LegalTask } from "@/lib/data";
@@ -100,8 +101,7 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
 
   return (
     <div
-      className={`${GRID} row min-h-[52px] px-4 py-2 ${isSemaforo(c.semaforo) ? "sem-row" : ""}`}
-      style={semaforoStyle(c.semaforo)}
+      className={`${GRID} row min-h-[52px] px-4 py-2`}
       role="row"
       title={rowTitle}
       onClick={() => router.push(href)}
@@ -164,9 +164,10 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
               <Icon name={due?.overdue ? "alert" : "clock"} size={11} />
               {dueText}
             </span>
-            {/* «Completar» vive dentro del recuadro de la tarea: es su acción, no una de la causa */}
+            {/* «Editar» y «Completar» viven dentro del recuadro de la tarea: son sus acciones, no de la causa */}
             {canTasks && (
               <span className="contents" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                <TaskEdit task={task} clientId={c.id} tz={tz} layout="row" />
                 <TaskClose task={task} clientId={c.id} layout="row" allowCancel={false} />
               </span>
             )}
