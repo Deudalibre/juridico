@@ -75,8 +75,10 @@ export function FichaAcciones({ clientId, closed, closeReason, closeDetail, canE
         <button type="button" className="btn-outline btn-sm !px-2.5" onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open} aria-label="Más acciones" title="Más acciones">
           <span className="text-[16px] leading-none tracking-[0.1em]">···</span>
         </button>
-        {open && (
-          <div className="popover fade-in !w-60 right-0 flex flex-col py-1.5" role="menu">
+        {/* Siempre montado y solo oculto: la Ficha jurídica y «Cerrar causa» abren su ventana desde aquí; si el menú se
+            desmontara al cerrarse, la ventana desaparecería con él */}
+        {(
+          <div className={`popover !w-60 right-0 flex-col py-1.5 ${open ? "fade-in flex" : "hidden"}`} role="menu" aria-hidden={!open}>
             {driveUrl ? (
               <a href={driveUrl} target="_blank" rel="noopener noreferrer" className={MENU_ITEM} role="menuitem" onClick={() => setOpen(false)}>
                 <Icon name="folder" size={14} /> Carpeta del cliente
