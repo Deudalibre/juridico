@@ -128,7 +128,8 @@ export function prepararDeclaracion(original: Buffer): Buffer {
     ["[estado civil]", "{estado_civil}"],
     ["RUN: [RUN], contribuyente de primera categoría, RUT, domiciliado", "RUN: {rut}, {domiciliado_a}"],
     ["[dirección]", "{domicilio}"],
-    ["[comuna]", "{comuna}"],
+    // Tras la comuna va la región (pedido del estudio 2026-10-09): «Puente Alto, Metropolitana»
+    ["[comuna]", "{comuna}, {region}"],
     ["los XX Anexos", "los {cantidad_anexos} Anexos"],
   ] as const) {
     const r = replaceText(buf, de, a);
@@ -208,6 +209,6 @@ export const PREPARADORES: Record<string, { nombre: string; archivo: string; pre
     nombre: "Declaración jurada 273 A · antecedentes completos y fehacientes (Anexo N.º 11)",
     archivo: "Anexo11.docx",
     preparar: prepararDeclaracion,
-    variables: ["nombre_completo", "profesion_oficio", "nacionalidad", "estado_civil", "rut", "domiciliado_a", "domicilio", "comuna", "cantidad_anexos"],
+    variables: ["nombre_completo", "profesion_oficio", "nacionalidad", "estado_civil", "rut", "domiciliado_a", "domicilio", "comuna", "region", "cantidad_anexos"],
   },
 };

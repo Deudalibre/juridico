@@ -357,8 +357,31 @@ export function datosDeclaracion(c: LegalClient, f: LvsFicha, lawyer: string | n
   falta(f.region, "la región");
   // Anexos que acompañan la solicitud: 8, 9 y 11 siempre; 3 a 7 según cada «Sí» del patrimonio
   const porCategoria = [f.tiene_bienes_raices, f.tiene_vehiculos, f.tiene_aguas, f.tiene_participaciones, f.tiene_instrumentos].filter(Boolean).length;
-  const data = { ...clientValues(c, lawyer), ...lvsValues(f), cantidad_anexos: String(3 + porCategoria) };
+  const data: Record<string, string> = { ...clientValues(c, lawyer), ...lvsValues(f), cantidad_anexos: String(3 + porCategoria) };
+  // Formato del Anexo 11 (estudio, 2026-10-09): el nombre en mayúsculas; profesión, nacionalidad, estado civil, comuna y
+  // región con mayúscula inicial y el resto en minúscula («Puente Alto, Metropolitana»)
+  data.nombre_completo = data.nombre_completo.trim().replace(/\s+/g, " ").toLocaleUpperCase("es-CL");
+  for (const k of TEXTO_FIJO_273A) data[k] = mayusculaInicial(data[k]);
   return { data, errores, advertencias: [] as string[] };
+}
+
+/** Campos del Anexo 11 que NO van en mayúsculas al generar (renderDocx pone todo en mayúsculas salvo estos): llevan mayúscula inicial. */
+export const TEXTO_FIJO_273A = ["profesion_oficio", "nacionalidad", "estado_civil", "domicilio", "comuna", "region"] as const;
+
+/** «PUENTE ALTO» o «puente alto» → «Puente Alto»; los nexos (de, del, la, y…) quedan en minúscula salvo al inicio. */
+export function mayusculaInicial(texto: string): string {
+  const nexos = new Set(["de", "del", "la", "las", "los", "el", "y", "e", "o", "u", "a"]);
+  return texto
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((p, i) => {
+      const bajo = p.toLocaleLowerCase("es-CL");
+      if (i > 0 && nexos.has(bajo)) return bajo;
+      // Partes con barra o guion («Soltero/a», «Casado-separado») se capitalizan por tramo
+      return bajo.replace(/(^|[/-])(\p{L})/gu, (_m, sep: string, l: string) => sep + l.toLocaleUpperCase("es-CL"));
+    })
+    .join(" ");
 }
 
 /** Nombre del Word tal como queda en el Drive y en la descarga: «Anexo N.º 8 - Nombre-Apellido 12.345.678-9.docx». */
@@ -373,7 +396,9 @@ export async function renderizarLvs(supabase: SupabaseClient, tipo: GeneradoTipo
   const dl = await supabase.storage.from(TEMPLATE_BUCKET).download(tpl.storage_path);
   if (dl.error || !dl.data) return { error: `No se pudo leer la plantilla: ${dl.error?.message ?? "sin archivo"}` };
   try {
-    return { out: renderDocx(Buffer.from(await dl.data.arrayBuffer()), data, { textoFijo: [...TEXTO_SEGUN_GENERO, ...TEXTO_FIJO_DEMANDA] }), tpl: tpl as Plantilla };
+    // En el Anexo 11 solo el nombre va en mayúsculas; el resto de la frase con mayúscula inicial (estudio, 2026-10-09)
+    const textoFijo = [...TEXTO_SEGUN_GENERO, ...TEXTO_FIJO_DEMANDA, ...(tipo === "declaracion_273a" ? TEXTO_FIJO_273A : [])];
+    return { out: renderDocx(Buffer.from(await dl.data.arrayBuffer()), data, { textoFijo }), tpl: tpl as Plantilla };
   } catch (e) {
     return { error: `La plantilla no se pudo rellenar: ${(e as Error).message}` };
   }

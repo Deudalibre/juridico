@@ -19,7 +19,7 @@ if (!cuenta || !existsSync(cuenta)) {
   process.exit(1);
 }
 const cred = readFileSync(cuenta, "utf8");
-const email = cred.match(/Correo:\s*(\S+)/)?.[1];
+const email = cred.match(/(?:Correo|Usuario):\s*(\S+)/)?.[1];
 const password = cred.match(/Clave:\s*(\S+)/)?.[1];
 if (!email || !password) {
   console.error("El archivo de credenciales no tiene «Correo:» y «Clave:»");
