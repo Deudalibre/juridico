@@ -16,13 +16,11 @@ import {
 import { dateTime, dueLabel, initials } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
 import { CHECKLIST_ENABLED, CLOSE_TERMINATED, TASK_KINDS, currentStep, isLiquidacion, isSemaforo, procedureTone, semaforoStyle, stepsFor } from "@/lib/legal";
-import { Icon } from "@/components/icons";
 import { BasicsForm } from "./BasicsForm";
 import { CausaSteps } from "./CausaSteps";
-import { PjudFicha } from "./PjudFicha";
+import { FichaAcciones } from "./FichaAcciones";
 import { loadPjud } from "@/lib/pjud-data";
 import { ClaveUnica } from "./ClaveUnica";
-import { CloseCase } from "./CloseCase";
 import { DocumentsTab } from "./DocumentsTab";
 import { clientDrive, type ClientDrive } from "@/lib/drive-client";
 import { ContactButtons } from "@/components/ContactButtons";
@@ -49,18 +47,6 @@ function Tile({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-faint">{label}</span>
       {children}
     </div>
-  );
-}
-
-function ExternalButton({ icon, label, url }: { icon: string; label: string; url: string | null }) {
-  return url ? (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm">
-      <Icon name={icon} size={14} /> {label}
-    </a>
-  ) : (
-    <Link href="?tab=Antecedentes#enlaces" className="btn-outline btn-sm" title="Aún sin enlace: agrégalo en «Enlaces»">
-      <Icon name={icon} size={14} /> {label}
-    </Link>
   );
 }
 
@@ -101,8 +87,8 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
             summary: string | null;
           }[],
         }),
-    // Datos del Poder Judicial: solo en la pestaña Causa
-    searchParams.tab === "Causa" ? loadPjud(supabase, params.id) : Promise.resolve(null),
+    // Datos del Poder Judicial (una fila): los usan «Ficha jurídica» en la cabecera y la pestaña Causa
+    loadPjud(supabase, params.id),
   ]);
   const history = (histRes.data ?? []) as {
     id: number;
@@ -178,21 +164,12 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
   // Qué falta para trabajar la causa (solo datos de esta ficha)
   const missing = [!c.rut && "RUT", !c.phone && !c.email && "contacto", !c.procedure_type && "procedimiento", !c.intake_date && "fecha de ingreso"].filter(Boolean) as string[];
 
+  // Resumen lateral en tres grupos (gestión · contacto y causa · recursos), separados por una línea; mismos datos de antes
   const summary = (
     <section className="panel">
+      <div className="[&>*:last-child]:border-b-0">
       <Tile label="Abogado a cargo">
         <LawyerSelect clientId={c.id} lawyerId={c.lawyer_id} members={members} canAssign={can("legal.assign") && !closed} />
-      </Tile>
-      <Tile label="Contacto">
-        {c.phone ? <span className="tabnum text-[13.5px] font-medium">{c.phone}</span> : <span className="text-[13.5px] text-faint">Sin teléfono</span>}
-        {c.email ? <span className="truncate text-xs text-muted">{c.email}</span> : <span className="text-xs text-faint">Sin email</span>}
-        <ContactButtons phone={c.phone} name={c.full_name} variant="labeled" />
-      </Tile>
-      <Tile label="Causa">
-        {c.rol ? <span className="tabnum text-[13.5px] font-medium">{c.rol}</span> : <span className="tag warn">Sin rol aún</span>}
-        {c.tribunal && <span className="text-xs text-muted">{c.tribunal}</span>}
-        <span className="text-xs text-muted">{c.intake_date ? `Ingresada el ${fmtDate(c.intake_date)}` : "Sin fecha de ingreso"}</span>
-        {c.liquidator_name && <span className="text-xs text-muted">Liquidador: {c.liquidator_name}</span>}
       </Tile>
       <Tile label="Próxima acción">
         {nextTask ? (
@@ -232,6 +209,29 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
           </Link>
         )}
       </Tile>
+      </div>
+      <div className="mx-4 h-px bg-line-soft" aria-hidden />
+      <div className="[&>*:last-child]:border-b-0">
+      <Tile label="Contacto">
+        {c.phone ? <span className="tabnum text-[13.5px] font-medium">{c.phone}</span> : <span className="text-[13.5px] text-faint">Sin teléfono</span>}
+        {c.email ? <span className="truncate text-xs text-muted">{c.email}</span> : <span className="text-xs text-faint">Sin email</span>}
+        <ContactButtons phone={c.phone} name={c.full_name} variant="labeled" />
+      </Tile>
+      <Tile label="Causa">
+        {c.rol ? (
+          <>
+            <span className="tabnum text-[13.5px] font-semibold text-fg">{c.rol}</span>
+            {c.tribunal && <span className="text-[11px] text-faint">{c.tribunal}</span>}
+          </>
+        ) : (
+          <span className="tag warn">Sin rol</span>
+        )}
+        <span className="text-xs text-muted">{c.intake_date ? `Ingresada el ${fmtDate(c.intake_date)}` : "Sin fecha de ingreso"}</span>
+        {c.liquidator_name && <span className="text-xs text-muted">Liquidador: {c.liquidator_name}</span>}
+      </Tile>
+      </div>
+      <div className="mx-4 h-px bg-line-soft" aria-hidden />
+      <div className="[&>*:last-child]:border-b-0">
       <Tile label="Documentos">
         {!CHECKLIST_ENABLED ? (
           <Link href={`/clientes/${c.id}?tab=Documentos`} className={`text-[13.5px] hover:text-accent ${c.drive_folder_url ? "font-medium text-fg" : "text-faint"}`}>
@@ -265,6 +265,7 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
           <LinksCard clientId={c.id} driveUrl={c.drive_folder_url} pjudUrl={c.pjud_url} canEdit={canEdit} />
         </Tile>
       </div>
+      </div>
     </section>
   );
 
@@ -276,12 +277,12 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="avatar h-11 w-11 text-[13px]">{initials(c.full_name) || "?"}</span>
+            <span className="avatar h-9 w-9 text-[12px]">{initials(c.full_name) || "?"}</span>
             <div className="flex min-w-0 flex-col gap-1">
               {/* Cabecera ligera (pedido del estudio, 2026-10-06): nombre, color y procedimiento. El paso, la resolución y la
                   última revisión ya están en el resumen de la derecha; aquí solo estorbaban. */}
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="page-title">{c.full_name}</h1>
+                <h1 className="page-title leading-tight">{c.full_name}</h1>
                 {!closed && <SemaforoPicker clientId={c.id} value={c.semaforo} canEdit={canEdit} />}
                 {c.procedure_type && <span className={`tag ${procedureTone(c.procedure_type)}`}>{c.procedure_type}</span>}
                 {closed && (
@@ -290,25 +291,17 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
                   </span>
                 )}
               </div>
-              <span className="text-[13px] text-soft">
+              <span className="text-[12.5px] text-soft">
                 {c.rut ? <span className="tabnum">RUT {formatRut(c.rut)}</span> : <span className="text-warning">RUT pendiente</span>}
                 {c.rol && <span className="tabnum"> · {c.rol}</span>}
                 {c.tribunal && ` · ${c.tribunal}`}
               </span>
               {closed && c.close_detail && <span className="text-[12.5px] text-muted">{c.close_detail}</span>}
-              {!closed && missing.length > 0 && <span className="text-[12.5px] text-warning">Falta: {missing.join(", ")}</span>}
+              {!closed && missing.length > 0 && <span className="text-[11.5px] text-faint">Falta completar: {missing.join(" · ")}</span>}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {isLiquidacion(c.procedure_type) && can("documents.view") && (
-              <Link href={`/documentos/lvs/${c.id}`} className="btn-outline btn-sm" title="Ficha Maestra, bienes, acreedores y documentos de la solicitud LVS">
-                <Icon name="report" size={13} /> Expediente LVS
-              </Link>
-            )}
-            <ExternalButton icon="folder" label="Carpeta del cliente" url={c.drive_folder_url} />
-            <ExternalButton icon="external" label="Ficha jurídica" url={c.pjud_url} />
-            <CloseCase clientId={c.id} closed={closed} reason={c.close_reason} detail={c.close_detail} canEdit={canEdit} />
-          </div>
+          {/* Un botón principal según el contexto y el menú «···» con el resto (FichaAcciones) */}
+          <FichaAcciones clientId={c.id} closed={closed} closeReason={c.close_reason} closeDetail={c.close_detail} canEdit={canEdit} driveUrl={c.drive_folder_url} pjud={pjud} rol={c.rol} tribunal={c.tribunal} pjudUrl={c.pjud_url} lvs={isLiquidacion(c.procedure_type) && can("documents.view")} />
         </div>
         <nav className="seg self-start" aria-label="Secciones de la ficha">
           {TABS.map((t) => (
@@ -331,8 +324,7 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
           {summary}
         </div>
       ) : tab === "Causa" ? (
-        <>
-          <CausaSteps
+        <CausaSteps
           clientId={c.id}
           procedure={c.procedure_type}
           steps={steps}
@@ -348,9 +340,6 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
           tz={tz}
           showSteps={false}
         />
-          {/* Réplica de la consulta unificada del Poder Judicial, sincronizada a diario desde el estudio */}
-          <PjudFicha data={pjud} rol={c.rol} tribunal={c.tribunal} pjudUrl={c.pjud_url} clientId={c.id} canSync={canEdit} />
-        </>
       ) : tab === "Historial" ? (
         <section className="panel overflow-hidden">
           <div className="panel-head">

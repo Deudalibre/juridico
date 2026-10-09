@@ -211,6 +211,16 @@ export function AppShell({ children, userId, name, role, permissions, badge, crm
   const path = usePathname();
   const search = useSearchParams();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Barra colapsada (solo iconos): el estado vive en <html data-sidebar> (lo pone el layout raíz antes de pintar, desde
+  // localStorage) y lo pinta el CSS, así no hay estado de React que deba coincidir en la hidratación
+  const toggleRail = () => {
+    const next = document.documentElement.dataset.sidebar !== "collapsed";
+    if (next) document.documentElement.dataset.sidebar = "collapsed";
+    else delete document.documentElement.dataset.sidebar;
+    try {
+      localStorage.setItem("sidebar_collapsed", next ? "1" : "0");
+    } catch {}
+  };
   // Al cambiar de pantalla se cierra el submenú (estado ajustado durante el render, sin efecto)
   const [menuPath, setMenuPath] = useState(path);
   if (path !== menuPath) {
@@ -268,27 +278,31 @@ export function AppShell({ children, userId, name, role, permissions, badge, crm
           DL
         </Link>
         {nav.map((n) => (
-          <Link key={n.href} href={n.href} className="rail-item" aria-current={n.match(path) ? "page" : undefined}>
+          <Link key={n.href} href={n.href} className="rail-item" aria-current={n.match(path) ? "page" : undefined} title={n.label}>
             <LinkPending />
             {n.match(path) && <RailMarker />}
             <Icon name={n.icon} />
-            <span>{n.label}</span>
+            <span className="rail-label">{n.label}</span>
             {n.href === "/revision" && badge}
           </Link>
         ))}
         <a href={crmUrl} className="rail-item" title="Volver al CRM comercial">
           <Icon name="leads" />
-          <span>CRM</span>
+          <span className="rail-label">CRM</span>
         </a>
         <div className="rail-spacer flex-1" />
         {can("legal.settings") && (
-          <Link href="/configuracion" className="rail-item" aria-current={starts(path, "/configuracion") ? "page" : undefined}>
+          <Link href="/configuracion" className="rail-item" aria-current={starts(path, "/configuracion") ? "page" : undefined} title="Configuración">
             <LinkPending />
             {starts(path, "/configuracion") && <RailMarker />}
             <Icon name="settings" />
-            <span>Configuración</span>
+            <span className="rail-label">Configuración</span>
           </Link>
         )}
+        <button type="button" className="rail-toggle" onClick={toggleRail} title="Colapsar o expandir la barra" aria-label="Colapsar o expandir la barra">
+          <span className="rail-toggle-exp" aria-hidden>←</span>
+          <span className="rail-toggle-col" aria-hidden>→</span>
+        </button>
       </nav>
 
       {section && (

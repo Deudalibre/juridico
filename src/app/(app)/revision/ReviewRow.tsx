@@ -10,6 +10,7 @@ import { TaskEdit } from "@/components/TaskEdit";
 import { dateTime, dueLabel, initials, relativeDays, shortDate, timeOf } from "@/lib/format";
 import { SEMAFORO, TASK_KINDS, isSemaforo, reviewCadence, semaforoStyle } from "@/lib/legal";
 import type { LegalClient, LegalReview, LegalTask } from "@/lib/data";
+import { FichaJuridicaButton } from "../clientes/[id]/FichaJuridicaButton";
 import { ReviewDialog } from "./ReviewDialog";
 import { useReviewQueue } from "./ReviewQueue";
 
@@ -101,7 +102,7 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
 
   return (
     <div
-      className={`${GRID} row min-h-[52px] px-4 py-2`}
+      className={`${GRID} row min-h-[44px] px-4 py-1.5`}
       role="row"
       title={rowTitle}
       onClick={() => router.push(href)}
@@ -192,15 +193,11 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
         )}
       </div>
 
-      {/* Acciones: contacto con el cliente y el portal del Poder Judicial a un clic; luego la tarea y «Revisar» */}
-      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap" role="cell" onClick={(e) => e.stopPropagation()}>
+      {/* Acciones: contacto con el cliente y la ficha jurídica (espejo del PJUD) a un clic; luego la tarea y «Revisar» */}
+      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap" role="cell" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
         <span className="mr-1 flex items-center gap-1">
           <ContactButtons phone={c.phone} name={c.full_name} />
-          {c.pjud_url && (
-            <a href={c.pjud_url} target="_blank" rel="noopener noreferrer" className="icon-btn contact pjud" title="Abrir la causa en el Poder Judicial" aria-label="Causa en el Poder Judicial">
-              <Icon name="external" size={14} />
-            </a>
-          )}
+          <FichaJuridicaButton variant="icon" rol={c.rol} tribunal={c.tribunal} pjudUrl={c.pjud_url} clientId={c.id} canSync={canReview} />
         </span>
         {canReview ? (
           <button className="btn-secondary btn-sm" onClick={() => setOpen(true)}>

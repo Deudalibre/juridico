@@ -41,8 +41,37 @@ export type CausaEncontrada = { referencia: string; rol: string; fecha_ingreso: 
 export type ParteTipo = "demandante" | "demandado" | "deudor" | "acreedor" | "liquidador" | "abogado_demandante" | "abogado_demandado" | "abogado_deudor" | "abogado_acreedor" | "otro";
 export type Parte = { tipo: ParteTipo; sujeto: string; nombre: string; rut: string; persona: string };
 /** `folio` va nulo en las filas que el sitio publica sin folio (en civil las hay, p. ej. «Poder acreditado»). */
-export type Actuacion = { folio: number | null; etapa: string; tramite: string; descripcion: string; fecha_diligencia: string | null; fecha_registro: string | null; foja: string | null; tiene_documento: boolean };
+/**
+ * Documento descargable de la OJV: un `<form method="get" action="ADIR_n/civil/documentos/x.php">` con un único input
+ * cuyo valor es un JWT que vence a la hora. Se baja por GET `${PJUD_BASE}/${action}?${param}=${token}` sin cookies.
+ * En la columna «Doc.» hay uno o dos formularios: `doc_*` el documento (docuS.php en resoluciones, docuN.php en escritos)
+ * y, en los escritos, `cert_*` el certificado de envío (docCertificadoEscrito.php). La columna «Anexo» no trae formulario
+ * sino una carpeta `anexoSolicitudCivil('ref')` que abre otra lista de PDFs: `anexo_ref` es esa referencia (se lee con
+ * PjudClient.anexosSolicitud) y `tiene_anexo` queda en la base aunque la referencia se descarte.
+ */
+export type Actuacion = {
+  folio: number | null;
+  etapa: string;
+  tramite: string;
+  descripcion: string;
+  fecha_diligencia: string | null;
+  fecha_registro: string | null;
+  foja: string | null;
+  tiene_documento: boolean;
+  doc_action: string | null;
+  doc_param: string | null;
+  doc_token: string | null;
+  cert_action: string | null;
+  cert_param: string | null;
+  cert_token: string | null;
+  tiene_anexo: boolean;
+  anexo_ref: string | null;
+};
 export type Cuaderno = { nombre: string; actuaciones: Actuacion[] };
+/** Formulario de descarga tal como viene en el HTML (action relativo a PJUD_BASE, nombre del input y su JWT). */
+export type FormularioDoc = { action: string; param: string; token: string };
+/** Una fila de las ventanas «Anexo Solicitud» / «Anexo de la Causa»: PDF (anexoDocCivil.php) con fecha y referencia. */
+export type AnexoDoc = FormularioDoc & { fecha: string | null; referencia: string };
 export type DetalleCausa = {
   rol: string;
   tribunal: string;
@@ -55,9 +84,25 @@ export type DetalleCausa = {
   ubicacion: string;
   partes: Parte[];
   cuadernos: Cuaderno[];
+  /** Documentos de la cabecera: Texto demanda (docu.php), Certificado de envío (docCertificadoDemanda.php), Ebook (newebookcivil.php). */
+  demanda_action: string | null;
+  demanda_param: string | null;
+  demanda_token: string | null;
+  cert_demanda_action: string | null;
+  cert_demanda_param: string | null;
+  cert_demanda_token: string | null;
+  ebook_action: string | null;
+  ebook_param: string | null;
+  ebook_token: string | null;
+  /** «Anexos de la causa» (carpeta de la cabecera, `anexoCausaCivil('ref')`): se leen con PjudClient.anexosCausa. */
+  tiene_anexos_causa: boolean;
+  anexos_causa_ref: string | null;
   /** Cuántas peticiones costó, para la bitácora. */
   peticiones: number;
 };
+
+/** URL de descarga de un documento (GET, sin cookies; el JWT basta y vence a la hora de abrir el detalle). */
+export const urlDocumento = (action: string, param: string, token: string) => `${PJUD_BASE}/${action.replace(/^\/+/, "")}?${encodeURIComponent(param)}=${encodeURIComponent(token)}`;
 
 const texto = (s: string) => s.replace(/\s+/g, " ").trim();
 /** «22/06/2026» → «2026-06-22»; las fechas centinela (31/12/1969, 01/01/1970) van en nulo. */
@@ -290,6 +335,18 @@ export class PjudClient {
     return this.ajax("civil/modal/causaCivil.php", { dtaCausa: referencia, token: this.token ?? "" });
   }
 
+  /** Los PDFs de la carpeta «Anexo» de un escrito (columna Anexo de la Historia), con `Actuacion.anexo_ref`. */
+  async anexosSolicitud(referencia: string): Promise<AnexoDoc[]> {
+    await this.prefijo();
+    return parseAnexos(await this.ajax("civil/modal/anexoCausaSolicitudCivil.php", { dtaCausaAnex: referencia }));
+  }
+
+  /** Los PDFs de «Anexos de la causa» (carpeta de la cabecera), con `DetalleCausa.anexos_causa_ref`. */
+  async anexosCausa(referencia: string): Promise<AnexoDoc[]> {
+    await this.prefijo();
+    return parseAnexos(await this.ajax("civil/modal/anexoCausaCivil.php", { dtaAnexCau: referencia }));
+  }
+
   /**
    * Todo lo que publica el detalle de una causa civil: cabecera, litigantes y la Historia de TODOS sus cuadernos.
    * Con `tribunalCodigo` la búsqueda es exacta; sin él se busca en todos y se elige la fila cuyo tribunal calce con
@@ -333,6 +390,7 @@ export class PjudClient {
       ubicacion: cab.ubicacion,
       partes: parseLitigantes(primera),
       cuadernos: paginas.map((p) => ({ nombre: p.nombre, actuaciones: parseHistoria(p.html, p.html !== primera) })),
+      ...documentosCabecera(primera),
       peticiones: this.bitacora.length - peticionesAntes,
     };
   }
@@ -347,6 +405,65 @@ export function leerAviso(html: string): string | null {
 }
 
 /** Los rótulos de la cabecera del detalle (`<td><strong>ROL:</strong> E-468-2026`). */
+/** El formulario de descarga (el primero de `contenedor`, o él mismo si ya es un form), o nada: action, nombre del input y su JWT. */
+function leerFormulario($: cheerio.CheerioAPI, contenedor: ReturnType<cheerio.CheerioAPI>): FormularioDoc | null {
+  const form = contenedor.is("form") ? contenedor : contenedor.find("form").first();
+  if (!form.length) return null;
+  const action = texto(form.attr("action") ?? "");
+  const input = form.find("input[name]").filter((_, i) => !!texto($(i).attr("value") ?? "")).first();
+  if (!action || !input.length) return null;
+  return { action, param: input.attr("name") ?? "", token: texto(input.attr("value") ?? "") };
+}
+
+/** La referencia opaca de un `onclick="algo('…')"`, o nulo. */
+const referenciaDe = (onclick: string | undefined): string | null => onclick?.match(/\('([^']+)'\)/)?.[1] ?? null;
+
+/** Las filas de «Anexo Solicitud» / «Anexo de la Causa»: Doc. (formulario anexoDocCivil.php) · Fecha · Referencia. */
+export function parseAnexos(html: string): AnexoDoc[] {
+  const $ = cheerio.load(html);
+  const out: AnexoDoc[] = [];
+  $("table tr").each((_, tr) => {
+    const tds = $(tr).find("td");
+    if (tds.length < 3) return;
+    const f = leerFormulario($, $(tds[0]));
+    if (!f) return;
+    out.push({ ...f, fecha: fechaIso(texto($(tds[1]).text())), referencia: texto($(tds[2]).text()) });
+  });
+  return out;
+}
+
+/** Documentos de la cabecera del detalle (Texto demanda, Certificado de envío, Ebook, carpeta de anexos), reconocidos por el nombre del .php. */
+export function documentosCabecera(html: string): Pick<DetalleCausa, "demanda_action" | "demanda_param" | "demanda_token" | "cert_demanda_action" | "cert_demanda_param" | "cert_demanda_token" | "ebook_action" | "ebook_param" | "ebook_token" | "tiene_anexos_causa" | "anexos_causa_ref"> {
+  const $ = cheerio.load(html);
+  const anexosRef = referenciaDe($("a[onclick*='anexoCausaCivil']").attr("onclick"));
+  const porNombre = (php: string): FormularioDoc | null => {
+    let out: FormularioDoc | null = null;
+    $("form").each((_, f) => {
+      if (out) return;
+      const action = texto($(f).attr("action") ?? "");
+      if (action.split("/").pop()?.toLowerCase() !== php) return;
+      out = leerFormulario($, $(f));
+    });
+    return out;
+  };
+  const demanda = porNombre("docu.php");
+  const cert = porNombre("doccertificadodemanda.php");
+  const ebook = porNombre("newebookcivil.php");
+  return {
+    demanda_action: demanda?.action ?? null,
+    demanda_param: demanda?.param ?? null,
+    demanda_token: demanda?.token ?? null,
+    cert_demanda_action: cert?.action ?? null,
+    cert_demanda_param: cert?.param ?? null,
+    cert_demanda_token: cert?.token ?? null,
+    ebook_action: ebook?.action ?? null,
+    ebook_param: ebook?.param ?? null,
+    ebook_token: ebook?.token ?? null,
+    tiene_anexos_causa: !!anexosRef,
+    anexos_causa_ref: anexosRef,
+  };
+}
+
 export function cabecera(html: string) {
   const $ = cheerio.load(html);
   $("*")
@@ -416,7 +533,34 @@ export function parseHistoria(html: string, permitirVacia = false): Actuacion[] 
     const dil = desc.match(/Diligencia:\s*(\d{2}\/\d{2}\/\d{4})/i);
     if (!diligencia && dil) diligencia = fechaIso(dil[1]);
     const folio = /^\d+$/.test(t(0)) ? Number(t(0)) : null;
-    const fila: Actuacion = { folio, etapa: t(3), tramite: t(4), descripcion: desc, fecha_diligencia: diligencia, fecha_registro: registro, foja: t(7) || null, tiene_documento: $(tds[1]).find("form, a").length > 0 };
+    // Columna Doc.: el documento y, en los escritos, el certificado de envío (se reconoce por el .php)
+    const formas = $(tds[1])
+      .find("form")
+      .map((__, f) => leerFormulario($, $(f)))
+      .get()
+      .filter((f): f is FormularioDoc => !!f);
+    const esCert = (f: FormularioDoc) => f.action.split("/").pop()?.toLowerCase() === "doccertificadoescrito.php";
+    const doc = formas.find((f) => !esCert(f)) ?? null;
+    const cert = formas.find(esCert) ?? null;
+    const anexoRef = referenciaDe($(tds[2]).find("a[onclick*='anexoSolicitudCivil']").attr("onclick"));
+    const fila: Actuacion = {
+      folio,
+      etapa: t(3),
+      tramite: t(4),
+      descripcion: desc,
+      fecha_diligencia: diligencia,
+      fecha_registro: registro,
+      foja: t(7) || null,
+      tiene_documento: $(tds[1]).find("form, a").length > 0,
+      doc_action: doc?.action ?? null,
+      doc_param: doc?.param ?? null,
+      doc_token: doc?.token ?? null,
+      cert_action: cert?.action ?? null,
+      cert_param: cert?.param ?? null,
+      cert_token: cert?.token ?? null,
+      tiene_anexo: !!anexoRef,
+      anexo_ref: anexoRef,
+    };
     // El sitio a veces repite una fila empobrecida (mismo folio y descripción, lo demás vacío o igual): no es otra actuación
     const anterior = out[out.length - 1];
     if (anterior && anterior.folio === fila.folio && anterior.descripcion === fila.descripcion && (Object.keys(fila) as (keyof Actuacion)[]).every((k) => !fila[k] || fila[k] === anterior[k])) return;

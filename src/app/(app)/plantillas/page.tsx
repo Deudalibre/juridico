@@ -75,7 +75,7 @@ async function PlantillasContent() {
                 ))}
               </div>
               {rows.map((t) => (
-                <div key={t.id} className={`${GRID} row min-h-[54px] px-4 py-1.5`} role="row">
+                <div key={t.id} className={`${GRID} row min-h-[46px] px-4 py-1`} role="row">
                   <div className="flex min-w-0 flex-col" role="cell">
                     <Link href={`/plantillas/${t.id}`} className="truncate text-[13px] font-medium leading-4 text-fg hover:text-accent">
                       {t.name}

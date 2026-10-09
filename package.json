@@ -18,7 +18,8 @@
     "test:lvs": "node scripts/e2e-lvs.mjs",
     "pjud:prueba": "npx -y tsx scripts/pjud-prueba.mts",
     "pjud:tribunales": "npx -y tsx scripts/pjud-tribunales.mts",
-    "pjud:sync": "npx -y tsx scripts/pjud-sync.mts"
+    "pjud:sync": "npx -y tsx scripts/pjud-sync.mts",
+    "pjud:docs": "npx -y tsx scripts/pjud-download-docs.mts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
@@ -26,6 +27,7 @@
     "@radix-ui/react-select": "^2.3.7",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.0",
+    "@vercel/blob": "^2.8.1",
     "cheerio": "^1.2.0",
     "docx-preview": "^0.4.1",
     "docxtemplater": "^3.71.0",
@@ -34,9 +36,11 @@
     "pizzip": "^3.3.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "resend": "^6.32.1",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@fortawesome/fontawesome-free": "^7.3.1",
     "@types/node": "^20",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
