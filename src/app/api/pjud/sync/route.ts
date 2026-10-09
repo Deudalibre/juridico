@@ -35,7 +35,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!autorizado(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!autorizado(req)) {
+    // Diagnóstico sin revelar el secreto: si falta la variable en el despliegue o si el valor enviado no calza
+    const s = process.env.CRON_SECRET;
+    return NextResponse.json({ error: "No autorizado", secretoConfigurado: Boolean(s), largoConfigurado: s?.length ?? 0 }, { status: 401 });
+  }
   const url = new URL(req.url);
   const inicio = Date.now();
   const cliente = new PjudClient(CONTACTO);
