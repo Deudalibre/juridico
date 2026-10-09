@@ -44,7 +44,8 @@ export async function updateSession(request: NextRequest) {
   };
 
   // Latido del cron de Vercel: no necesita sesión
-  if (path === "/api/ping") return response;
+  // Los crons de Vercel no traen sesión: /api/ping y la sincronización con el PJUD (que exige su propio secreto)
+  if (path === "/api/ping" || path === "/api/pjud/sync") return response;
   if (!user) {
     const next = path === "/login" ? "" : `?next=${encodeURIComponent(request.nextUrl.href)}`;
     return NextResponse.redirect(`${CRM_URL}/login${next}`);
