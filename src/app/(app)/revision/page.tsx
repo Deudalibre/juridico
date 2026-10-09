@@ -23,37 +23,6 @@ const MONTH_NAMES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
 // Al entrar se ve el resumen de todos los clientes por año; «Revisar» pide año y mes y muestra solo eso.
 // Cada revisión deja registrado si hubo movimiento, la nota, la tarea pendiente, quién revisó y cuándo.
 
-/** Bloque dentro del cuadro de la cola: una fila fina con el nombre, el número y, si aplica, un dato; plegable para lo que no urge. */
-function Group({ title, hint, count, tone, collapsible, children }: { title: string; hint?: ReactNode; count: number; tone?: "danger" | "warning" | "brand" | "success"; collapsible?: boolean; children: ReactNode }) {
-  const band = "flex items-center gap-2 border-b border-line-soft bg-surface-2 px-4 py-1.5";
-  const color = tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : tone === "success" ? "text-success" : "text-fg";
-  const head = (
-    <>
-      <span className={`text-[12px] font-semibold ${color}`}>{title}</span>
-      <span className="tabnum text-[11.5px] text-muted">{count}</span>
-      {hint && <span className="ml-auto text-[11.5px] text-muted">{hint}</span>}
-    </>
-  );
-  // Plegable (cerrado por defecto): para lo que no urge, como las causas al día. La cola pendiente va siempre abierta.
-  if (collapsible)
-    return (
-      <details className="group">
-        <summary className={`${band} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
-          {head}
-          <span className={`${hint ? "" : "ml-auto"} text-[11.5px] font-medium text-accent group-open:hidden`}>Mostrar</span>
-          <span className={`${hint ? "" : "ml-auto"} hidden text-[11.5px] font-medium text-accent group-open:inline`}>Ocultar</span>
-        </summary>
-        {children}
-      </details>
-    );
-  return (
-    <>
-      <div className={band}>{head}</div>
-      {children}
-    </>
-  );
-}
-
 // Título de la pestaña del navegador (el layout añade « · Deuda Libre»)
 export const metadata = { title: "Revisión" };
 
@@ -487,25 +456,15 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
               </Link>
             </div>
           </section>
-          {/* Un solo cuadro: cabecera de columnas una vez y, dentro, los bloques (vencidas, por revisar y, plegado, al día) */}
+          {/* Un solo cuadro y una sola tabla: cada fila ya muestra su estado, su última revisión y su tarea. En el mes, primero
+              las causas con tarea vencida, luego las pendientes y al final las al día; en el año completo, en orden cronológico
+              (las filas de mes las pone la tabla). */}
           <section className="panel overflow-hidden">
             <ReviewHeader />
-            {withOverdue.length > 0 && (
-              <Group title="Con tareas vencidas" hint="Atiende la tarea o déjala resuelta al revisar" count={withOverdue.length} tone="danger">
-                {table(withOverdue, (c) => overdueTasks.get(c.id) ?? null)}
-              </Group>
-            )}
-            <Group title="Por revisar" count={queue.length} tone={queue.length ? "warning" : "success"}>
-              {queue.length === 0 ? (
-                <div className="px-5 py-6 text-center text-[12.5px] text-faint">Nada pendiente en esta selección.</div>
-              ) : (
-                table(queue, (c) => nextTask.get(c.id) ?? null)
-              )}
-            </Group>
-            {upToDate.length > 0 && (
-              <Group title="Al día" count={upToDate.length} tone="success" collapsible>
-                {table(upToDate, (c) => nextTask.get(c.id) ?? null)}
-              </Group>
+            {visible.length === 0 ? (
+              <div className="px-5 py-6 text-center text-[12.5px] text-faint">Nada en esta selección.</div>
+            ) : (
+              table(mes ? [...withOverdue, ...queue.filter((c) => !overdueTasks.has(c.id)), ...upToDate.filter((c) => !overdueTasks.has(c.id))] : visible.slice().sort(chrono), (c) => overdueTasks.get(c.id) ?? nextTask.get(c.id) ?? null)
             )}
           </section>
         </ReviewQueueProvider>
