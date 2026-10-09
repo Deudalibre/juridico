@@ -94,11 +94,12 @@ try {
 
   // 4. Pantallas después de la revisión
   const rev2 = await page(jur, `/revision?ver=${abo.id}&anio=2026`);
-  // La cabecera del grupo «Al día» (la leyenda del semáforo también dice «Al día», así que se busca la cabecera con su contador)
-  const alDia = rev2.text.search(/Al día \d+ (Mostrar|N°)/);
+  // Una sola tabla, sin franjas de grupo: el estado se lee en la fila de cada causa
   const posA2 = rev2.text.indexOf("JUR Revisión Antigua");
-  ok("Revisión: la causa revisada pasa a «Al día» con movimiento, fecha y revisor", rev2.status === 200 && alDia > 0 && posA2 > alDia && /con mov/i.test(rev2.text) && /JUR juridico/.test(rev2.text), `${alDia} ${posA2}`);
-  ok("Revisión: la causa nueva sigue en «Por revisar»", rev2.text.indexOf("JUR Revisión Nueva") < alDia);
+  const filaA = rev2.text.slice(posA2, posA2 + 400);
+  ok("Revisión: la causa revisada muestra movimiento, fecha y revisor en su fila", rev2.status === 200 && posA2 > 0 && /con mov/i.test(filaA) && /JUR juridico/.test(rev2.text), filaA.slice(0, 160));
+  const posN2 = rev2.text.indexOf("JUR Revisión Nueva");
+  ok("Revisión: la causa nueva sigue sin revisar (Nunca revisada)", posN2 > 0 && /Nunca revisada/.test(rev2.text.slice(posN2, posN2 + 400)));
   const mios = await page(abo, "/revision?ver=mios&anio=2026&mes=9");
   ok("Año y mes concretos (septiembre 2026) con «Mis causas»: solo la causa de ese mes", mios.status === 200 && /JUR Revisión Nueva/.test(mios.text) && !/JUR Revisión Antigua/.test(mios.text) && /Todo el año/.test(mios.text));
   const proc = await page(jur, `/revision?proc=Renegociaci%C3%B3n&ver=${abo.id}&anio=2026`);
