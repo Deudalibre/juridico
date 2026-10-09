@@ -17,7 +17,8 @@
     "test:tribunales": "npx -y tsx scripts/test-tribunales.mts",
     "test:lvs": "node scripts/e2e-lvs.mjs",
     "pjud:prueba": "npx -y tsx scripts/pjud-prueba.mts",
-    "pjud:tribunales": "npx -y tsx scripts/pjud-tribunales.mts"
+    "pjud:tribunales": "npx -y tsx scripts/pjud-tribunales.mts",
+    "pjud:sync": "npx -y tsx scripts/pjud-sync.mts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
