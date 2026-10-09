@@ -33,7 +33,7 @@ type Props = {
 // corría de una tabla a otra (con o sin botón «Completar»).
 // Última revisión va compacta (quién y cuándo en una línea) y la tarea pendiente, que es lo que hay que hacer, se lleva
 // el ancho y un recuadro propio (pedido del estudio, 2026-10-06)
-const GRID = "grid grid-cols-[32px_minmax(0,2fr)_176px_minmax(0,1fr)_minmax(0,2.8fr)_200px] items-center gap-x-4";
+const GRID = "grid grid-cols-[32px_minmax(0,2.4fr)_176px_minmax(0,1fr)_minmax(0,2.6fr)_200px] items-center gap-x-4";
 
 /** Cabecera de columnas de la cola (una por lista). */
 export function ReviewHeader() {
@@ -120,7 +120,22 @@ export function ReviewRow({ seq, client: c, task, review, doneSteps, tz, canRevi
           {c.procedure_type === "Renegociación" && <span className="tag brand">Renegociación</span>}
           {alert && <span className={`tag ${alert.tone} shrink-0`}>{alert.text}</span>}
         </span>
-        <span className="tabnum truncate text-[11.5px] text-muted">{c.rol ?? <span className="text-faint">Sin rol</span>}</span>
+        {/* Rol y tribunal, los dos datos que identifican la causa, integrados bajo el nombre */}
+        <span className="flex min-w-0 items-center gap-1.5 text-[11.5px] leading-[15px]" title={`${c.rol ?? "Sin rol"}${c.tribunal ? " · " + c.tribunal : ""}`}>
+          <span className="inline-flex shrink-0 items-center gap-1 text-soft">
+            <span className="text-faint">
+              <Icon name="scale" size={11} />
+            </span>
+            {c.rol ? <span className="tabnum font-semibold text-fg">{c.rol}</span> : <span className="text-faint">Sin rol</span>}
+          </span>
+          <span className="text-faint" aria-hidden>·</span>
+          <span className="inline-flex min-w-0 items-center gap-1 text-muted">
+            <span className="shrink-0 text-faint">
+              <Icon name="court" size={11} />
+            </span>
+            {c.tribunal ? <span className="truncate">{c.tribunal}</span> : <span className="text-faint">Sin tribunal</span>}
+          </span>
+        </span>
       </div>
 
       {/* Estado (semáforo): solo se muestra; se cambia dentro de «Revisar», para no hacer dos gestiones por causa */}

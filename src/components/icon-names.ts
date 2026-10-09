@@ -60,9 +60,11 @@ export const ICON_NAMES = {
   save: "Save",
   bookmark: "Bookmark",
   filters: "ListFilter",
+  scale: "Scale",
+  court: "Landmark",
 } as const;
 
 export type IconName = keyof typeof ICON_NAMES;
 
 /** Ruta del sprite con su versión (la actualiza `npm run icons`); se sirve con caché inmutable desde next.config. */
-export const SPRITE = "/icons.svg?v=842fb5bb";
+export const SPRITE = "/icons.svg?v=457e8bab";
