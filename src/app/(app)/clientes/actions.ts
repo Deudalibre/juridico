@@ -294,3 +294,34 @@ export async function reopenCase(id: string): Promise<Result> {
   revalidatePath("/clientes");
   return {};
 }
+/* ---------------- Poder Judicial ---------------- */
+
+/**
+ * «Sincronizar ahora»: consulta la Oficina Judicial Virtual para esta causa y guarda la lectura (pjud_guardar, como el
+ * usuario). Desde Vercel el PJUD responde con un desafío del cortafuegos y se informa; la sincronización diaria corre
+ * desde el estudio a las 12:00.
+ */
+export async function sincronizarPjud(clientId: string): Promise<Result & { actuaciones?: number }> {
+  const { supabase, can } = await getContext();
+  if (!can("legal.edit")) return { error: "No tienes permiso para sincronizar con el Poder Judicial." };
+  if (!isUuid(clientId)) return { error: "Causa no válida." };
+  const { data: c } = await supabase.from("legal_clients").select("id, rol, tribunal").eq("id", clientId).maybeSingle();
+  if (!c?.rol || !c.tribunal) return { error: "La causa no tiene rol y tribunal." };
+  const { PjudClient, PjudBloqueado, normalizarTribunal } = await import("@/lib/pjud");
+  const { data: t } = await supabase.from("pjud_tribunales").select("codigo").eq("nombre_norm", normalizarTribunal(c.tribunal)).maybeSingle();
+  const codigo = (t?.codigo as number | undefined) ?? 0;
+  const cliente = new PjudClient(process.env.PJUD_CONTACTO ?? "juridico@deudalibre.cl");
+  try {
+    const d = await cliente.detalleCausa(String(c.rol).trim().toUpperCase(), c.tribunal, codigo);
+    const { error } = await supabase.rpc("pjud_guardar", { p_client: clientId, p_data: { ...d, tribunal_codigo: codigo || null } });
+    if (error) return { error: error.message };
+    revalidatePath(`/clientes/${clientId}`);
+    return { actuaciones: d.cuadernos.reduce((a, q) => a + q.actuaciones.length, 0) };
+  } catch (e) {
+    const msg = (e as Error).message;
+    await supabase.rpc("pjud_guardar", { p_client: clientId, p_data: null, p_error: msg });
+    revalidatePath(`/clientes/${clientId}`);
+    if (e instanceof PjudBloqueado) return { error: "El Poder Judicial no acepta consultas desde el servidor de la app (cortafuegos). La sincronización diaria corre desde el estudio a las 12:00." };
+    return { error: msg };
+  }
+}

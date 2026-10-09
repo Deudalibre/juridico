@@ -19,6 +19,8 @@ import { CHECKLIST_ENABLED, CLOSE_TERMINATED, TASK_KINDS, currentStep, isLiquida
 import { Icon } from "@/components/icons";
 import { BasicsForm } from "./BasicsForm";
 import { CausaSteps } from "./CausaSteps";
+import { PjudFicha } from "./PjudFicha";
+import { loadPjud } from "@/lib/pjud-data";
 import { ClaveUnica } from "./ClaveUnica";
 import { CloseCase } from "./CloseCase";
 import { DocumentsTab } from "./DocumentsTab";
@@ -83,7 +85,7 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
   const params = await props.params;
   const { supabase, tz, can } = await requirePermission("legal.view");
   if (!/^[0-9a-f-]{36}$/i.test(params.id)) notFound();
-  const [{ data }, members, stepsRes, tasksRes, histRes] = await Promise.all([
+  const [{ data }, members, stepsRes, tasksRes, histRes, pjud] = await Promise.all([
     supabase.from("legal_clients").select("*").eq("id", params.id).maybeSingle(),
     getMembers(supabase),
     supabase.from("legal_case_steps").select("*").eq("client_id", params.id),
@@ -99,6 +101,8 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
             summary: string | null;
           }[],
         }),
+    // Datos del Poder Judicial: solo en la pestaña Causa
+    searchParams.tab === "Causa" ? loadPjud(supabase, params.id) : Promise.resolve(null),
   ]);
   const history = (histRes.data ?? []) as {
     id: number;
@@ -327,7 +331,8 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
           {summary}
         </div>
       ) : tab === "Causa" ? (
-        <CausaSteps
+        <>
+          <CausaSteps
           clientId={c.id}
           procedure={c.procedure_type}
           steps={steps}
@@ -343,6 +348,9 @@ async function ClienteContent(props: { params: Promise<{ id: string }>; searchPa
           tz={tz}
           showSteps={false}
         />
+          {/* Réplica de la consulta unificada del Poder Judicial, sincronizada a diario desde el estudio */}
+          <PjudFicha data={pjud} rol={c.rol} tribunal={c.tribunal} pjudUrl={c.pjud_url} clientId={c.id} canSync={canEdit} />
+        </>
       ) : tab === "Historial" ? (
         <section className="panel overflow-hidden">
           <div className="panel-head">
