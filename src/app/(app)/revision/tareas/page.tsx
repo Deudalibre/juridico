@@ -147,10 +147,6 @@ async function TareasCerradasContent(props: { searchParams: Promise<{ quien?: st
 
       {summary.length > 1 && !quien && (
         <section className="panel overflow-hidden">
-          <div className="panel-head !py-3">
-            <span className="card-title">Por persona</span>
-            <span className="ml-auto text-[12px] text-muted">En el período elegido</span>
-          </div>
           <div className="grid gap-px bg-line-soft sm:grid-cols-2 lg:grid-cols-4">
             {summary.map((s) => (
               <Link key={s.id} href={`/revision/tareas?quien=${s.id}${desde ? `&desde=${desde}` : ""}${hasta ? `&hasta=${hasta}` : ""}`} className="flex items-center gap-3 bg-surface px-4 py-3 hover:bg-surface-2">

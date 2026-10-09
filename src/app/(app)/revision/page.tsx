@@ -23,31 +23,34 @@ const MONTH_NAMES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
 // Al entrar se ve el resumen de todos los clientes por año; «Revisar» pide año y mes y muestra solo eso.
 // Cada revisión deja registrado si hubo movimiento, la nota, la tarea pendiente, quién revisó y cuándo.
 
+/** Bloque dentro del cuadro de la cola: una fila fina con el nombre, el número y, si aplica, un dato; plegable para lo que no urge. */
 function Group({ title, hint, count, tone, collapsible, children }: { title: string; hint?: ReactNode; count: number; tone?: "danger" | "warning" | "brand" | "success"; collapsible?: boolean; children: ReactNode }) {
+  const band = "flex items-center gap-2 border-b border-line-soft bg-surface-2 px-4 py-1.5";
+  const color = tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : tone === "success" ? "text-success" : "text-fg";
   const head = (
     <>
-      <span className="card-title">{title}</span>
-      <span className={`badge ${tone ?? "neutral"} tabnum`}>{count}</span>
-      {hint && <span className="ml-auto flex items-center text-[12px] text-muted">{hint}</span>}
+      <span className={`text-[12px] font-semibold ${color}`}>{title}</span>
+      <span className="tabnum text-[11.5px] text-muted">{count}</span>
+      {hint && <span className="ml-auto text-[11.5px] text-muted">{hint}</span>}
     </>
   );
   // Plegable (cerrado por defecto): para lo que no urge, como las causas al día. La cola pendiente va siempre abierta.
   if (collapsible)
     return (
-      <details className="panel group overflow-hidden">
-        <summary className="panel-head !py-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+      <details className="group">
+        <summary className={`${band} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
           {head}
-          <span className="ml-auto text-[12px] font-medium text-accent group-open:hidden">Mostrar</span>
-          <span className="ml-auto hidden text-[12px] font-medium text-accent group-open:inline">Ocultar</span>
+          <span className={`${hint ? "" : "ml-auto"} text-[11.5px] font-medium text-accent group-open:hidden`}>Mostrar</span>
+          <span className={`${hint ? "" : "ml-auto"} hidden text-[11.5px] font-medium text-accent group-open:inline`}>Ocultar</span>
         </summary>
-        <div className="border-t border-line">{children}</div>
+        {children}
       </details>
     );
   return (
-    <section className="panel overflow-hidden">
-      <div className="panel-head !py-2.5">{head}</div>
-      <div>{children}</div>
-    </section>
+    <>
+      <div className={band}>{head}</div>
+      {children}
+    </>
   );
 }
 
@@ -274,7 +277,7 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
 
   /** Filas con cabecera de columnas y, cuando se ve el año completo, una línea por mes. */
   const table = (list: LegalClient[], taskOf: (c: LegalClient) => LegalTask | null) => {
-    const out: ReactNode[] = [<ReviewHeader key="head" />];
+    const out: ReactNode[] = [];
     let lastMonth: number | null = null;
     for (const c of list) {
       const m = monthOf(c);
@@ -359,11 +362,6 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
         // Portada: todos los clientes, por año, con sus meses
         <>
           <section className="panel overflow-hidden">
-            <div className="panel-head !py-2.5">
-              <span className="card-title">Causas en tramitación</span>
-              <span className="badge neutral tabnum">{filed.length}</span>
-              <span className="ml-auto text-[12px] text-muted">Por año de ingreso. Elige un año y un mes con «Revisar», o muestra un año completo</span>
-            </div>
             <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
               {summary.map((y) => {
                 const reviewed = y.total - y.pending;
@@ -410,12 +408,12 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
           {/* Clientes que aún no tienen causa: están preparando documentos y firmas; la demanda no se ha ingresado */}
           {prep.length > 0 && (
             <details className="panel group overflow-hidden" style={{ borderColor: "var(--warning-line)" }}>
-              <summary className="panel-head !py-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden" style={{ background: "var(--warning-bg)" }}>
-                <span className="card-title">En preparación</span>
-                <span className="badge warning tabnum">{prep.length}</span>
-                <span className="text-[12px] text-muted">{prep.length === 1 ? "cliente sin rol todavía" : "clientes sin rol todavía"}: se están juntando los documentos y firmas</span>
-                <span className="ml-auto text-[12px] font-medium text-accent group-open:hidden">Ver</span>
-                <span className="ml-auto hidden text-[12px] font-medium text-accent group-open:inline">Ocultar</span>
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-1.5 [&::-webkit-details-marker]:hidden" style={{ background: "var(--warning-bg)" }}>
+                <span className="text-[12px] font-semibold text-fg">En preparación</span>
+                <span className="tabnum text-[11.5px] text-muted">{prep.length}</span>
+                <span className="text-[11.5px] text-muted">{prep.length === 1 ? "cliente sin rol todavía" : "clientes sin rol todavía"}: se están juntando los documentos y firmas</span>
+                <span className="ml-auto text-[11.5px] font-medium text-accent group-open:hidden">Ver</span>
+                <span className="ml-auto hidden text-[11.5px] font-medium text-accent group-open:inline">Ocultar</span>
               </summary>
               <div className="overflow-x-auto border-t" style={{ borderColor: "var(--warning-line)" }}>
                 <div className="grid min-w-[640px] grid-cols-[32px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)_160px] items-center gap-x-4 th-band border-b border-line px-4 py-2" role="row">
@@ -489,23 +487,27 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
               </Link>
             </div>
           </section>
-          {withOverdue.length > 0 && (
-            <Group title="Con tareas vencidas" hint="Atiende la tarea o déjala resuelta al revisar" count={withOverdue.length} tone="danger">
-              {table(withOverdue, (c) => overdueTasks.get(c.id) ?? null)}
-            </Group>
-          )}
-          <Group title="Por revisar" count={queue.length} tone={queue.length ? "warning" : "success"}>
-            {queue.length === 0 ? (
-              <div className="px-5 py-6 text-center text-[12.5px] text-faint">Nada pendiente en esta selección.</div>
-            ) : (
-              table(queue, (c) => nextTask.get(c.id) ?? null)
+          {/* Un solo cuadro: cabecera de columnas una vez y, dentro, los bloques (vencidas, por revisar y, plegado, al día) */}
+          <section className="panel overflow-hidden">
+            <ReviewHeader />
+            {withOverdue.length > 0 && (
+              <Group title="Con tareas vencidas" hint="Atiende la tarea o déjala resuelta al revisar" count={withOverdue.length} tone="danger">
+                {table(withOverdue, (c) => overdueTasks.get(c.id) ?? null)}
+              </Group>
             )}
-          </Group>
-          {upToDate.length > 0 && (
-            <Group title="Al día" count={upToDate.length} tone="success" collapsible>
-              {table(upToDate, (c) => nextTask.get(c.id) ?? null)}
+            <Group title="Por revisar" count={queue.length} tone={queue.length ? "warning" : "success"}>
+              {queue.length === 0 ? (
+                <div className="px-5 py-6 text-center text-[12.5px] text-faint">Nada pendiente en esta selección.</div>
+              ) : (
+                table(queue, (c) => nextTask.get(c.id) ?? null)
+              )}
             </Group>
-          )}
+            {upToDate.length > 0 && (
+              <Group title="Al día" count={upToDate.length} tone="success" collapsible>
+                {table(upToDate, (c) => nextTask.get(c.id) ?? null)}
+              </Group>
+            )}
+          </section>
         </ReviewQueueProvider>
       )}
     </>
