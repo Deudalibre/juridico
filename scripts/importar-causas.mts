@@ -263,7 +263,7 @@ if (!cuenta || !existsSync(cuenta)) {
   process.exit(1);
 }
 const cred = readFileSync(cuenta, "utf8");
-const email = cred.match(/Correo:\s*(\S+)/)?.[1] ?? "";
+const email = cred.match(/(?:Correo|Usuario):\s*(\S+)/)?.[1] ?? "";
 const password = cred.match(/Clave:\s*(\S+)/)?.[1] ?? "";
 const supabase: SupabaseClient = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 const login = await supabase.auth.signInWithPassword({ email, password });
