@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import Loading from "../loading";
+import Loading from "./loading"; // esqueleto de tabla de esta vista (8 filas con sus columnas)
 import { getMembers, requirePermission, type LegalClient } from "@/lib/data";
 import { dateTime } from "@/lib/format";
 import { COMPLETED, IN_PREPARATION, PROCEDURES, SEMAFORO, isSemaforo, stepLabel, stepsFor } from "@/lib/legal";
@@ -156,7 +156,7 @@ async function ClientesContent(props: { searchParams: Promise<SP> }) {
           </div>
         ) : (
           <div className="scroll-x">
-            <ClientsTable rows={shown} members={members} canAssign={can("legal.assign")} closed={closed} tz={tz} />
+            <ClientsTable rows={shown} members={members} canAssign={can("legal.assign")} canEdit={can("legal.edit")} closed={closed} tz={tz} />
           </div>
         )}
         {pages > 1 && (

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ContactButtons } from "@/components/ContactButtons";
 import { Icon } from "@/components/icons";
@@ -8,6 +9,8 @@ import { formatRut } from "@/lib/rut";
 import { CLOSE_TERMINATED, procedureTone } from "@/lib/legal";
 import type { LegalClient } from "@/lib/data";
 import { LawyerSelect } from "./[id]/LawyerSelect";
+import { FichaJuridicaButton } from "./[id]/FichaJuridicaButton";
+import { MasColumnasBoton } from "@/components/MasColumnas";
 
 type Member = {
   id: string;
@@ -20,6 +23,8 @@ type Props = {
   rows: LegalClient[];
   members: Member[];
   canAssign: boolean;
+  /** legal.edit: puede «Sincronizar ahora» en la ficha jurídica */
+  canEdit: boolean;
   closed: boolean;
   tz: string;
 };
@@ -28,31 +33,42 @@ type Props = {
 // etiquetas sin salto de línea (procedimiento, rol) conservan el mínimo de contenido.
 // La lista es un listado de causas: nombre y antecedentes (procedimiento, rol, tribunal, abogado). El estado, la próxima
 // acción y la revisión viven en Revisión, no aquí (pedido del estudio, 2026-10-06).
-const GRID_CLOSED = "grid grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_0.9fr_minmax(0,1.4fr)_1.2fr_minmax(0,1.1fr)_1fr_404px] items-center gap-3";
+// Cerradas: 8 columnas; por defecto se ocultan «Abogado» y «Cerrada el» («Más columnas» las despliega)
+const GRID_CLOSED = "grid grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_0.9fr_minmax(0,1.4fr)_1.2fr_404px] group-data-[cols=todas]:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_0.9fr_minmax(0,1.4fr)_1.2fr_minmax(0,1.1fr)_1fr_404px] items-center gap-3";
+const EXTRA = "hidden group-data-[cols=todas]:block";
 const GRID_ACTIVE = "grid grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_0.9fr_minmax(0,1.6fr)_minmax(0,1.2fr)_404px] items-center gap-3";
 
 /** Lista de clientes con la misma estructura que «Todos los leads»: filas de 54 px y acciones al final. */
-export function ClientsTable({ rows, members, canAssign, closed, tz }: Props) {
+export function ClientsTable({ rows, members, canAssign, canEdit, closed, tz }: Props) {
   const router = useRouter();
+  const [todas, setTodas] = useState(false); // cerradas: columnas secundarias desplegadas
   const open = (id: string) => router.push(`/clientes/${id}`);
   const GRID = closed ? GRID_CLOSED : GRID_ACTIVE;
   const headers = closed ? ["Cliente", "Procedimiento", "Rol", "Tribunal", "Motivo de cierre", "Abogado", "Cerrada el", "Acciones"] : ["Cliente", "Procedimiento", "Rol", "Tribunal", "Abogado", "Acciones"];
 
   return (
-    <div role="table" aria-label="Clientes" className={closed ? "min-w-[1300px]" : "min-w-[1100px]"}>
+    <div role="table" aria-label="Clientes" className={`group ${closed ? "min-w-[1300px]" : "min-w-[1100px]"}`} data-cols={todas ? "todas" : "menos"}>
+      {closed && (
+        <div className="flex justify-end px-3 py-1">
+          <MasColumnasBoton todas={todas} onToggle={() => setTodas((v) => !v)} />
+        </div>
+      )}
       <div className={`${GRID} th-band border-y border-line px-4 py-2.5`} role="row">
         {headers.map((h) => (
-          <div key={h} className="th" role="columnheader">
+          <div key={h} className={`th ${closed && (h === "Abogado" || h === "Cerrada el") ? EXTRA : ""}`} role="columnheader">
             {h}
           </div>
         ))}
       </div>
       {rows.map((c) => (
-        <div key={c.id} className={`${GRID} row min-h-[54px] px-4 py-1.5`} role="row" tabIndex={0} onClick={() => open(c.id)} onKeyDown={(e) => e.key === "Enter" && e.target === e.currentTarget && open(c.id)}>
+        <div key={c.id} className={`${GRID} row min-h-[46px] px-4 py-1`} role="row" tabIndex={0} onClick={() => open(c.id)} onKeyDown={(e) => e.key === "Enter" && e.target === e.currentTarget && open(c.id)}>
           <div className="flex min-w-0 items-center gap-2" role="cell">
             <span className="avatar h-8 w-8 text-[11px]">{initials(c.full_name) || "?"}</span>
             <span className="flex min-w-0 flex-col">
-              <span className="truncate text-[13px] font-medium leading-4 text-fg">{c.full_name}</span>
+              <span className="truncate text-[13px] font-medium leading-4 text-fg">
+                {c.internal_number && <span className="tabnum mr-1.5 text-[11px] font-normal text-faint">{c.internal_number}</span>}
+                {c.full_name}
+              </span>
               <span className="tabnum truncate text-[11px] leading-[14px] text-muted">{c.rut ? formatRut(c.rut) : "RUT pendiente"}</span>
             </span>
           </div>
@@ -70,11 +86,11 @@ export function ClientsTable({ rows, members, canAssign, closed, tz }: Props) {
               {c.close_reason ? <span className={`tag ${c.close_reason === CLOSE_TERMINATED ? "success" : "danger"}`}>{c.close_reason}</span> : <span className="text-faint">—</span>}
             </div>
           )}
-          <div role="cell" className="min-w-0 overflow-hidden" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <div role="cell" className={`min-w-0 overflow-hidden ${closed ? EXTRA : ""}`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <LawyerSelect clientId={c.id} lawyerId={c.lawyer_id} members={members} canAssign={canAssign && !closed} compact />
           </div>
           {closed && (
-            <div role="cell" className="tabnum text-[12.5px] text-muted">
+            <div role="cell" className={`tabnum text-[12.5px] text-muted ${EXTRA}`}>
               {c.archived_at ? shortDate(c.archived_at, tz) : "—"}
             </div>
           )}
@@ -83,12 +99,11 @@ export function ClientsTable({ rows, members, canAssign, closed, tz }: Props) {
               <ContactButtons phone={c.phone} name={c.full_name} />
             </span>
             <RowLink icon="folder" label="Carpeta" url={c.drive_folder_url} />
-            <RowLink icon="external" label="Ficha jurídica" url={c.pjud_url} />
+            <span className="contents" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+              <FichaJuridicaButton variant="row" rol={c.rol} tribunal={c.tribunal} pjudUrl={c.pjud_url} clientId={c.id} canSync={canEdit && !closed} />
+            </span>
             <span className="row-view" aria-hidden>
               <Icon name="eye" size={13} /> Ver
-            </span>
-            <span className="text-faint" aria-hidden>
-              <Icon name="chevron" size={15} />
             </span>
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getContext } from "@/lib/data";
+import { loadPjud, pjudCooldown, type PjudCausaData } from "@/lib/pjud-data";
 import { cleanRut, isValidRut } from "@/lib/rut";
 import { zonedToIso } from "@/lib/format";
 import { CLOSE_REASONS, STEP_RESOLUTION, TASK_KINDS, currentStep, isProcedure, isSemaforo } from "@/lib/legal";
@@ -301,12 +302,16 @@ export async function reopenCase(id: string): Promise<Result> {
  * usuario). Desde Vercel el PJUD responde con un desafío del cortafuegos y se informa; la sincronización diaria corre
  * desde el estudio a las 12:00.
  */
-export async function sincronizarPjud(clientId: string): Promise<Result & { actuaciones?: number }> {
+export async function sincronizarPjud(clientId: string): Promise<Result & { actuaciones?: number; cooldown?: { synced_at: string; next_available: string } }> {
   const { supabase, can } = await getContext();
   if (!can("legal.edit")) return { error: "No tienes permiso para sincronizar con el Poder Judicial." };
   if (!isUuid(clientId)) return { error: "Causa no válida." };
-  const { data: c } = await supabase.from("legal_clients").select("id, rol, tribunal").eq("id", clientId).maybeSingle();
+  const { data: c } = await supabase.from("legal_clients").select("id, rol, tribunal, pjud_causa_data(synced_at)").eq("id", clientId).maybeSingle();
   if (!c?.rol || !c.tribunal) return { error: "La causa no tiene rol y tribunal." };
+  // Anti-spam: a mano, una vez cada 6 horas por causa (el cron diario no pasa por aquí)
+  const previa = Array.isArray(c.pjud_causa_data) ? c.pjud_causa_data[0] : c.pjud_causa_data;
+  const espera = pjudCooldown((previa as { synced_at: string | null } | null)?.synced_at);
+  if (espera) return { error: "cooldown", cooldown: { synced_at: (previa as { synced_at: string }).synced_at, next_available: espera.next_available } };
   const { PjudClient, PjudBloqueado, normalizarTribunal } = await import("@/lib/pjud");
   const { data: t } = await supabase.from("pjud_tribunales").select("codigo").eq("nombre_norm", normalizarTribunal(c.tribunal)).maybeSingle();
   const codigo = (t?.codigo as number | undefined) ?? 0;
@@ -324,4 +329,11 @@ export async function sincronizarPjud(clientId: string): Promise<Result & { actu
     if (e instanceof PjudBloqueado) return { error: "El Poder Judicial no acepta consultas desde el servidor de la app (cortafuegos). La sincronización diaria corre desde el estudio a las 12:00." };
     return { error: msg };
   }
+}
+
+/** Datos del Poder Judicial de una causa (pjud_causa_data), para «Ficha jurídica» desde la lista de clientes. */
+export async function cargarPjud(clientId: string): Promise<{ data: PjudCausaData | null; error?: string }> {
+  const { supabase } = await getContext();
+  if (!isUuid(clientId)) return { data: null, error: "Causa no válida." };
+  return { data: await loadPjud(supabase, clientId) };
 }

@@ -23,9 +23,14 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // suppressHydrationWarning: el script del body añade data-sidebar a <html> antes de hidratar (barra colapsada)
   return (
-    <html lang="es" className={`${sans.variable} ${display.variable}`}>
-      <body className="font-sans text-sm">{children}</body>
+    <html lang="es" className={`${sans.variable} ${display.variable}`} suppressHydrationWarning>
+      <body className="font-sans text-sm">
+        {/* Barra lateral: arranca ya colapsada si así quedó (localStorage «sidebar_collapsed»), sin parpadeo */}
+        <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('sidebar_collapsed')==='1')document.documentElement.dataset.sidebar='collapsed'}catch(e){}" }} />
+        {children}
+      </body>
     </html>
   );
 }

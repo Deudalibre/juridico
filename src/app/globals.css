@@ -4217,54 +4217,9 @@ textarea {
 }
 
 /* ============================================================
-   Poder Judicial (.pjud): réplica de la consulta unificada de la Oficina Judicial Virtual en la pestaña «Causa».
-   Colores institucionales: azul #003366, cabeceras de tabla #f0f4f8, bordes #dee2e6; tipografía densa como el original.
+   Poder Judicial: la ficha vive solo en «Ficha jurídica» (lista de clientes y cabecera de la causa), como espejo del
+   modal «Detalle Causa Civil» de la Oficina Judicial Virtual. Avisos del modal:
    ============================================================ */
-.pjud {
-  margin-top: 12px;
-  border: 1px solid #dee2e6;
-  border-radius: var(--r-panel, 10px);
-  background: #fff;
-  overflow: hidden;
-  font-family: Arial, Helvetica, "Liberation Sans", sans-serif;
-  font-size: 12.5px;
-  color: #212529;
-}
-.pjud-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 14px;
-  background: #003366;
-  color: #fff;
-}
-.pjud-top-titulo {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-.pjud-top-sync {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: #cfe0f3;
-}
-.pjud-top-sync .btn-ghost,
-.pjud-top-sync .btn-primary {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  color: #fff;
-  box-shadow: none;
-}
-.pjud-top-sync .btn-ghost:hover,
-.pjud-top-sync .btn-primary:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-}
 .pjud-aviso {
   display: flex;
   align-items: flex-start;
@@ -4273,231 +4228,391 @@ textarea {
   background: #fff3cd;
   border-bottom: 1px solid #ffe69c;
   color: #664d03;
+  font-size: 12.5px;
 }
-.pjud-vacio,
-.pjud-nada {
+.pjud-vacio {
   padding: 18px 14px;
   color: #6c757d;
   text-align: center;
+  font-size: 12.5px;
 }
-.pjud-cab {
+
+/* ---- Espejo del modal «Detalle Causa Civil» de la OJV (Bootstrap 3 tal como lo usa el PJUD) ---- */
+.ojv-modal {
+  display: flex;
+  flex-direction: column;
+  /* la tarjeta .modal mide 100vh - 96px con 24px de relleno; el margen -16px devuelve 32px: 100vh - 112px cabe justo */
+  max-height: calc(100vh - 112px);
+  margin: -16px;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #333;
+}
+.ojv-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px;
+  border-bottom: 1px solid #e5e5e5;
+}
+.ojv-modal-titulo {
+  font-size: 18px;
+  color: #337ab7;
+  line-height: 1.42;
+}
+.ojv-modal-cerrar {
+  font-size: 21px;
+  line-height: 1;
+  color: #000;
+  opacity: 0.3;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.ojv-modal-cerrar:hover {
+  opacity: 0.6;
+}
+.ojv-modal > .ojv,
+.ojv-modal > .pjud-vacio,
+.ojv-modal > .pjud-aviso {
+  overflow: auto;
+  flex: 1 1 auto;
+}
+.ojv-modal > .ojv {
+  padding: 15px;
+}
+.ojv-modal-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 15px;
+  border-top: 1px solid #e5e5e5;
+  background: #fff;
+  color: #777;
+  font-size: 12px;
+}
+.ojv {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.42857;
+  color: #333;
+}
+.ojv-box {
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+}
+.ojv-titulos {
   width: 100%;
   border-collapse: collapse;
-  background: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
 }
-.pjud-cab td {
-  padding: 6px 14px;
-  border-bottom: 1px solid #e9ecef;
-  white-space: nowrap;
+.ojv-titulos td {
+  width: 33.33%;
+  padding: 8px;
+  vertical-align: top;
 }
-.pjud-cab tr:last-child td {
+.ojv-titulos strong {
+  font-weight: 700;
+}
+.ojv-docs td {
+  width: 25%;
+  padding-top: 2px;
+}
+.ojv-ban {
+  color: #660000;
+  cursor: no-drop;
+  display: inline-flex;
+}
+.ojv-folder {
+  color: #e9b949;
+  display: inline-flex;
+}
+.ojv-cuaderno {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 10px 18px 14px;
+}
+.ojv-cuaderno strong {
+  display: block;
+  margin-bottom: 6px;
+}
+.ojv-select {
+  width: 100%;
+  height: 34px;
+  padding: 6px 12px;
+  font: inherit;
+  color: #555;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+}
+.ojv-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0 0 -1px;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid #ddd;
+}
+.ojv-tabs li button {
+  display: block;
+  padding: 10px 15px;
+  font: inherit;
+  color: #555;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
   border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
 }
-.pjud-cab strong {
-  color: #003366;
-  font-weight: 700;
-  margin-right: 4px;
+.ojv-tabs li button:hover {
+  background: #eee;
 }
-.pjud-rol {
-  font-weight: 700;
-  font-size: 14px;
-  color: #003366;
-  font-variant-numeric: tabular-nums;
+.ojv-tabs li.active button {
+  color: #fff;
+  background: #6fa84f;
+  border-color: #6fa84f;
+  box-shadow: inset 0 0 0 2px #4d7c3a;
 }
-.pjud-caratula {
-  text-align: right;
-  font-weight: 700;
-  color: #495057;
-  white-space: normal !important;
+.ojv-tabs li.disabled button {
+  color: #999;
+  cursor: not-allowed;
 }
-.pjud-estado {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 3px;
-  font-weight: 700;
-  font-size: 11.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+.ojv-tabla {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  border: 1px solid #ddd;
 }
-.pjud-estado.verde {
-  background: #d1e7dd;
-  color: #0f5132;
-}
-.pjud-estado.gris {
-  background: #e2e3e5;
-  color: #41464b;
-}
-.pjud-estado.ambar {
-  background: #fff3cd;
-  color: #664d03;
-}
-.pjud-seccion {
-  padding: 6px 14px;
-  background: #003366;
+.ojv-tabla th {
+  padding: 8px;
+  background: #337ab7;
   color: #fff;
   font-weight: 700;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.pjud-seccion-tabs {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.pjud-tabs {
-  display: flex;
-  gap: 4px;
-}
-.pjud-tabs button {
-  padding: 2px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 3px;
-  background: transparent;
-  color: #cfe0f3;
-  font: inherit;
-  font-size: 11.5px;
-  text-transform: none;
-  letter-spacing: 0;
-  cursor: pointer;
-}
-.pjud-tabs button.activo {
-  background: #fff;
-  color: #003366;
-  border-color: #fff;
-  font-weight: 700;
-}
-.pjud-tab-n {
-  margin-left: 6px;
-  opacity: 0.75;
-  font-variant-numeric: tabular-nums;
-}
-.pjud-cuaderno-unico {
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-  color: #cfe0f3;
-}
-.pjud-tabla {
-  width: 100%;
-  border-collapse: collapse;
-}
-.pjud-tabla th {
-  padding: 6px 10px;
-  background: #f0f4f8;
-  border-bottom: 1px solid #dee2e6;
-  color: #003366;
-  font-weight: 700;
-  font-size: 11.5px;
   text-align: left;
+  border: 1px solid #ddd;
   white-space: nowrap;
 }
-.pjud-tabla td {
-  padding: 5px 10px;
-  border-bottom: 1px solid #dee2e6;
+.ojv-tabla td {
+  padding: 8px;
+  border: 1px solid #ddd;
   vertical-align: top;
-  line-height: 1.35;
 }
-.pjud-tabla tbody tr:nth-child(even) td {
-  background: #fafbfc;
+.ojv-tabla tbody tr:nth-child(odd) td {
+  background: #f9f9f9;
 }
-.pjud-tabla tbody tr:hover td {
-  background: #eef3f8;
+.ojv-tabla tbody tr:hover td {
+  background: #f5f5f5;
 }
-.pjud-num {
+.ojv-num {
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+.ojv-vacio {
+  text-align: center;
+  color: #777;
+}
+
+/* PDFs del PJUD en la Ficha jurídica, con los iconos de Font Awesome de la OJV: PDF rojo (#ab5659), certificado de
+   envío azul (#2693ff), carpeta de anexos amarilla (#d7b926); en gris lo que aún no se ha bajado. */
+.ojv-doc {
   white-space: nowrap;
+  text-align: center;
 }
-.pjud-muted {
-  color: #adb5bd;
-}
-.pjud-dte td:first-child .pjud-sujeto {
-  color: #0d47a1;
-  font-weight: 700;
-}
-.pjud-ddo td:first-child .pjud-sujeto {
-  color: #b02a37;
-  font-weight: 700;
-}
-.pjud-sujeto {
-  white-space: nowrap;
-}
-.pjud-historia td.pjud-diligencia {
-  font-weight: 700;
-  color: #212529;
-}
-.pjud-historia td.pjud-registro {
-  color: #6c757d;
-  font-size: 11.5px;
-}
-.pjud-tramite {
-  display: block;
-  font-weight: 600;
-}
-.pjud-etapa {
-  display: block;
-  font-size: 11px;
-  color: #6c757d;
-}
-.pjud-desc {
-  min-width: 260px;
-}
-.pjud-doc {
-  display: inline-flex;
-  margin-left: 6px;
-  color: #ab5659;
+/* Columna Doc.: dos huecos de ancho fijo (documento · certificado) para que los iconos queden alineados en todas las filas */
+.ojv-doc-huecos {
+  display: inline-grid;
+  grid-template-columns: 24px 24px;
+  align-items: center;
+  justify-items: center;
   vertical-align: middle;
 }
-.pjud-foja {
-  margin-left: 8px;
-  font-size: 11px;
-  color: #adb5bd;
+.ojv-doc-huecos .ojv-icono + .ojv-icono {
+  margin-left: 0;
 }
-.pjud-paginas {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 6px 14px;
-  border-bottom: 1px solid #dee2e6;
-  color: #6c757d;
-  font-size: 11.5px;
-}
-.pjud-paginas-botones button {
-  margin-left: 6px;
-  padding: 2px 10px;
-  border: 1px solid #dee2e6;
-  border-radius: 3px;
-  background: #fff;
-  color: #003366;
-  font: inherit;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.pjud-paginas-botones button:disabled {
-  color: #adb5bd;
-  cursor: default;
-}
-.pjud-pie {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 7px 14px;
-  background: #f8f9fa;
-  color: #6c757d;
-  font-size: 11.5px;
-}
-.pjud-link {
+.ojv-icono {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  color: #003366;
-  font-weight: 700;
+  justify-content: center;
+  padding: 2px 3px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  vertical-align: middle;
+  line-height: 1;
+  cursor: pointer;
 }
-.pjud-link:hover {
-  text-decoration: underline;
+.ojv-icono + .ojv-icono {
+  margin-left: 4px;
+}
+.ojv-icono:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+.ojv-pdf {
+  color: #ab5659;
+}
+.ojv-pdf-cert {
+  color: #2693ff;
+}
+.ojv-folder {
+  color: #d7b926;
+}
+.ojv-folder-2x {
+  display: inline-flex;
+  padding: 2px 0;
+}
+.ojv-espera {
+  color: #c4c4c4;
+  cursor: default;
+}
+.ojv-espera:hover {
+  background: transparent;
+}
+.ojv-modal-anexo {
+  max-height: calc(100vh - 112px);
+}
+.ojv-modal-anexo > .ojv {
+  overflow: auto;
+  flex: 1 1 auto;
+  padding: 15px;
+}
+
+/* Pie de la ventana: fuente de los datos y píldora de frescura (verde < 24 h · ámbar < 3 días · rojo después o con error) */
+.ojv-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.ojv-sync-fuente {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #6c757d;
+  font-size: 11.5px;
+}
+.ojv-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.ojv-sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+.ojv-sync-pill.verde {
+  background: #e6f6ec;
+  border-color: #bfe6cc;
+  color: #1a7f45;
+}
+.ojv-sync-pill.ambar {
+  background: #fff6e0;
+  border-color: #ffe2a3;
+  color: #9a6400;
+}
+.ojv-sync-pill.rojo {
+  background: #fdeaea;
+  border-color: #f5c2c2;
+  color: #b02a2a;
+}
+.ojv-sync-pill.espera {
+  background: #eef2f7;
+  border-color: #d9e0ea;
+  color: #4b5563;
+}
+.ojv-sync-pill.espera .ojv-sync-dot {
+  animation: ojv-pulso 1s ease-in-out infinite;
+}
+@keyframes ojv-pulso {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+/* Insignia de alerta en la barra lateral («Revisión»: causas sin revisión hace más de 30 días): número en círculo rojo */
+.badge-alert {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 9px;
+}
+
+/* ---- Barra lateral colapsable (ajuste de UI 2026-10-09) ----
+   Expandida: icono + rótulo (64 px). Colapsada: solo icono, 48 px, rótulo como tooltip (title). El estado vive en
+   localStorage («sidebar_collapsed»); un script en el layout raíz pone data-sidebar en <html> antes de pintar para
+   arrancar ya en el estado guardado. El contenido ocupa el espacio ganado con la transición del ancho de la barra. */
+.rail {
+  transition: width 200ms ease, padding 200ms ease;
+}
+.rail-item {
+  transition: width 200ms ease, min-height 200ms ease, background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-base) var(--ease-out);
+}
+html[data-sidebar="collapsed"] .rail {
+  width: 48px;
+  padding: 12px 4px;
+}
+html[data-sidebar="collapsed"] .rail-item {
+  width: 40px;
+  min-height: 40px;
+}
+html[data-sidebar="collapsed"] .rail-label {
+  display: none;
+}
+html[data-sidebar="collapsed"] .rail-brand {
+  width: 36px;
+  height: 36px;
+  font-size: 12px;
+}
+html[data-sidebar="collapsed"] .rail-badge {
+  top: 2px;
+  right: 2px;
+}
+.rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  margin-top: 4px;
+  border-radius: var(--r-control);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1;
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.rail-toggle:hover {
+  background: var(--surface-secondary);
+  color: var(--text-primary);
+}
+
+.rail-toggle-col {
+  display: none;
+}
+html[data-sidebar="collapsed"] .rail-toggle-exp {
+  display: none;
+}
+html[data-sidebar="collapsed"] .rail-toggle-col {
+  display: inline;
 }

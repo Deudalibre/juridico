@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
-import Loading from "@/app/(app)/loading";
+import Loading from "./loading"; // esqueleto de tabla de esta vista (8 filas con sus columnas)
 import { getMembers, requirePermission, type LegalClient, type LegalReview, type LegalTask } from "@/lib/data";
 import { addDaysKey, dayKey, mondayOf, relativeDays, zonedToIso } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
