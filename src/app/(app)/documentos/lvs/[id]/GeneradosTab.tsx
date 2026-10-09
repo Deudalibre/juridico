@@ -127,7 +127,14 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
                 {/* Verde: generado · ámbar: listo para generar · gris: falta algo. Sin estados borrador/final (2026-10-06):
                     si al operador no le gusta, genera de nuevo y listo */}
                 <span className={`h-2 w-2 shrink-0 rounded-full ${g ? "bg-success" : why ? "bg-line-strong" : "bg-warning"}`} aria-hidden />
-                <span className="truncate text-[13px] font-medium text-fg">{def.nombre}</span>
+                <span className="flex min-w-0 flex-col leading-tight">
+                  <span className="truncate text-[13px] font-medium text-fg">{def.nombre}</span>
+                  {why && !g && (
+                    <span id={`why-${tipo}`} className="truncate text-[11px] text-muted" title={why}>
+                      {why}
+                    </span>
+                  )}
+                </span>
                 {g?.advertencias?.length ? (
                   <span className="text-warning" title={g.advertencias.join(" · ")} aria-label="Con advertencias">
                     <Icon name="alert" size={13} />
@@ -136,16 +143,12 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
               </span>
               <span className="flex items-center gap-1.5">
                 {/* La lupa: ver cómo queda con los datos de hoy, antes de generar (o de generar de nuevo) */}
-                <button
-                  type="button"
-                  className="icon-btn"
-                  disabled={pending || Boolean(why)}
-                  title={why ? why : g ? "Ver cómo quedaría con los datos actuales de la ficha" : "Ver cómo va a quedar antes de generarlo"}
-                  aria-label={`Vista previa de ${def.nombre}`}
-                  onClick={() => ver(tipo)}
-                >
-                  {loadingPreview === tipo ? <span className="text-[11px] text-muted">…</span> : <Icon name="search" size={14} />}
-                </button>
+                {/* Un botón deshabilitado no muestra su «title»: el motivo va en el envoltorio y el botón deja pasar el mouse */}
+                <span className="inline-flex" title={why ? `No se puede generar todavía · ${why}` : g ? "Ver cómo quedaría con los datos actuales de la ficha" : "Ver cómo va a quedar antes de generarlo"}>
+                  <button type="button" className="icon-btn disabled:pointer-events-none" disabled={pending || Boolean(why)} aria-label={`Vista previa de ${def.nombre}`} onClick={() => ver(tipo)}>
+                    {loadingPreview === tipo ? <span className="text-[11px] text-muted">…</span> : <Icon name="search" size={14} />}
+                  </button>
+                </span>
                 {g && (
                   <>
                     {g.drive_link && (
@@ -159,9 +162,11 @@ export function GeneradosTab({ clientId, ficha, generados, bienes, totalDeudas, 
                   </>
                 )}
                 {canEdit && (
-                  <button className={g ? "btn-outline btn-sm" : "btn-primary btn-sm"} disabled={pending || Boolean(why)} title={why ?? undefined} onClick={() => generar(tipo)}>
-                    {pending && !preview ? "Generando…" : g ? "Generar de nuevo" : "Generar"}
-                  </button>
+                  <span className="inline-flex" title={why ? `No se puede generar todavía · ${why}` : undefined}>
+                    <button className={`${g ? "btn-outline btn-sm" : "btn-primary btn-sm"} disabled:pointer-events-none`} disabled={pending || Boolean(why)} aria-describedby={why ? `why-${tipo}` : undefined} onClick={() => generar(tipo)}>
+                      {pending && !preview ? "Generando…" : g ? "Generar de nuevo" : "Generar"}
+                    </button>
+                  </span>
                 )}
               </span>
             </div>
