@@ -4,12 +4,10 @@ import Loading from "@/app/(app)/loading";
 import { getMembers, requirePermission, type LegalClient, type LegalReview, type LegalTask } from "@/lib/data";
 import { addDaysKey, dayKey, hourIn, longToday, mondayOf, relativeDays, zonedToIso } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
-import { PROCEDURES, REVIEW_CADENCE, reviewCadence } from "@/lib/legal";
+import { PROCEDURES, reviewCadence } from "@/lib/legal";
 import { Icon } from "@/components/icons";
-import { HelpPop } from "@/components/HelpPop";
 import { ReviewHeader, ReviewRow } from "./ReviewRow";
 import { ReviewQueueProvider } from "./ReviewQueue";
-import { SemaforoLegend } from "./SemaforoLegend";
 import { IngresarDemanda } from "./IngresarDemanda";
 import { Filters } from "./Filters";
 import { ReviewPicker, type YearSummary } from "./ReviewPicker";
@@ -277,28 +275,20 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
               {firstName ? `, ${firstName}` : ""}
             </h1>
             <span className="page-subtitle">
-              {longToday(tz)} · {filed.length} {filed.length === 1 ? "causa" : "causas"} · {totalPending === 0 ? "ninguna por revisar" : `${totalPending} por revisar`}
-              {totalOverdue > 0 ? ` · ${totalOverdue} con tareas vencidas` : ""}
-              {prep.length > 0 ? ` · ${prep.length} en preparación` : ""}
+              {longToday(tz)} · <strong className={`tabnum font-semibold ${totalPending ? "text-fg" : "text-success"}`}>{totalPending === 0 ? "nada por revisar" : `${totalPending} por revisar`}</strong>
+              {totalOverdue > 0 ? ` · ${totalOverdue} ${totalOverdue === 1 ? "tarea vencida" : "tareas vencidas"}` : ""}
+              {prep.length > 0 ? ` · ${prep.length} en preparación` : ""} · {filed.length} {filed.length === 1 ? "causa en tramitación" : "causas en tramitación"}
             </span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <HelpPop label="Cómo funciona" title="Revisión de causas">
-            <span>Las causas van por año de ingreso y mes, como las hojas del Excel. Pulsa «Revisar», elige el año y el mes (o todo el año) y aparecen solo esas causas.</span>
-            <span>
-              La cadencia sale del estado de la causa: sin resolución de liquidación (o sin «Ejecución» en renegociación) se revisa cada {REVIEW_CADENCE.critical} días; con ella,
-              cada {REVIEW_CADENCE.settled}. Nadie elige la fecha.
-            </span>
-            <span>
-              «Revisar» abre la causa: si no pasó nada, marca «Sin movimiento» y listo; si hubo novedades, anota qué pasó, si avanzó de paso y qué tarea quedó resuelta o
-              pendiente. Todo queda con tu nombre, día y hora. Con «Guardar y siguiente» (Ctrl+Enter) pasas a la causa que sigue.
-            </span>
-            <span className="flex flex-col gap-1">
-              <span>Colores de la causa:</span>
-              <SemaforoLegend />
-            </span>
-          </HelpPop>
+          {/* De izquierda a derecha: buscar, acotar (equipo y procedimiento), cómo verlo (lista o calendario) y la acción principal */}
+          <form action="/revision" className="contents" role="search">
+            {view !== "equipo" && <input type="hidden" name="ver" value={view} />}
+            {proc && <input type="hidden" name="proc" value={proc} />}
+            <input name="q" defaultValue={q} className="search !min-h-[36px] !w-[220px]" placeholder="Buscar nombre, RUT o rol…" aria-label="Buscar causas" />
+          </form>
+          <Filters view={view} proc={proc} anio={anio} mes={mes} lawyers={lawyerOpts} />
           <div className="seg" role="group" aria-label="Vista de Revisión">
             <Link href={link({ modo: undefined, semana: undefined })} aria-current={modo === "lista" ? "true" : undefined}>
               Lista
@@ -307,12 +297,6 @@ async function RevisionContent(props: { searchParams: Promise<{ ver?: string; pr
               Calendario
             </Link>
           </div>
-          <form action="/revision" className="contents" role="search">
-            {view !== "equipo" && <input type="hidden" name="ver" value={view} />}
-            {proc && <input type="hidden" name="proc" value={proc} />}
-            <input name="q" defaultValue={q} className="search !min-h-[36px] !w-[220px]" placeholder="Buscar nombre, RUT o rol…" aria-label="Buscar causas" />
-          </form>
-          <Filters view={view} proc={proc} anio={anio} mes={mes} lawyers={lawyerOpts} />
           {modo === "lista" && <ReviewPicker summary={summary} anio={anio} mes={mes} base={{ ver: view !== "equipo" ? view : "", proc }} />}
         </div>
       </div>
