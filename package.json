@@ -15,7 +15,9 @@
     "test:ficha": "node scripts/e2e-ficha.mjs",
     "test:plantillas": "node scripts/e2e-plantillas.mjs",
     "test:tribunales": "npx -y tsx scripts/test-tribunales.mts",
-    "test:lvs": "node scripts/e2e-lvs.mjs"
+    "test:lvs": "node scripts/e2e-lvs.mjs",
+    "pjud:prueba": "npx -y tsx scripts/pjud-prueba.mts",
+    "pjud:tribunales": "npx -y tsx scripts/pjud-tribunales.mts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
@@ -23,6 +25,7 @@
     "@radix-ui/react-select": "^2.3.7",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.0",
+    "cheerio": "^1.2.0",
     "docx-preview": "^0.4.1",
     "docxtemplater": "^3.71.0",
     "lucide-react": "^1.47.0",
