@@ -56,14 +56,29 @@ export async function loadPjud(supabase: SupabaseClient, clientId: string): Prom
   return { ...(data as PjudCausaData), documentos: (docs ?? []) as PjudDocumento[] };
 }
 
+/** Índice de los documentos por (tipo, cuaderno, folio): una búsqueda por fila en vez de recorrer cientos de documentos. */
+export type IndiceDocs = Map<string, PjudDocumento[]>;
+const claveDoc = (tipo: string, cuaderno: string, folio: number) => `${tipo}|${cuaderno}|${folio}`;
+export function indexarDocumentos(docs: PjudDocumento[] | undefined): IndiceDocs {
+  const m: IndiceDocs = new Map();
+  for (const d of docs ?? []) {
+    const k = claveDoc(d.tipo, d.cuaderno, d.folio);
+    const l = m.get(k);
+    if (l) l.push(d);
+    else m.set(k, [d]);
+  }
+  for (const l of m.values()) l.sort((a, b) => a.orden - b.orden);
+  return m;
+}
+
 /** El documento n-ésimo (orden) de un folio y tipo (o de la cabecera: cuaderno '' y folio 0) entre los ya bajados. */
-export function documentoDe(docs: PjudDocumento[] | undefined, tipo: PjudDocumento["tipo"], cuaderno = "", folio = 0, orden = 0): PjudDocumento | undefined {
-  return docs?.find((d) => d.tipo === tipo && d.cuaderno === cuaderno && d.folio === folio && d.orden === orden);
+export function documentoDe(idx: IndiceDocs, tipo: PjudDocumento["tipo"], cuaderno = "", folio = 0, orden = 0): PjudDocumento | undefined {
+  return idx.get(claveDoc(tipo, cuaderno, folio))?.find((d) => d.orden === orden);
 }
 
 /** Todos los documentos de un folio y tipo, en orden (las carpetas de anexos). */
-export function documentosDe(docs: PjudDocumento[] | undefined, tipo: PjudDocumento["tipo"], cuaderno = "", folio = 0): PjudDocumento[] {
-  return (docs ?? []).filter((d) => d.tipo === tipo && d.cuaderno === cuaderno && d.folio === folio).sort((a, b) => a.orden - b.orden);
+export function documentosDe(idx: IndiceDocs, tipo: PjudDocumento["tipo"], cuaderno = "", folio = 0): PjudDocumento[] {
+  return idx.get(claveDoc(tipo, cuaderno, folio)) ?? [];
 }
 
 /** Una causa no se sincroniza a mano más de una vez cada 6 horas (el cron diario no tiene este límite). */

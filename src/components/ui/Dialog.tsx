@@ -36,7 +36,8 @@ export function Modal({
     <D.Root open onOpenChange={(o) => !o && !busy && onClose()}>
       <D.Portal>
         <div onClick={stop} onPointerDown={stop}>
-          <D.Overlay className="modal-backdrop fade-in" />
+          {/* La ventana grande (Ficha jurídica) va sin desenfoque de fondo: difuminar una página larga entera cuesta mucho al abrir */}
+          <D.Overlay className={`modal-backdrop fade-in ${size === "xl" ? "no-blur" : ""}`} />
           <D.Content className={`card modal animate-in ${size === "xl" ? "!max-w-[1380px] !w-[94vw]" : size === "lg" ? "!max-w-[820px]" : wide ? "!max-w-[560px]" : "!max-w-[460px]"}`} aria-describedby={undefined}>
             <div className={hideTitle ? "sr-only" : "flex flex-col gap-1"}>
               <D.Title className="card-title">{title}</D.Title>
