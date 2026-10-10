@@ -1,0 +1,15 @@
+# Build para la imagen de los scripts del PJUD (Cloud Run Job), no la app Next.js (esa va a Vercel).
+# Uso manual: gcloud builds submit --config=cloudbuild.pjud.yaml --region=southamerica-west1 .
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - build
+      - -f
+      - Dockerfile.pjud
+      - -t
+      - southamerica-west1-docker.pkg.dev/$PROJECT_ID/pjud/scraper:latest
+      - .
+images:
+  - southamerica-west1-docker.pkg.dev/$PROJECT_ID/pjud/scraper:latest
+options:
+  logging: CLOUD_LOGGING_ONLY

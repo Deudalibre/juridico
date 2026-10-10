@@ -1,0 +1,19 @@
+# Imagen para correr los scripts del PJUD (sync y descarga de PDFs) como Cloud Run Jobs en southamerica-west1 (Santiago):
+# el cortafuegos del PJUD rechaza IPs de datacenter de EE.UU./UE (Vercel, Railway) pero no las de Chile. Se construye con cloudbuild.pjud.yaml.
+# No es la app Next.js completa: solo lo necesario para correr scripts/pjud-sync.mts y pjud-download-docs.mts con tsx.
+FROM node:22-slim
+
+WORKDIR /app
+
+# Solo las dependencias de runtime (cheerio, @supabase/supabase-js, @vercel/blob): no Next.js/eslint/tailwind, que no usan estos scripts.
+COPY package.json package-lock.json ./
+RUN npm install --omit=dev
+
+# tsx no es dependencia del proyecto (se invoca con npx -y en la PC del estudio); se instala global una vez en la imagen
+RUN npm install -g tsx
+
+COPY tsconfig.json ./
+COPY src ./src
+COPY scripts ./scripts
+
+ENTRYPOINT ["tsx"]
