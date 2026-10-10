@@ -4616,3 +4616,14 @@ html[data-sidebar="collapsed"] .rail-toggle-exp {
 html[data-sidebar="collapsed"] .rail-toggle-col {
   display: inline;
 }
+
+/* Ventana de la Ficha jurídica: fondo sin desenfoque (barato de pintar) y filas de la Historia que se dibujan solo al
+   entrar en pantalla; con causas de 100+ actuaciones la ventana abre sin trabarse */
+.modal-backdrop.no-blur {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.ojv-tabla tbody tr {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 38px;
+}

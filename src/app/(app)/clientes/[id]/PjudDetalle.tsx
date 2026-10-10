@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Dialog";
-import { documentoDe, documentosDe, fechaPjud, type Actuacion, type PjudCausaData, type PjudDocumento } from "@/lib/pjud-data";
+import { documentoDe, documentosDe, fechaPjud, indexarDocumentos, type Actuacion, type PjudCausaData, type PjudDocumento } from "@/lib/pjud-data";
 
 /**
  * Espejo del modal «Detalle Causa Civil» de la Oficina Judicial Virtual, tal cual se ve en el PJUD: cabecera con los
@@ -22,7 +22,7 @@ export function PjudDetalle({ data }: { data: PjudCausaData }) {
   const cuadernos = data.cuadernos ?? [];
   const actual = cuadernos[cuaderno] ?? cuadernos[0];
   const nombreCuaderno = actual?.nombre ?? "";
-  const docs = data.documentos;
+  const docs = useMemo(() => indexarDocumentos(data.documentos), [data.documentos]);
   // Orden de cada fila entre las de su mismo folio, en el orden en que lo publica el PJUD (así se guardó en pjud_documentos)
   const { filas, ordenDe } = useMemo(() => {
     const lista = actual?.actuaciones ?? [];
