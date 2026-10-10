@@ -1,34 +1,28 @@
 // Baja los PDFs del Poder Judicial (Oficina Judicial Virtual) y los sube a Vercel Blob; en Supabase queda solo la URL
-// (tabla pjud_documentos). Corre desde un PC del estudio, porque el cortafuegos del PJUD rechaza las IP de Vercel.
+// (tabla pjud_documentos). Corre desde una IP chilena/LATAM (PC del estudio, o el Cloud Run Job en southamerica-west1): el cortafuegos
+// del PJUD rechaza las IP de datacenter de Vercel/EE.UU./UE.
 //
-//   npx -y tsx scripts/pjud-download-docs.mts --cuenta C:/ruta/credenciales.txt [--causa-id <uuid>] [--mes 2026-08] [--limite N] [--desde 2026-08-01] [--contacto correo]
+//   npx -y tsx scripts/pjud-download-docs.mts --cuenta C:/ruta/credenciales.txt [--causa-id <uuid>] [--mes 2026-08] [--limite N] [--desde 2026-08-01] [--contacto correo] [--origen cloud-run]
 //
 // Flujo: lee las causas activas con rol y tribunal → por cada una abre el detalle fresco en la OJV (los JWT de descarga
 // vencen a la hora) → por cada documento reserva la fila con pjud_documento_reservar (lock: si ya existe o se está
-// bajando desde otro PC, se salta) → GET del PDF sin cookies (30 s) → put() en Vercel Blob → pjud_documento_terminar.
+// bajando desde otro origen, se salta) → GET del PDF sin cookies (30 s) → put() en Vercel Blob → pjud_documento_terminar.
 // Ritmo: la OJV ya impone 5 s entre consultas (PjudClient); además 2 s entre documentos de la misma causa.
 // Independiente de la sincronización (pjud-sync.mts y /api/pjud/sync): no toca pjud_causa_data.
 import { put } from "@vercel/blob";
 import { createClient } from "@supabase/supabase-js";
-import { existsSync, readFileSync } from "node:fs";
 import { CausaNoEncontrada, PjudBloqueado, PjudClient, normalizarTribunal, urlDocumento, type DetalleCausa } from "../src/lib/pjud";
+import { cargarCuenta, cargarEnv } from "./pjud-entorno.mts";
 
 const args = process.argv.slice(2);
 const opt = (k: string) => (args.includes(k) ? args[args.indexOf(k) + 1] : undefined);
-const env = Object.fromEntries(readFileSync(".env.local", "utf8").split(/\r?\n/).filter((l) => /^[A-Z_]+=/.test(l)).map((l) => l.split(/=(.*)/s).slice(0, 2).map((x) => x.replace(/^["']|["']$/g, ""))));
-const cuenta = opt("--cuenta");
-if (!cuenta || !existsSync(cuenta)) {
-  console.error("Falta --cuenta <archivo con Usuario:/Correo: y Clave:>");
-  process.exit(1);
-}
-const tokenBlob = process.env.BLOB_READ_WRITE_TOKEN ?? env.BLOB_READ_WRITE_TOKEN;
+const env = cargarEnv();
+const tokenBlob = env.BLOB_READ_WRITE_TOKEN;
 if (!tokenBlob) {
-  console.error("Falta BLOB_READ_WRITE_TOKEN en .env.local (Vercel → Storage → Blob → token). Sin él no hay dónde subir los PDFs.");
+  console.error("Falta BLOB_READ_WRITE_TOKEN (.env.local en la PC del estudio, o Secret Manager en el Cloud Run Job). Sin él no hay dónde subir los PDFs.");
   process.exit(1);
 }
-const cred = readFileSync(cuenta, "utf8");
-const email = cred.match(/(?:Correo|Usuario):\s*(\S+)/)?.[1] ?? "";
-const password = cred.match(/Clave:\s*(\S+)/)?.[1] ?? "";
+const { email, password } = cargarCuenta(opt);
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 const login = await supabase.auth.signInWithPassword({ email, password });
 if (login.error) {
@@ -42,6 +36,14 @@ const hora = () => new Date().toLocaleTimeString("es-CL", { timeZone: "America/S
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const kb = (n: number) => `${Math.round(n / 1024)} KB`;
 const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
+
+// Tope de una corrida completa al día (migración 0039): si ya se tocó la OJV hoy con este mismo tipo, no se repite.
+const { data: corridaId, error: eCorrida } = await supabase.rpc("pjud_corrida_iniciar", { p_tipo: "docs", p_origen: opt("--origen") ?? null });
+if (eCorrida) {
+  console.error(`Detención total: ${eCorrida.message}`);
+  await supabase.auth.signOut();
+  process.exit(1);
+}
 
 // Mismo orden que la sincronización (pjud_cola_sync): primero las causas con actuaciones recientes, luego las más antiguas
 type Fila = { id: string; rol: string; tribunal: string };
@@ -75,6 +77,7 @@ let bytes = 0;
 let saltados = 0;
 let errores = 0;
 let causasConError = 0;
+let bloqueado = false;
 
 type Tipo = "actuacion" | "certificado" | "anexo" | "anexo_causa" | "demanda" | "certificado_demanda" | "ebook";
 type Doc = { cuaderno: string; folio: number; tipo: Tipo; orden: number; action: string; param: string; token: string; etiqueta: string; referencia?: string; fecha?: string | null };
@@ -149,6 +152,7 @@ for (const c of pendientes) {
     const msg = (e as Error).message;
     console.log(`${tag} ${e instanceof CausaNoEncontrada ? "no encontrada" : e instanceof PjudBloqueado ? "BLOQUEO" : "error"}: ${msg.slice(0, 200)}`);
     if (e instanceof PjudBloqueado) {
+      bloqueado = true;
       console.log("Detención total: no se sigue consultando. Revisar antes de reintentar.");
       break;
     }
@@ -167,7 +171,7 @@ for (const c of pendientes) {
     if (!reserva) {
       saltados++;
       yaExistian++;
-      continue; // ya existe (hecho, o bajándose desde otro PC, o con error hace menos de 1 h)
+      continue; // ya existe (hecho, o bajándose desde otro origen, o con error hace menos de 1 h)
     }
     if (!primero) await dormir(2000);
     primero = false;
@@ -197,4 +201,6 @@ console.log(`\n${hora()} · resumen en ${Math.round((Date.now() - inicio) / 6000
 console.log(`✓ ${nuevos} PDFs nuevos subidos (${mb(bytes)})`);
 console.log(`→ ${saltados} ya existían, skipped`);
 console.log(`✗ ${errores} errores (reintentables)${causasConError ? ` · ${causasConError} causa(s) sin detalle` : ""}`);
+const completa = pendientes.length > 0 && causasConError + (pendientes.length - causasConError) === pendientes.length && !bloqueado;
+await supabase.rpc("pjud_corrida_terminar", { p_id: corridaId, p_estado: bloqueado ? "bloqueada" : completa ? "completa" : "parcial", p_ok: pendientes.length - causasConError, p_fallas: causasConError, p_peticiones: cliente.bitacora.length });
 await supabase.auth.signOut();

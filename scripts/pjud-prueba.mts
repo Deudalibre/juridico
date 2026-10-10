@@ -2,6 +2,12 @@
 //   npx -y tsx scripts/pjud-prueba.mts "C-12971-2026|13º Juzgado Civil de Santiago" "C-1740-2026|1º Juzgado Civil de Valparaíso"
 // Opciones: --contacto correo@dominio.cl (User-Agent), --codigos (resuelve el código del tribunal con los combos de
 // la OJV; sin esta opción busca sin tribunal y elige la fila por el nombre), --json carpeta (guarda el detalle).
+//
+// ⚠ Este script SÍ toca el PJUD real (no es un mock), aunque no quede registrado en pjud_corridas (no tiene sesión):
+// correrlo varias veces el mismo día que ya corrió pjud-sync.mts o pjud-download-docs.mts suma al mismo volumen desde
+// la misma IP que un día (9-10 oct 2026) hizo que el cortafuegos F5 empezara a interponer su desafío JavaScript.
+// Antes de correrlo, confirmar que hoy no hubo ya una corrida completa (select * from pjud_corridas donde
+// iniciado_at::date = hoy): si la hubo, esperar a mañana en vez de sumar otra pasada manual al mismo día.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PjudClient, PjudBloqueado, CausaNoEncontrada, EstructuraInesperada, PjudNoRespondio, normalizarTribunal, type Tribunal } from "../src/lib/pjud";
