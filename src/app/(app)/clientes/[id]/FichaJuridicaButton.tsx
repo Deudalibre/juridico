@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Icon } from "@/components/icons";
 import { Modal } from "@/components/ui/Dialog";
 import { fechaPjud, haceCuanto, type PjudCausaData } from "@/lib/pjud-data";
@@ -55,13 +55,22 @@ function EstadoSync({ data, cargando }: { data: PjudCausaData | null; cargando: 
 export function FichaJuridicaButton({ data: inicial, rol, tribunal, clientId, canSync, variant, onOpen }: Props) {
   const [open, setOpen] = useState(false);
   const [cargada, setCargada] = useState<PjudCausaData | null | undefined>(inicial);
-  const [cargando, start] = useTransition();
+  // Carga con estado propio, NO con useTransition: dentro de una transición, la <ViewTransition> del marco (AppShell)
+  // fotografía la página y la funde encima al abrir la ventana (se veía una «imagen» sobrepuesta antes del PJUD)
+  const [cargando, setCargando] = useState(false);
   const sinRol = !rol || !tribunal;
   const bajoDemanda = inicial === undefined;
   // En la cabecera los datos llegan del servidor y se refrescan con router.refresh(); en la lista se piden al abrir.
   const data = bajoDemanda ? cargada : inicial;
 
-  const recargar = () => start(async () => setCargada((await cargarPjud(clientId)).data));
+  const recargar = async () => {
+    setCargando(true);
+    try {
+      setCargada((await cargarPjud(clientId)).data);
+    } finally {
+      setCargando(false);
+    }
+  };
   const abrir = () => {
     onOpen?.();
     setOpen(true);

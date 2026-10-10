@@ -362,7 +362,9 @@ export function AppShell({ children, userId, name, role, permissions, badge, crm
           </div>
         </header>
         <main className="content">
-          <ViewTransition key={path} enter="page-enter" exit="page-exit" default="page-update">
+          {/* Solo se anima el cambio de pantalla (enter/exit). default="none": con «page-update», cualquier transición dentro de
+              la vista (abrir la Ficha jurídica, sincronizar, router.refresh) fundía una foto de la página encima */}
+          <ViewTransition key={path} enter="page-enter" exit="page-exit" default="none">
             {children}
           </ViewTransition>
         </main>
